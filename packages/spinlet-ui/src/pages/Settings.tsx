@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Save, Key, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function Settings() {
   const [adminToken, setAdminToken] = useState('');
@@ -13,8 +14,7 @@ export default function Settings() {
 
   const handleSave = () => {
     api.setAdminToken(adminToken);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    toast.success('Settings saved successfully!');
   };
 
   return (
@@ -80,9 +80,6 @@ export default function Settings() {
         </div>
 
         <div className="flex items-center justify-end gap-x-6 border-t border-gray-900/10 px-4 py-4 sm:px-8">
-          {saved && (
-            <span className="text-sm text-green-600">Settings saved!</span>
-          )}
           <button
             type="button"
             onClick={handleSave}

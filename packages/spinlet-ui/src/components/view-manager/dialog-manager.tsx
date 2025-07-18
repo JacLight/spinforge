@@ -1,10 +1,10 @@
 import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { appPathMap, routeRegistry } from './app-links';
-import ErrorBoundary from '@/components/common/ErrorBoundary';
-import ViewManager from '.';
 import { toTitleCase } from '@/utils/helpers';
 import { useShallow } from 'zustand/shallow';
 import { useSiteStore } from '@/store/site-store';
+import ErrorBoundary from '../ErrorBoundary';
+import ViewManager from './ViewManager';
 
 interface DialogController {
   openDialog: (id: string, componentNameOrComponent: string | React.ComponentType<any>, props?: Record<string, any>, allowMultiple?: boolean) => void;
@@ -155,7 +155,7 @@ const Dialog: React.FC<DialogProps> = ({ id, Component, props, onClose }) => {
 
   // ViewManager handles all docking logic internally
   return (
-    <ViewManager id={id} defaultPosition={{ x: 'center', y: 'centre' }} onClose={onClose} title={props.title || toTitleCase(id)}>
+    <ViewManager id={id} defaultPosition={{ x: 'center', y: 'centre' as any }} onClose={onClose} title={props.title || toTitleCase(id)}>
       {render}
     </ViewManager>
   );

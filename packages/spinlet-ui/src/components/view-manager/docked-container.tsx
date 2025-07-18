@@ -4,9 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { classNames } from '@/utils/helpers';
 import { useSiteStore } from '@/store/site-store';
 import { useShallow } from 'zustand/shallow';
-import { isNotEmpty } from '@/utils/helpers';
-import { IconRenderer } from '@/ui/icons/icon-renderer';
-import { closeAllDockedWindows } from '@/ui/view-manager/dialog-manager';
 
 export const DockedContainer: React.FC<{ className? }> = ({ className = '' }) => {
   const { dockedWindows, isDockedOpen, setStateItem } = useSiteStore(

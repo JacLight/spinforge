@@ -1,22 +1,70 @@
 import { create } from 'zustand';
-import { getRandomString } from '../utils/helpers';
+import { getRandomString } from '../utils';
 
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  status: string;
+}
+
+interface ConfirmDialog {
+  message: string;
+  buttons: string[];
+  callback: () => void;
+}
+
+interface MinimizedWindow {
+  id: string;
+  title: string;
+  content: any;
+  onRestore: () => void;
+  onClose: () => void;
+}
 
 export interface SiteStoreProps {
+  // UI State
+  siteTreeVisible: boolean;
+  statusView: string;
+  isDockedOpen?: boolean;
+  statusHeight: number;
   
-  showNotice?: (message, type: string) => void;
-  showConfirm?: (message, buttons, callback) => void;
+  // Notifications
+  notifications: Notification[];
+  showNotice: (message: string, type: string) => void;
+  
+  // Dialogs
+  confirmDialog: ConfirmDialog | null;
+  showConfirm: (message: string, buttons: string[], callback: () => void) => void;
+  
+  // Window Management
+  minimizedWindows: MinimizedWindow[];
+  dockedWindows: MinimizedWindow[];
+  
+  // Generic state management
+  setStateItem: (items: { [key: string]: any }) => void;
+  getStateItem: (key: string) => any;
 }
 
 export const useSiteStore = create<SiteStoreProps>()((set, get) => ({
+  // Initial state
   siteTreeVisible: true,
   statusView: 'web',
-  showNotice: (message, type: string) => {
+  statusHeight: 0,
+  notifications: [],
+  confirmDialog: null,
+  minimizedWindows: [],
+  dockedWindows: [],
+  
+  // Actions
+  showNotice: (message: string, type: string) => {
     if (typeof message !== 'string') return;
     const notification = { id: getRandomString(6), title: '', message, type, status: 'new' };
-    set({ notifications: [...(get().notifications || []), notification] });
+    set({ notifications: [...get().notifications, notification] });
   },
-  showConfirm: (message, buttons, callback) => {
+  
+  showConfirm: (message: string, buttons: string[], callback: () => void) => {
     if (typeof message !== 'string') return;
     const confirm = {
       message,
@@ -28,9 +76,9 @@ export const useSiteStore = create<SiteStoreProps>()((set, get) => ({
     };
     set({ confirmDialog: confirm });
   },
-  setStateItem: (items: { [key: string]: any }) => set((state: any) => ({ ...items })),
-  getStateItem: (key: string) => get()[key],
   
+  setStateItem: (items: { [key: string]: any }) => set((state) => ({ ...state, ...items })),
+  getStateItem: (key: string) => get()[key as keyof SiteStoreProps],
 }));
 
 export enum NotificationType {

@@ -1,36 +1,8 @@
 import { twMerge } from 'tailwind-merge';
-import styleToObject from 'style-to-object';
-import camelcaseKeys from 'camelcase-keys';
-import { BaseModel } from '@/components/appmint-form/utils';
-
-export const cssToObject = value => camelcaseKeys(styleToObject(value));
-
-export const concreteCollections = new Map<String, BaseModel<any>>();
 
 export function classNames(...classes: (string | undefined | null | false | 0)[]) {
   return twMerge(classes.filter(Boolean).join(' '));
 }
-
-export const safeJSON = (data: any) => {
-  if (typeof data === 'string') {
-    try {
-      return JSON.parse(data);
-    } catch (e) {
-      console.error('Invalid JSON string:', data, e);
-      return null;
-    }
-  } else if (typeof data === 'object' && data !== null) {
-    try {
-      return JSON.parse(JSON.stringify(data));
-    } catch (e) {
-      console.error('Invalid object:', data, e);
-      return null;
-    }
-  } else {
-    console.error('Data is neither a string nor an object:', data);
-    return null;
-  }
-};
 
 export const toTitleCase = (str: string) => {
   if (!str) return str;

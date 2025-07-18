@@ -14,6 +14,7 @@ interface LayoutProps {
 }
 
 const navItems = [
+  { path: '/welcome', icon: Rocket, label: 'Overview' },
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/applications', icon: Package, label: 'Applications' },
   { path: '/deploy', icon: Upload, label: 'Deploy' },

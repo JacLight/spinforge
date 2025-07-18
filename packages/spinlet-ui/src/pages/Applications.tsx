@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, Route } from '../services/api';
+import { toast } from 'sonner';
 import { 
   Globe, 
   Package, 
@@ -26,6 +27,10 @@ export default function Applications() {
     mutationFn: (domain: string) => api.deleteRoute(domain),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routes'] });
+      toast.success('Application deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete application: ${error.message}`);
     },
   });
 
@@ -169,9 +174,29 @@ export default function Applications() {
                             </a>
                             <button
                               onClick={() => {
-                                if (confirm(`Delete application ${route.domain}?`)) {
-                                  deleteMutation.mutate(route.domain);
-                                }
+                                toast.custom((t) => (
+                                  <div className="bg-white p-4 rounded-lg shadow-lg">
+                                    <p className="font-medium">Delete application?</p>
+                                    <p className="text-sm text-gray-600 mt-1">{route.domain}</p>
+                                    <div className="flex gap-2 mt-3">
+                                      <button
+                                        onClick={() => {
+                                          deleteMutation.mutate(route.domain);
+                                          toast.dismiss(t);
+                                        }}
+                                        className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </button>
+                                      <button
+                                        onClick={() => toast.dismiss(t)}
+                                        className="px-3 py-1 bg-gray-200 text-gray-800 rounded text-sm hover:bg-gray-300"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ));
                               }}
                               className="text-red-600 hover:text-red-900"
                             >

@@ -14,7 +14,8 @@
       "Bash(docker:*)",
       "Bash(npm install:*)",
       "Bash(npx lerna:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

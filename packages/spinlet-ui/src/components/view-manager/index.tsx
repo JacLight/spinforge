@@ -1,11 +1,9 @@
-'use client';
-
 import React, { useState, useEffect, useRef } from 'react';
 import { IconRenderer } from '../icons/icon-renderer';
-import { useShallow } from 'zustand/shallow';
-import { useSiteStore } from '@/store/site-store';
+import { useShallow } from 'zustand/react/shallow';
+import { useSiteStore } from '../../store/site-store';
 import { createPortal } from 'react-dom';
-import { classNames } from '@/utils/helpers';
+import { classNames } from '../../utils/helpers';
 
 const calculatePosition = (position, size) => {
   const { x, y } = position;
