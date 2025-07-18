@@ -1,0 +1,33 @@
+# Simplified Dockerfile for SpinForge
+
+FROM node:20-alpine
+
+# Install system dependencies
+RUN apk add --no-cache curl git python3 make g++ docker-cli
+
+# Set working directory
+WORKDIR /spinforge
+
+# Copy all source files
+COPY . .
+
+# Install dependencies
+RUN npm install
+
+# Build all packages
+RUN npm run build || true
+
+# Create necessary directories
+RUN mkdir -p /spinforge/builds /spinforge/data /spinforge/logs /spinforge/cache
+
+# Make CLI executable
+RUN if [ -f packages/spinlet-cli/dist/cli.js ]; then \
+      chmod +x packages/spinlet-cli/dist/cli.js && \
+      ln -s /spinforge/packages/spinlet-cli/dist/cli.js /usr/local/bin/spinforge; \
+    fi
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Default to running SpinHub
+CMD ["node", "packages/spinlet-hub/dist/server.js"]

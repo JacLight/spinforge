@@ -1,0 +1,197 @@
+# SpinForge Cluster Configuration
+# This extends the base docker-compose.yml for high availability
+version: '3.8'
+
+services:
+  # KeyDB Cluster (3 nodes)
+  keydb-1:
+    image: eqalpha/keydb:alpine
+    container_name: spinforge-keydb-1
+    restart: unless-stopped
+    ports:
+      - "9000:6379"
+    environment:
+      - KEYDB_PASSWORD=${KEYDB_PASSWORD}
+    command: >
+      keydb-server
+      --requirepass ${KEYDB_PASSWORD}
+      --server-threads 4
+      --active-replica yes
+      --multi-master yes
+      --replicaof keydb-2 6379
+      --replicaof keydb-3 6379
+    volumes:
+      - keydb-data-1:/data
+    networks:
+      - spinforge-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${KEYDB_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  keydb-2:
+    image: eqalpha/keydb:alpine
+    container_name: spinforge-keydb-2
+    restart: unless-stopped
+    ports:
+      - "9001:6379"
+    environment:
+      - KEYDB_PASSWORD=${KEYDB_PASSWORD}
+    command: >
+      keydb-server
+      --requirepass ${KEYDB_PASSWORD}
+      --server-threads 4
+      --active-replica yes
+      --multi-master yes
+      --replicaof keydb-1 6379
+      --replicaof keydb-3 6379
+    volumes:
+      - keydb-data-2:/data
+    networks:
+      - spinforge-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${KEYDB_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  keydb-3:
+    image: eqalpha/keydb:alpine
+    container_name: spinforge-keydb-3
+    restart: unless-stopped
+    ports:
+      - "9002:6379"
+    environment:
+      - KEYDB_PASSWORD=${KEYDB_PASSWORD}
+    command: >
+      keydb-server
+      --requirepass ${KEYDB_PASSWORD}
+      --server-threads 4
+      --active-replica yes
+      --multi-master yes
+      --replicaof keydb-1 6379
+      --replicaof keydb-2 6379
+    volumes:
+      - keydb-data-3:/data
+    networks:
+      - spinforge-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${KEYDB_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # HAProxy for KeyDB load balancing
+  keydb-lb:
+    image: haproxy:alpine
+    container_name: spinforge-keydb-lb
+    restart: unless-stopped
+    ports:
+      - "9003:6379"
+    volumes:
+      - ./haproxy-keydb.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - spinforge-net
+    depends_on:
+      - keydb-1
+      - keydb-2
+      - keydb-3
+    healthcheck:
+      test: ["CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # SpinHub instances (3 replicas)
+  spinhub:
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    environment:
+      - KEYDB_URL=redis://:${KEYDB_PASSWORD}@keydb-lb:6379
+      - CLUSTER_MODE=true
+      - NODE_ID={{.Task.Slot}}
+    depends_on:
+      - keydb-lb
+
+  # Builder service instances (2 replicas)
+  builder-service:
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    environment:
+      - KEYDB_URL=redis://:${KEYDB_PASSWORD}@keydb-lb:6379
+      - CLUSTER_MODE=true
+    depends_on:
+      - keydb-lb
+
+  # Nginx with multiple upstreams
+  nginx:
+    volumes:
+      - ./nginx-cluster.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - spinhub
+      - keydb-lb
+
+  # Additional monitoring for cluster
+  redis-exporter-1:
+    image: oliver006/redis_exporter:alpine
+    container_name: spinforge-redis-exporter-1
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=keydb-1:6379
+      - REDIS_PASSWORD=${KEYDB_PASSWORD}
+    networks:
+      - spinforge-net
+    depends_on:
+      - keydb-1
+
+  redis-exporter-2:
+    image: oliver006/redis_exporter:alpine
+    container_name: spinforge-redis-exporter-2
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=keydb-2:6379
+      - REDIS_PASSWORD=${KEYDB_PASSWORD}
+    networks:
+      - spinforge-net
+    depends_on:
+      - keydb-2
+
+  redis-exporter-3:
+    image: oliver006/redis_exporter:alpine
+    container_name: spinforge-redis-exporter-3
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=keydb-3:6379
+      - REDIS_PASSWORD=${KEYDB_PASSWORD}
+    networks:
+      - spinforge-net
+    depends_on:
+      - keydb-3
+
+volumes:
+  keydb-data-1:
+  keydb-data-2:
+  keydb-data-3:

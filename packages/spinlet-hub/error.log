@@ -1,0 +1,1 @@
+{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"level":"error","message":"Redis error: connect ECONNREFUSED 172.25.0.4:6379","port":6379,"service":"spinforge","stack":"Error: connect ECONNREFUSED 172.25.0.4:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","syscall":"connect","timestamp":"2025-07-18T04:18:50.600Z"}

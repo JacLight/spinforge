@@ -1,0 +1,339 @@
+# SpinForge Kubernetes Deployment
+# Deploy SpinForge on Kubernetes cluster
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spinforge
+  labels:
+    app: spinforge
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spinforge-config
+  namespace: spinforge
+data:
+  NODE_ENV: "production"
+  REDIS_HOST: "keydb-service"
+  REDIS_PORT: "6379"
+  PORT: "8080"
+  HOST: "0.0.0.0"
+  TRUST_PROXY: "true"
+  PORT_START: "30000"
+  PORT_END: "40000"
+  DEFAULT_MEMORY_LIMIT: "512MB"
+  DEFAULT_CPU_LIMIT: "0.5"
+  LOG_LEVEL: "info"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spinforge-secrets
+  namespace: spinforge
+type: Opaque
+stringData:
+  redis-password: "changeme-strong-password"
+  admin-token: "changeme-admin-token"
+
+---
+# KeyDB StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keydb
+  namespace: spinforge
+spec:
+  serviceName: keydb-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keydb
+  template:
+    metadata:
+      labels:
+        app: keydb
+    spec:
+      containers:
+      - name: keydb
+        image: eqalpha/keydb:latest
+        ports:
+        - containerPort: 6379
+          name: keydb
+        command:
+        - keydb-server
+        - --appendonly
+        - "yes"
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spinforge-secrets
+              key: redis-password
+        volumeMounts:
+        - name: keydb-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - keydb-cli -a $REDIS_PASSWORD ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: keydb-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+
+---
+# KeyDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: keydb-service
+  namespace: spinforge
+spec:
+  selector:
+    app: keydb
+  ports:
+  - port: 6379
+    targetPort: 6379
+  clusterIP: None
+
+---
+# SpinHub Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spinhub
+  namespace: spinforge
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spinhub
+  template:
+    metadata:
+      labels:
+        app: spinhub
+    spec:
+      containers:
+      - name: spinhub
+        image: spinforge/spinhub:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spinforge-secrets
+              key: redis-password
+        - name: ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: spinforge-secrets
+              key: admin-token
+        envFrom:
+        - configMapRef:
+            name: spinforge-config
+        volumeMounts:
+        - name: builds
+          mountPath: /spinforge/builds
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /_health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /_health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: builds
+        persistentVolumeClaim:
+          claimName: spinforge-builds-pvc
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket
+
+---
+# PersistentVolumeClaim for builds
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spinforge-builds-pvc
+  namespace: spinforge
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# SpinHub Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: spinhub-service
+  namespace: spinforge
+spec:
+  selector:
+    app: spinhub
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spinforge-ingress
+  namespace: spinforge
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  tls:
+  - hosts:
+    - spinforge.example.com
+    - "*.spinforge.example.com"
+    secretName: spinforge-tls
+  rules:
+  - host: spinforge.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: spinhub-service
+            port:
+              number: 80
+  - host: "*.spinforge.example.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: spinhub-service
+            port:
+              number: 80
+
+---
+# HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: spinhub-hpa
+  namespace: spinforge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: spinhub
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# NetworkPolicy (optional - for security)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spinforge-network-policy
+  namespace: spinforge
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keydb
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80

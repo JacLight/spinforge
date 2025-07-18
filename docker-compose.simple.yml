@@ -1,0 +1,55 @@
+services:
+  # KeyDB - High-performance Redis fork
+  keydb:
+    image: eqalpha/keydb:latest
+    container_name: spinforge-keydb
+    restart: unless-stopped
+    ports:
+      - "9000:6379"
+    volumes:
+      - keydb-data:/data
+    environment:
+      - KEYDB_PASSWORD=${REDIS_PASSWORD:-spinforge123}
+    command: keydb-server --appendonly yes --requirepass ${REDIS_PASSWORD:-spinforge123} --save 60 1 --save 300 10
+    networks:
+      - spinforge-network
+    healthcheck:
+      test: ["CMD", "keydb-cli", "-a", "${REDIS_PASSWORD:-spinforge123}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Development environment - no build required
+  dev:
+    image: node:20-alpine
+    container_name: spinforge-dev
+    working_dir: /spinforge
+    volumes:
+      - ./:/spinforge
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "9004:8080"
+      - "9005:8081"
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=keydb
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-spinforge123}
+      - PORT=8080
+      - HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-changeMe123}
+    command: sh -c "apk add --no-cache git python3 make g++ docker-cli && tail -f /dev/null"
+    depends_on:
+      keydb:
+        condition: service_healthy
+    networks:
+      - spinforge-network
+
+networks:
+  spinforge-network:
+    driver: bridge
+
+volumes:
+  keydb-data:
+    driver: local
