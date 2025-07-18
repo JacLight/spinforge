@@ -18,3 +18,9 @@
 {"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T04:29:09.253Z"}
 {"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T04:29:09.257Z"}
 {"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T04:29:09.258Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T06:30:37.141Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T06:30:37.141Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T06:30:37.142Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T06:30:59.308Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T06:30:59.312Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T06:30:59.312Z"}

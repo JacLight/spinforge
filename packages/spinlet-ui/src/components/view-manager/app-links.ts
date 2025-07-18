@@ -10,6 +10,14 @@ interface AppPathMap {
 }
 
 export const routeRegistry: Record<string, ComponentImport> = {
+  // SpinForge Management Components
+  'deploy-form': () => import('../../pages/DeployForm'),
+  'app-details': () => import('../../pages/Applications'),
+  'system-metrics': () => import('../../pages/Metrics'),
+  'app-settings': () => import('../../pages/Settings'),
+  'system-dashboard': () => import('../../pages/SystemDashboard'),
+  
+  // Example components (commented out)
   // '/build-studio': () => import('../../components/build-studio'),
   // '/page-templates': () => import('../../components/data-view/base-form/base-page-template'),
   // '/data-gallery-view': () => import('../../components/data-view/data-gallery-view'),

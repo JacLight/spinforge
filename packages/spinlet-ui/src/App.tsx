@@ -9,6 +9,9 @@ import Applications from './pages/Applications';
 import DeployForm from './pages/DeployForm';
 import Metrics from './pages/Metrics';
 import Settings from './pages/Settings';
+import DynamicUIDemo from './components/DynamicUIDemo';
+import { DialogManager } from './components/view-manager/dialog-manager';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   // Check if we're in view manager mode
@@ -51,9 +54,11 @@ function App() {
           },
         }}
       />
+      <DialogManager />
       <ModernLayout>
         <Routes>
-          <Route path="/" element={<Navigate to="/welcome" replace />} />
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/modern-dashboard" element={<ModernDashboard />} />
@@ -62,6 +67,7 @@ function App() {
           <Route path="/deploy" element={<DeployForm />} />
           <Route path="/metrics" element={<Metrics />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/dynamic-ui" element={<DynamicUIDemo />} />
         </Routes>
       </ModernLayout>
     </Router>

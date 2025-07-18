@@ -12,7 +12,9 @@ import {
   X,
   Home,
   Monitor,
-  ChevronRight
+  ChevronRight,
+  Layers,
+  Shield
 } from 'lucide-react';
 import { classNames } from '@/utils/helpers';
 
@@ -21,11 +23,13 @@ interface LayoutProps {
 }
 
 const navItems = [
+  { path: '/admin', icon: Shield, label: 'Admin Console', color: 'from-red-500 to-red-600' },
   { path: '/welcome', icon: Home, label: 'Overview', color: 'from-blue-500 to-blue-600' },
-  { path: '/modern-dashboard', icon: Monitor, label: 'Dashboard', color: 'from-purple-500 to-purple-600' },
   { path: '/applications', icon: Package, label: 'Applications', color: 'from-green-500 to-green-600' },
   { path: '/deploy', icon: Upload, label: 'Deploy', color: 'from-orange-500 to-orange-600' },
   { path: '/metrics', icon: BarChart3, label: 'Metrics', color: 'from-pink-500 to-pink-600' },
+  { path: '/modern-dashboard', icon: Monitor, label: 'Analytics', color: 'from-purple-500 to-purple-600' },
+  { path: '/dynamic-ui', icon: Layers, label: 'Dynamic UI', color: 'from-indigo-500 to-indigo-600' },
   { path: '/settings', icon: Settings, label: 'Settings', color: 'from-gray-500 to-gray-600' },
 ];
 
@@ -137,11 +141,11 @@ export default function ModernLayout({ children }: LayoutProps) {
       {/* Main content */}
       <main 
         className={classNames(
-          "transition-all duration-300",
+          "transition-all duration-300 pt-16 lg:pt-0",
           sidebarOpen ? "lg:ml-72" : "lg:ml-0"
         )}
       >
-        <div className="min-h-screen">
+        <div className="min-h-screen p-6">
           {children}
         </div>
       </main>
