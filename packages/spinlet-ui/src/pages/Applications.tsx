@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, Route } from '../services/api';
+import { api, Route, Spinlet } from '../services/api';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { 
   Globe, 
   Package, 
@@ -15,19 +16,22 @@ import {
   Settings,
   Activity,
   Server,
-  Plus
+  Plus,
+  ChevronRight
 } from 'lucide-react';
 
 export default function Applications() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [selectedCustomer, setSelectedCustomer] = useState<string>('all');
 
   const { data: routes = [], isLoading, error } = useQuery({
     queryKey: ['routes', selectedCustomer],
     queryFn: () => 
       selectedCustomer === 'all' 
-        ? api.getAllRoutes() 
+        ? api.getRoutesWithStates() 
         : api.getCustomerRoutes(selectedCustomer),
+    refetchInterval: 10000, // Refresh every 10 seconds to show state changes
   });
 
   const deleteMutation = useMutation({
@@ -154,7 +158,7 @@ export default function Applications() {
                     Application
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
+                    Service Path
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -168,7 +172,7 @@ export default function Applications() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {routes.map((route: Route) => (
+                {routes.map((route: Route & { spinletState?: Spinlet }) => (
                   <tr key={route.domain} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -176,23 +180,62 @@ export default function Applications() {
                           <Globe className="h-5 w-5 text-indigo-600" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{route.domain}</div>
-                          <div className="text-xs text-gray-500">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                              {route.framework}
-                            </span>
-                            <span className="ml-2 text-gray-400">{route.spinletId}</span>
-                          </div>
+                          <button
+                            onClick={() => navigate(`/applications/${route.domain}`)}
+                            className="text-left hover:text-indigo-600 transition-colors"
+                          >
+                            <div className="text-sm font-medium text-gray-900 hover:text-indigo-600">{route.domain}</div>
+                            <div className="text-xs text-gray-500">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                {route.framework}
+                              </span>
+                              {route.spinletState?.servicePath && (
+                                <span className="ml-2 text-gray-500 font-mono">{route.spinletState.servicePath}</span>
+                              )}
+                            </div>
+                          </button>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{route.customerId}</div>
+                      <div className="text-sm font-mono text-gray-900">
+                        {route.spinletState?.servicePath || '-'}
+                      </div>
+                      <div className="text-xs text-gray-500">{route.customerId}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span className="ml-2 text-sm text-gray-600">Running</span>
+                        {route.spinletState?.state === 'running' ? (
+                          <>
+                            <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+                            <span className="ml-2 text-sm text-gray-600">Running</span>
+                          </>
+                        ) : route.spinletState?.state === 'idle' || route.spinletState?.state === 'stopped' ? (
+                          <>
+                            <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
+                            <span className="ml-2 text-sm text-gray-600">Idle</span>
+                          </>
+                        ) : route.spinletState?.state === 'starting' ? (
+                          <>
+                            <div className="h-2 w-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                            <span className="ml-2 text-sm text-gray-600">Starting</span>
+                          </>
+                        ) : route.spinletState?.state === 'crashed' ? (
+                          <>
+                            <div className="h-2 w-2 bg-red-400 rounded-full"></div>
+                            <span className="ml-2 text-sm text-gray-600">Crashed</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-2 w-2 bg-gray-300 rounded-full"></div>
+                            <span className="ml-2 text-sm text-gray-600">Unknown</span>
+                          </>
+                        )}
+                        {route.spinletState?.lastAccess && (
+                          <span className="ml-2 text-xs text-gray-400">
+                            Last: {new Date(route.spinletState.lastAccess).toLocaleTimeString()}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -236,6 +279,15 @@ export default function Applications() {
                           title="Stop Application"
                         >
                           <Pause className="h-4 w-4" />
+                        </button>
+
+                        {/* View Details Button */}
+                        <button
+                          onClick={() => navigate(`/applications/${route.domain}`)}
+                          className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          title="View Details"
+                        >
+                          <ChevronRight className="h-4 w-4" />
                         </button>
 
                         {/* Settings Button */}

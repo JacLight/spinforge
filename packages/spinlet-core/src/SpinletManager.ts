@@ -1,9 +1,8 @@
 import { ChildProcess, fork } from 'child_process';
 import { EventEmitter } from 'events';
-import { nanoid } from 'nanoid';
 import Redis from 'ioredis';
 import pidusage from 'pidusage';
-import { SpinletConfig, SpinletState, SpinletEvents, ResourceUsage } from './types';
+import { SpinletConfig, SpinletState } from './types';
 import { PortAllocator } from './PortAllocator';
 import { SpinletMonitor } from './SpinletMonitor';
 import { IDLE_TIMEOUT_MS, HEALTH_CHECK_INTERVAL_MS } from './constants';
@@ -61,7 +60,9 @@ export class SpinletManager extends EventEmitter {
       errors: 0,
       memory: 0,
       cpu: 0,
-      host: process.env.HOSTNAME || 'localhost'
+      host: process.env.HOSTNAME || 'localhost',
+      servicePath: `localhost:${port}`,
+      domains: []
     };
 
     this.spinlets.set(config.spinletId, child);
@@ -122,10 +123,65 @@ export class SpinletManager extends EventEmitter {
     await Promise.all(promises);
   }
 
+  async updateDomains(spinletId: string, domains: string[]): Promise<void> {
+    const state = this.states.get(spinletId);
+    if (!state) {
+      throw new Error(`Spinlet ${spinletId} not found`);
+    }
+
+    // Remove old domain mappings
+    for (const oldDomain of state.domains) {
+      await this.redis.del(`spinforge:domain:${oldDomain}`);
+    }
+
+    // Update state with new domains
+    state.domains = domains;
+    
+    // Create new domain mappings
+    for (const domain of domains) {
+      await this.redis.set(`spinforge:domain:${domain}`, spinletId);
+    }
+
+    await this.persistState(state);
+  }
+
+  async findByServicePath(servicePath: string): Promise<string | null> {
+    return await this.redis.get(`spinforge:servicepath:${servicePath}`);
+  }
+
+  async findByDomain(domain: string): Promise<string | null> {
+    return await this.redis.get(`spinforge:domain:${domain}`);
+  }
+
+  async getStateByServicePathOrDomain(pathOrDomain: string): Promise<SpinletState | null> {
+    let spinletId: string | null = null;
+
+    // Check if it's a servicePath (contains port)
+    if (pathOrDomain.includes(':')) {
+      spinletId = await this.findByServicePath(pathOrDomain);
+    } else {
+      // Assume it's a domain
+      spinletId = await this.findByDomain(pathOrDomain);
+    }
+
+    if (!spinletId) {
+      return null;
+    }
+
+    return await this.getState(spinletId);
+  }
+
   private async cleanup(spinletId: string, reason: string): Promise<void> {
     const state = this.states.get(spinletId);
     if (state) {
       await this.portAllocator.release(state.port);
+      
+      // Clean up reverse mappings
+      await this.redis.del(`spinforge:servicepath:${state.servicePath}`);
+      for (const domain of state.domains) {
+        await this.redis.del(`spinforge:domain:${domain}`);
+      }
+      
       state.state = 'stopped';
       await this.persistState(state);
     }
@@ -304,13 +360,26 @@ export class SpinletManager extends EventEmitter {
       errors: parseInt(data.errors || '0'),
       memory: parseInt(data.memory || '0'),
       cpu: parseFloat(data.cpu || '0'),
-      host: data.host
+      host: data.host,
+      servicePath: data.servicePath || `localhost:${data.port}`,
+      domains: data.domains ? JSON.parse(data.domains) : []
     };
   }
 
   private async persistState(state: SpinletState): Promise<void> {
     const key = `spinforge:spinlets:${state.spinletId}`;
-    await this.redis.hset(key, state as any);
+    // Convert domains array to JSON for storage
+    const stateToStore = {
+      ...state,
+      domains: JSON.stringify(state.domains)
+    };
+    await this.redis.hset(key, stateToStore as any);
+    
+    // Create reverse mappings for quick lookup
+    await this.redis.set(`spinforge:servicepath:${state.servicePath}`, state.spinletId);
+    for (const domain of state.domains) {
+      await this.redis.set(`spinforge:domain:${domain}`, state.spinletId);
+    }
     
     if (state.state === 'running') {
       await this.redis.zadd('spinforge:active', state.lastAccess, state.spinletId);

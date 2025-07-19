@@ -27,9 +27,9 @@ const navItems = [
   { path: '/welcome', icon: Home, label: 'Overview', color: 'from-blue-500 to-blue-600' },
   { path: '/applications', icon: Package, label: 'Applications', color: 'from-green-500 to-green-600' },
   { path: '/deploy', icon: Upload, label: 'Deploy', color: 'from-orange-500 to-orange-600' },
-  { path: '/metrics', icon: BarChart3, label: 'Metrics', color: 'from-pink-500 to-pink-600' },
-  { path: '/modern-dashboard', icon: Monitor, label: 'Analytics', color: 'from-purple-500 to-purple-600' },
-  { path: '/dynamic-ui', icon: Layers, label: 'Dynamic UI', color: 'from-indigo-500 to-indigo-600' },
+  { path: '/analytics', icon: BarChart3, label: 'Analytics', color: 'from-pink-500 to-pink-600' },
+  { path: '/modern-dashboard', icon: Monitor, label: 'Dashboard', color: 'from-purple-500 to-purple-600' },
+  { path: '/metrics', icon: Layers, label: 'System Metrics', color: 'from-indigo-500 to-indigo-600' },
   { path: '/settings', icon: Settings, label: 'Settings', color: 'from-gray-500 to-gray-600' },
 ];
 
@@ -82,10 +82,9 @@ export default function ModernLayout({ children }: LayoutProps) {
                   className={classNames(
                     "group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                     isActive
-                      ? "bg-gradient-to-r text-white shadow-lg" 
+                      ? `bg-gradient-to-r ${item.color} text-white shadow-lg` 
                       : "text-gray-700 hover:bg-gray-100"
                   )}
-                  style={isActive ? { backgroundImage: `linear-gradient(to right, var(--tw-gradient-stops))` } : {}}
                 >
                   <div className={classNames(
                     "mr-3 p-2 rounded-lg",

@@ -6,38 +6,17 @@ import Dashboard from './pages/Dashboard';
 import ModernDashboard from './pages/ModernDashboard';
 import SystemDashboard from './pages/SystemDashboard';
 import Applications from './pages/Applications';
+import ApplicationDetail from './pages/ApplicationDetail';
 import DeployForm from './pages/DeployForm';
 import Metrics from './pages/Metrics';
 import Settings from './pages/Settings';
 import DynamicUIDemo from './components/DynamicUIDemo';
 import { DialogManager } from './components/view-manager/dialog-manager';
 import AdminDashboard from './pages/AdminDashboard';
+import ControlCenter from './pages/ControlCenter';
+import Analytics from './pages/Analytics';
 
 function App() {
-  // Check if we're in view manager mode
-  const isViewManagerMode = window.location.pathname === '/control-center';
-
-  if (isViewManagerMode) {
-    return (
-      <Router>
-        <Toaster 
-          position="top-right" 
-          richColors 
-          toastOptions={{
-            style: {
-              background: 'white',
-              color: '#1f2937',
-              border: '1px solid #e5e7eb',
-              borderRadius: '0.75rem',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-            },
-          }}
-        />
-        <Routes>
-        </Routes>
-      </Router>
-    );
-  }
 
   return (
     <Router>
@@ -68,6 +47,9 @@ function App() {
           <Route path="/metrics" element={<Metrics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/dynamic-ui" element={<DynamicUIDemo />} />
+          <Route path="/control-center" element={<ControlCenter />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/applications/:domain" element={<ApplicationDetail />} />
         </Routes>
       </ModernLayout>
     </Router>

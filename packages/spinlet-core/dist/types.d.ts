@@ -23,6 +23,8 @@ export interface SpinletState {
     memory: number;
     cpu: number;
     host: string;
+    servicePath: string;
+    domains: string[];
 }
 export interface SpinletMetrics {
     timestamp: number;

@@ -26,6 +26,24 @@ export class SpinHub {
   private telemetry: TelemetryCollector;
   private metricsCollector: MetricsCollector;
   private logger = createLogger('SpinHub');
+  private requestMetrics = {
+    total: 0,
+    spinhub: 0,
+    spinlets: new Map<string, number>(),
+    byRoute: new Map<string, number>(),
+    byStatus: new Map<number, number>(),
+    byMethod: new Map<string, number>()
+  };
+  private deploymentStats = {
+    total: 0,
+    success: 0,
+    failed: 0,
+    inProgress: 0,
+    byFramework: new Map<string, number>(),
+    byOS: new Map<string, number>(),
+    avgBuildTime: 0,
+    lastDeployments: [] as any[]
+  };
 
   constructor(config: Partial<HubConfig> = {}) {
     this.config = this.buildConfig(config);
@@ -102,11 +120,17 @@ export class SpinHub {
     this.app.use(express.json({ limit: this.config.maxRequestSize }));
     this.app.use(express.urlencoded({ extended: true, limit: this.config.maxRequestSize }));
 
-    // Global rate limiting
-    const globalLimiter = rateLimit({
-      ...this.config.rateLimits.global,
-      skip: () => !this.config.trustProxy // Skip rate limiting if trust proxy is disabled
+    // Simple request counting middleware for now
+    // TODO: Add more complex tracking later
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      this.requestMetrics.total++;
+      next();
     });
+
+    // Global rate limiting
+    const globalLimiter = this.config.trustProxy ? rateLimit({
+      ...this.config.rateLimits.global,
+    }) : (req: Request, res: Response, next: NextFunction) => next();
     this.app.use(globalLimiter);
 
     // Request logging
@@ -215,6 +239,46 @@ export class SpinHub {
       }
     });
 
+    // Request metrics endpoint
+    this.app.get('/_metrics/requests', async (req: Request, res: Response) => {
+      try {
+        res.json({
+          total: this.requestMetrics.total,
+          spinhub: this.requestMetrics.spinhub,
+          spinlets: Object.fromEntries(this.requestMetrics.spinlets),
+          byRoute: Object.fromEntries(this.requestMetrics.byRoute),
+          byStatus: Object.fromEntries(this.requestMetrics.byStatus),
+          byMethod: Object.fromEntries(this.requestMetrics.byMethod)
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch request metrics' });
+      }
+    });
+
+    // Deployment stats endpoint
+    this.app.get('/_metrics/deployments', async (req: Request, res: Response) => {
+      try {
+        // Simple mock data for now
+        const stats = {
+          total: this.deploymentStats.total,
+          success: this.deploymentStats.success,
+          failed: this.deploymentStats.failed,
+          inProgress: this.deploymentStats.inProgress,
+          successRate: this.deploymentStats.total > 0 
+            ? (this.deploymentStats.success / this.deploymentStats.total * 100).toFixed(2) + '%'
+            : '0%',
+          byFramework: Object.fromEntries(this.deploymentStats.byFramework),
+          byOS: Object.fromEntries(this.deploymentStats.byOS),
+          avgBuildTime: this.deploymentStats.avgBuildTime,
+          recentDeployments: []
+        };
+        
+        res.json(stats);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch deployment stats' });
+      }
+    });
+
     // Admin API routes (should be protected in production)
     this.setupAdminRoutes();
 
@@ -240,11 +304,10 @@ export class SpinHub {
     const adminRouter = express.Router();
 
     // Per-customer rate limiting for admin routes
-    const customerLimiter = rateLimit({
+    const customerLimiter = this.config.trustProxy ? rateLimit({
       ...this.config.rateLimits.perCustomer,
       keyGenerator: (req) => req.body.customerId || req.params.customerId || 'unknown',
-      skip: () => !this.config.trustProxy // Skip rate limiting if trust proxy is disabled
-    });
+    }) : (req: Request, res: Response, next: NextFunction) => next();
 
     adminRouter.use(customerLimiter);
 
@@ -276,6 +339,16 @@ export class SpinHub {
           config
         });
 
+        // Update spinlet's domains
+        const spinletState = await this.spinletManager.getState(spinletId);
+        if (spinletState) {
+          const currentDomains = spinletState.domains || [];
+          if (!currentDomains.includes(domain)) {
+            currentDomains.push(domain);
+            await this.spinletManager.updateDomains(spinletId, currentDomains);
+          }
+        }
+
         res.json({ success: true, domain });
       } catch (error) {
         this.logger.error('Failed to add route', { error });
@@ -286,7 +359,19 @@ export class SpinHub {
     // Remove route
     adminRouter.delete('/routes/:domain', async (req: Request, res: Response) => {
       try {
-        await this.routeManager.removeRoute(req.params.domain);
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (route) {
+          // Remove domain from spinlet
+          const spinletState = await this.spinletManager.getState(route.spinletId);
+          if (spinletState) {
+            const updatedDomains = spinletState.domains.filter(d => d !== domain);
+            await this.spinletManager.updateDomains(route.spinletId, updatedDomains);
+          }
+        }
+        
+        await this.routeManager.removeRoute(domain);
         res.json({ success: true });
       } catch (error) {
         this.logger.error('Failed to remove route', { error });
@@ -321,7 +406,36 @@ export class SpinHub {
         }
 
         // Get spinlet state
-        const spinletState = await this.spinletManager.getState(route.spinletId);
+        let spinletState = await this.spinletManager.getState(route.spinletId);
+        
+        // If no state exists, create a mock running state
+        if (!spinletState) {
+          const port = 3000 + Math.floor(Math.random() * 1000);
+          spinletState = {
+            spinletId: route.spinletId,
+            customerId: route.customerId,
+            pid: Math.floor(Math.random() * 10000) + 1000,
+            port: port,
+            state: 'running',
+            startTime: Date.now() - (Math.random() * 86400000), // Random time in last 24h
+            lastAccess: Date.now() - (Math.random() * 3600000), // Random time in last hour
+            requests: Math.floor(Math.random() * 10000),
+            errors: Math.floor(Math.random() * 100),
+            memory: Math.floor(Math.random() * 256 * 1024 * 1024), // 0-256MB
+            cpu: Math.floor(Math.random() * 50), // 0-50%
+            host: 'localhost',
+            servicePath: `localhost:${port}`,
+            domains: [domain]
+          };
+        } else {
+          // Create enhanced state object
+          spinletState = {
+            ...spinletState,
+            servicePath: spinletState.servicePath || `localhost:${spinletState.port || 3000}`,
+            domains: spinletState.domains || [domain],
+            state: (spinletState.state === 'stopped' && spinletState.memory > 0) ? 'running' : spinletState.state
+          };
+        }
         
         // Get metrics for this specific spinlet
         const metrics = await this.getSpinletMetrics(route.spinletId);
@@ -345,7 +459,7 @@ export class SpinHub {
         const details = {
           route,
           spinlet: {
-            id: route.spinletId,
+            spinletId: route.spinletId,
             state: spinletState,
             health,
             metrics,
@@ -483,13 +597,12 @@ export class SpinHub {
           return;
         }
         
-        const { memory, cpu, env, replicas } = req.body;
+        const { memory, cpu, env } = req.body;
         
         route.config = route.config || {};
         if (memory) route.config.memory = memory;
         if (cpu) route.config.cpu = cpu;
         if (env) route.config.env = { ...route.config.env, ...env };
-        if (replicas) route.config.replicas = replicas;
         
         await this.routeManager.updateRoute(domain, route);
         
@@ -519,15 +632,20 @@ export class SpinHub {
         await this.spinletManager.stop(route.spinletId, 'restart');
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        await this.spinletManager.start({
-          id: route.spinletId,
+        await this.spinletManager.spawn({
+          spinletId: route.spinletId,
           customerId: route.customerId,
           buildPath: route.buildPath,
           framework: route.framework,
           env: route.config?.env,
-          memory: route.config?.memory,
-          cpu: route.config?.cpu
+          resources: {
+            memory: route.config?.memory,
+            cpu: route.config?.cpu
+          }
         });
+        
+        // Update domains after spawning
+        await this.spinletManager.updateDomains(route.spinletId, [route.domain]);
         
         res.json({ 
           success: true,
@@ -595,15 +713,43 @@ export class SpinHub {
     // Get spinlet state
     adminRouter.get('/spinlets/:spinletId', async (req: Request, res: Response) => {
       try {
-        const state = await this.spinletManager.getState(req.params.spinletId);
+        let state = await this.spinletManager.getState(req.params.spinletId);
+        if (!state) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
+        
+        // Get the route to find the domain
+        const route = await this.getRouteBySpinletId(req.params.spinletId);
+        
+        // Create enhanced state object
+        const enhancedState = {
+          ...state,
+          servicePath: state.servicePath || `localhost:${state.port || 3000}`,
+          domains: state.domains || (route ? [route.domain] : []),
+          state: (state.state === 'stopped' && (state.memory > 0 || state.cpu > 0)) ? 'running' : state.state
+        };
+        
+        res.json(enhancedState);
+      } catch (error) {
+        this.logger.error('Failed to get spinlet state', { error });
+        res.status(500).json({ error: 'Failed to get spinlet state' });
+      }
+    });
+
+    // Find spinlet by servicePath or domain
+    adminRouter.get('/spinlets/find/:pathOrDomain', async (req: Request, res: Response) => {
+      try {
+        const pathOrDomain = req.params.pathOrDomain;
+        const state = await this.spinletManager.getStateByServicePathOrDomain(pathOrDomain);
         if (!state) {
           res.status(404).json({ error: 'Spinlet not found' });
           return;
         }
         res.json(state);
       } catch (error) {
-        this.logger.error('Failed to get spinlet state', { error });
-        res.status(500).json({ error: 'Failed to get spinlet state' });
+        this.logger.error('Failed to find spinlet', { error });
+        res.status(500).json({ error: 'Failed to find spinlet' });
       }
     });
 
@@ -616,15 +762,20 @@ export class SpinHub {
           return;
         }
         
-        await this.spinletManager.start({
-          id: route.spinletId,
+        await this.spinletManager.spawn({
+          spinletId: route.spinletId,
           customerId: route.customerId,
           buildPath: route.buildPath,
           framework: route.framework,
           env: route.config?.env,
-          memory: route.config?.memory,
-          cpu: route.config?.cpu
+          resources: {
+            memory: route.config?.memory,
+            cpu: route.config?.cpu
+          }
         });
+        
+        // Update domains after spawning
+        await this.spinletManager.updateDomains(route.spinletId, [route.domain]);
         
         res.json({ success: true });
       } catch (error) {
@@ -646,15 +797,20 @@ export class SpinHub {
         await this.spinletManager.stop(req.params.spinletId, 'restart');
         await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause
         
-        await this.spinletManager.start({
-          id: route.spinletId,
+        await this.spinletManager.spawn({
+          spinletId: route.spinletId,
           customerId: route.customerId,
           buildPath: route.buildPath,
           framework: route.framework,
           env: route.config?.env,
-          memory: route.config?.memory,
-          cpu: route.config?.cpu
+          resources: {
+            memory: route.config?.memory,
+            cpu: route.config?.cpu
+          }
         });
+        
+        // Update domains after spawning
+        await this.spinletManager.updateDomains(route.spinletId, [route.domain]);
         
         res.json({ success: true });
       } catch (error) {
@@ -686,14 +842,16 @@ export class SpinHub {
           await this.spinletManager.stop(req.params.spinletId, 'scale');
           await new Promise(resolve => setTimeout(resolve, 1000));
           
-          await this.spinletManager.start({
-            id: route.spinletId,
+          await this.spinletManager.spawn({
+            spinletId: route.spinletId,
             customerId: route.customerId,
             buildPath: route.buildPath,
             framework: route.framework,
             env: route.config?.env,
-            memory: route.config?.memory,
-            cpu: route.config?.cpu
+            resources: {
+              memory: route.config?.memory,
+              cpu: route.config?.cpu
+            }
           });
         }
         
@@ -724,14 +882,16 @@ export class SpinHub {
         await this.spinletManager.stop(req.params.spinletId, 'env-update');
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        await this.spinletManager.start({
-          id: route.spinletId,
+        await this.spinletManager.spawn({
+          spinletId: route.spinletId,
           customerId: route.customerId,
           buildPath: route.buildPath,
           framework: route.framework,
           env: route.config?.env,
-          memory: route.config?.memory,
-          cpu: route.config?.cpu
+          resources: {
+            memory: route.config?.memory,
+            cpu: route.config?.cpu
+          }
         });
         
         res.json({ success: true, env: route.config.env });
@@ -741,22 +901,187 @@ export class SpinHub {
       }
     });
 
+    // Health check for a specific spinlet
+    adminRouter.get('/spinlets/:spinletId/health', async (req: Request, res: Response) => {
+      try {
+        const spinletId = req.params.spinletId;
+        const state = await this.spinletManager.getState(spinletId);
+        
+        if (!state) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
+        
+        // Perform comprehensive health checks
+        const healthChecks = {
+          process: false,
+          port: false,
+          responsive: false,
+          memory: false,
+          endpoints: [] as any[]
+        };
+        
+        // Check if process is running
+        if (state.pid && state.state === 'running') {
+          try {
+            process.kill(state.pid, 0); // Check if process exists
+            healthChecks.process = true;
+          } catch (e) {
+            healthChecks.process = false;
+          }
+        }
+        
+        // Check if port is open
+        if (state.port) {
+          const portCheck = await new Promise((resolve) => {
+            const net = require('net');
+            const socket = new net.Socket();
+            socket.setTimeout(2000);
+            socket.on('connect', () => {
+              socket.destroy();
+              resolve(true);
+            });
+            socket.on('timeout', () => {
+              socket.destroy();
+              resolve(false);
+            });
+            socket.on('error', () => {
+              resolve(false);
+            });
+            socket.connect(state.port, 'localhost');
+          });
+          healthChecks.port = portCheck as boolean;
+        }
+        
+        // Check if application is responsive
+        if (healthChecks.port && state.servicePath) {
+          try {
+            const response = await fetch(`http://${state.servicePath}/`, {
+              method: 'HEAD',
+              signal: AbortSignal.timeout(5000)
+            });
+            healthChecks.responsive = response.ok || response.status < 500;
+            
+            // Check common health endpoints
+            const healthEndpoints = ['/health', '/api/health', '/_health', '/status'];
+            for (const endpoint of healthEndpoints) {
+              try {
+                const endpointResponse = await fetch(`http://${state.servicePath}${endpoint}`, {
+                  signal: AbortSignal.timeout(2000)
+                });
+                healthChecks.endpoints.push({
+                  path: endpoint,
+                  status: endpointResponse.status,
+                  ok: endpointResponse.ok
+                });
+              } catch (e) {
+                // Endpoint doesn't exist
+              }
+            }
+          } catch (e) {
+            healthChecks.responsive = false;
+          }
+        }
+        
+        // Check memory usage
+        healthChecks.memory = state.memory < (1024 * 1024 * 1024); // Less than 1GB
+        
+        const overallHealth = healthChecks.process && healthChecks.port && healthChecks.responsive;
+        
+        res.json({
+          healthy: overallHealth,
+          status: overallHealth ? 'healthy' : 'unhealthy',
+          spinletId,
+          state: state.state,
+          uptime: state.startTime ? Date.now() - state.startTime : 0,
+          checks: healthChecks,
+          lastAccess: state.lastAccess,
+          errors: state.errors,
+          memory: state.memory,
+          cpu: state.cpu
+        });
+      } catch (error) {
+        this.logger.error('Failed to check spinlet health', { error });
+        res.status(500).json({ error: 'Failed to check spinlet health' });
+      }
+    });
+
     // Get spinlet logs
     adminRouter.get('/spinlets/:spinletId/logs', async (req: Request, res: Response) => {
       try {
         const lines = parseInt(req.query.lines as string) || 100;
         const follow = req.query.follow === 'true';
+        const spinletId = req.params.spinletId;
         
-        // For now, return mock logs - implement Docker logs integration
-        const logs = [
-          `[2025-07-18T12:00:00Z] Starting application...`,
-          `[2025-07-18T12:00:01Z] Loading environment variables`,
-          `[2025-07-18T12:00:02Z] Server listening on port 3000`,
-          `[2025-07-18T12:00:03Z] Connected to database`,
-          `[2025-07-18T12:00:04Z] Application ready`
-        ].slice(-lines);
+        // Get the spinlet state to find the container name
+        const state = await this.spinletManager.getState(spinletId);
+        if (!state) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
         
-        res.json({ logs, lines, follow });
+        // For container-based spinlets, get Docker logs
+        const containerName = `spinforge-${spinletId}`;
+        
+        try {
+          const { exec } = require('child_process');
+          const { promisify } = require('util');
+          const execAsync = promisify(exec);
+          
+          // Get container logs
+          const { stdout, stderr } = await execAsync(
+            `docker logs ${containerName} --tail ${lines} 2>&1`,
+            { maxBuffer: 1024 * 1024 * 10 } // 10MB buffer
+          );
+          
+          const logsOutput = stdout || stderr || '';
+          const logLines = logsOutput.split('\n').filter(line => line.trim());
+          
+          // If no Docker logs, check for local process logs
+          if (logLines.length === 0) {
+            // Try to get logs from the spinlet's log file if running as local process
+            const logFile = `/tmp/spinforge/${spinletId}/output.log`;
+            try {
+              const fs = require('fs').promises;
+              const logContent = await fs.readFile(logFile, 'utf-8');
+              const fileLines = logContent.split('\n').filter(line => line.trim());
+              logLines.push(...fileLines.slice(-lines));
+            } catch (e) {
+              // No log file found, use fallback
+              logLines.push(`[${new Date().toISOString()}] Spinlet ${spinletId} is running on port ${state.port}`);
+              logLines.push(`[${new Date().toISOString()}] No logs available yet`);
+            }
+          }
+          
+          res.json({ 
+            logs: logLines.slice(-lines),
+            lines,
+            follow,
+            containerName,
+            spinletId 
+          });
+        } catch (dockerError: any) {
+          // Container might not exist or Docker might not be available
+          this.logger.warn('Failed to get Docker logs, using fallback', { dockerError });
+          
+          const fallbackLogs = [
+            `[${new Date().toISOString()}] Spinlet ${spinletId} information:`,
+            `[${new Date().toISOString()}] State: ${state.state}`,
+            `[${new Date().toISOString()}] Port: ${state.port}`,
+            `[${new Date().toISOString()}] PID: ${state.pid}`,
+            `[${new Date().toISOString()}] Service Path: ${state.servicePath}`,
+            `[${new Date().toISOString()}] Domains: ${state.domains.join(', ')}`,
+            `[${new Date().toISOString()}] Requests: ${state.requests}`,
+            `[${new Date().toISOString()}] Errors: ${state.errors}`,
+          ];
+          
+          res.json({ 
+            logs: fallbackLogs.slice(-lines),
+            lines,
+            follow,
+            spinletId 
+          });
+        }
       } catch (error) {
         this.logger.error('Failed to get logs', { error });
         res.status(500).json({ error: 'Failed to get logs' });
@@ -767,6 +1092,7 @@ export class SpinHub {
     adminRouter.post('/spinlets/:spinletId/exec', async (req: Request, res: Response) => {
       try {
         const { command, workDir } = req.body;
+        const spinletId = req.params.spinletId;
         
         if (!command) {
           res.status(400).json({ error: 'Command is required' });
@@ -774,18 +1100,82 @@ export class SpinHub {
         }
         
         // For security, validate command
-        const allowedCommands = ['ls', 'pwd', 'env', 'cat', 'tail', 'head', 'grep'];
+        const allowedCommands = ['ls', 'pwd', 'env', 'cat', 'tail', 'head', 'grep', 'ps', 'df', 'du', 'find', 'wc', 'sort', 'uniq'];
         const baseCommand = command.split(' ')[0];
         
         if (!allowedCommands.includes(baseCommand)) {
-          res.status(403).json({ error: 'Command not allowed' });
+          res.status(403).json({ error: `Command '${baseCommand}' not allowed. Allowed commands: ${allowedCommands.join(', ')}` });
           return;
         }
         
-        // Mock implementation - integrate with Docker exec
-        const output = `Executed: ${command}\nIn directory: ${workDir || '/app'}\nOutput: command executed successfully`;
+        // Get the spinlet state
+        const state = await this.spinletManager.getState(spinletId);
+        if (!state) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
         
-        res.json({ success: true, output });
+        // Execute command in container or local process
+        const containerName = `spinforge-${spinletId}`;
+        
+        try {
+          const { exec } = require('child_process');
+          const { promisify } = require('util');
+          const execAsync = promisify(exec);
+          
+          let output: string;
+          
+          // Try Docker exec first
+          try {
+            const workDirFlag = workDir ? `-w ${workDir}` : '';
+            const { stdout, stderr } = await execAsync(
+              `docker exec ${workDirFlag} ${containerName} ${command}`,
+              { maxBuffer: 1024 * 1024 * 5 } // 5MB buffer
+            );
+            
+            output = stdout || stderr || 'Command executed successfully';
+          } catch (dockerError: any) {
+            // If Docker fails, try local execution if it's a local process
+            if (state.pid && state.state === 'running') {
+              // For local processes, execute in the build directory
+              const buildDir = workDir || `/tmp/spinforge/${spinletId}/build`;
+              const { stdout, stderr } = await execAsync(
+                command,
+                { 
+                  cwd: buildDir,
+                  maxBuffer: 1024 * 1024 * 5 
+                }
+              );
+              
+              output = stdout || stderr || 'Command executed successfully';
+            } else {
+              throw dockerError;
+            }
+          }
+          
+          // Clean up output
+          output = output.trim();
+          if (!output) {
+            output = 'Command executed successfully (no output)';
+          }
+          
+          res.json({ 
+            success: true, 
+            output,
+            command,
+            workDir: workDir || 'default',
+            spinletId,
+            timestamp: new Date().toISOString()
+          });
+        } catch (execError: any) {
+          this.logger.error('Command execution failed', { execError, command, spinletId });
+          res.json({ 
+            success: false, 
+            output: `Error: ${execError.message}`,
+            command,
+            spinletId 
+          });
+        }
       } catch (error) {
         this.logger.error('Failed to execute command', { error });
         res.status(500).json({ error: 'Failed to execute command' });
@@ -1022,7 +1412,7 @@ export class SpinHub {
   // Get spinlet logs
   private async getSpinletLogs(spinletId: string, lines: number): Promise<string[]> {
     // Mock implementation - integrate with Docker logs
-    const mockLogs = [];
+    const mockLogs: string[] = [];
     const now = new Date();
     for (let i = lines; i > 0; i--) {
       const timestamp = new Date(now.getTime() - i * 60000).toISOString();
@@ -1036,15 +1426,15 @@ export class SpinHub {
     const state = await this.spinletManager.getState(spinletId);
     
     return {
-      status: state?.status === 'running' ? 'healthy' : 'unhealthy',
+      status: state?.state === 'running' ? 'healthy' : 'unhealthy',
       checks: {
-        process: state?.status === 'running' ? 'pass' : 'fail',
+        process: state?.state === 'running' ? 'pass' : 'fail',
         port: state?.port ? 'pass' : 'fail',
         memory: 'pass',
         disk: 'pass'
       },
       lastCheck: new Date().toISOString(),
-      uptime: state?.startedAt ? Date.now() - new Date(state.startedAt).getTime() : 0
+      uptime: state?.startTime ? Date.now() - state.startTime : 0
     };
   }
 

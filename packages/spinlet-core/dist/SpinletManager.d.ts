@@ -16,6 +16,10 @@ export declare class SpinletManager extends EventEmitter {
     spawn(config: SpinletConfig): Promise<SpinletState>;
     stop(spinletId: string, reason?: string): Promise<void>;
     stopAll(): Promise<void>;
+    updateDomains(spinletId: string, domains: string[]): Promise<void>;
+    findByServicePath(servicePath: string): Promise<string | null>;
+    findByDomain(domain: string): Promise<string | null>;
+    getStateByServicePathOrDomain(pathOrDomain: string): Promise<SpinletState | null>;
     private cleanup;
     private setupProcessHandlers;
     private waitForReady;

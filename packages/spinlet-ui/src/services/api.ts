@@ -16,14 +16,20 @@ export interface Route {
 }
 
 export interface Spinlet {
-  id: string;
+  spinletId: string;
   customerId: string;
-  status: 'starting' | 'running' | 'stopping' | 'stopped' | 'error';
-  port?: number;
-  memory?: string;
-  cpu?: string;
-  createdAt: string;
-  lastHealthCheck?: string;
+  pid: number;
+  port: number;
+  state: 'starting' | 'running' | 'idle' | 'stopping' | 'stopped' | 'crashed';
+  startTime: number;
+  lastAccess: number;
+  requests: number;
+  errors: number;
+  memory: number;
+  cpu: number;
+  host: string;
+  servicePath: string;
+  domains: string[];
 }
 
 export interface Metrics {
@@ -193,6 +199,16 @@ class SpinForgeAPI {
     return response.data;
   }
 
+  async requestMetrics(): Promise<any> {
+    const response = await axios.get(`${API_BASE}/_metrics/requests`);
+    return response.data;
+  }
+
+  async deploymentStats(): Promise<any> {
+    const response = await axios.get(`${API_BASE}/_metrics/deployments`);
+    return response.data;
+  }
+
   async createRoute(route: Route) {
     const response = await axios.post(
       `${API_BASE}/_admin/routes`,
@@ -226,6 +242,21 @@ class SpinForgeAPI {
     return response.data;
   }
 
+  async getRoutesWithStates(): Promise<(Route & { spinletState?: Spinlet })[]> {
+    const routes = await this.getAllRoutes();
+    const routesWithStates = await Promise.all(
+      routes.map(async (route) => {
+        try {
+          const spinlet = await this.getSpinlet(route.spinletId);
+          return { ...route, spinletState: spinlet };
+        } catch (error) {
+          return { ...route, spinletState: undefined };
+        }
+      })
+    );
+    return routesWithStates;
+  }
+
   async getSpinlet(spinletId: string): Promise<Spinlet> {
     const response = await axios.get(
       `${API_BASE}/_admin/spinlets/${spinletId}`,
@@ -246,6 +277,59 @@ class SpinForgeAPI {
   async getSpinletLogs(spinletId: string, lines = 100) {
     const response = await axios.get(
       `${API_BASE}/_admin/spinlets/${spinletId}/logs?lines=${lines}`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async startSpinlet(spinletId: string) {
+    const response = await axios.post(
+      `${API_BASE}/_admin/spinlets/${spinletId}/start`,
+      {},
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async restartSpinlet(spinletId: string) {
+    const response = await axios.post(
+      `${API_BASE}/_admin/spinlets/${spinletId}/restart`,
+      {},
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async updateSpinletEnv(spinletId: string, env: Record<string, string>) {
+    const response = await axios.put(
+      `${API_BASE}/_admin/spinlets/${spinletId}/env`,
+      { env },
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async getRouteDetails(domain: string) {
+    const response = await axios.get(
+      `${API_BASE}/_admin/routes/${domain}/details`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async updateRouteConfig(domain: string, config: any) {
+    const response = await axios.put(
+      `${API_BASE}/_admin/routes/${domain}/config`,
+      config,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async executeCommand(spinletId: string, command: string) {
+    const response = await axios.post(
+      `${API_BASE}/_admin/spinlets/${spinletId}/exec`,
+      { command },
       { headers: this.getHeaders() }
     );
     return response.data;

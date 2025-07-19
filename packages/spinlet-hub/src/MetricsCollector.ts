@@ -224,9 +224,19 @@ export class MetricsCollector {
     }
   }
 
-  private getNetworkInterfaces() {
+  private getNetworkInterfaces(): Array<{
+    name: string;
+    address: string;
+    bytesReceived: number;
+    bytesSent: number;
+  }> {
     const interfaces = os.networkInterfaces();
-    const result = [];
+    const result: Array<{
+      name: string;
+      address: string;
+      bytesReceived: number;
+      bytesSent: number;
+    }> = [];
 
     for (const [name, addrs] of Object.entries(interfaces)) {
       if (addrs) {
@@ -252,7 +262,7 @@ export class MetricsCollector {
         'docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}"'
       );
 
-      const containers = [];
+      const containers: DockerStats['containers'] = [];
       const lines = containerList.trim().split('\n').filter(line => line);
 
       for (const line of lines) {

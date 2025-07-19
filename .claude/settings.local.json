@@ -20,7 +20,11 @@
       "Bash(tsc)",
       "Bash(tsc:*)",
       "Bash(true)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(/Users/imzee/projects/spinforge/test-routing.sh:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run dev:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

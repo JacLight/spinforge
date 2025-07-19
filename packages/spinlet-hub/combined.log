@@ -441,3 +441,546 @@
 {"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:45:57.212Z"}
 {"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:46:27.214Z"}
 {"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:46:57.211Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:47:27.214Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:47:57.216Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:48:27.215Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:48:57.213Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:49:27.215Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:49:57.213Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T07:50:10.728Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T07:50:10.729Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T07:50:10.730Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T07:50:35.441Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T07:50:35.445Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T07:50:35.445Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:50:37.752Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:50:40.092Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:50:43.357Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:50:45.129Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:50:50.145Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:50:55.161Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:00.175Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:05.190Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:10.207Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:12.777Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:13.246Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:13.365Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:16.033Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:51:43.363Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:01.580Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:01.584Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:09.546Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:13.364Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:35.401Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:40.808Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:40.813Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:43.367Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:52.423Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:52:58.408Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:53:13.369Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:53:43.365Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:13.367Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:20.880Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:21.514Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:24.069Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:29.098Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:34.127Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:39.147Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:43.372Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:44.165Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:49.183Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:54.201Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:54:59.217Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:04.236Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:09.254Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:13.371Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:14.275Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:19.293Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:24.311Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:25.645Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:31.560Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:41.835Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:41.837Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:43.372Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:48.406Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:48.407Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:54.514Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:55:54.516Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:56:13.373Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:56:28.038Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:56:43.369Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:56:58.062Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:57:13.371Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:57:28.082Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:57:43.374Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:57:58.097Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:58:13.371Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:58:28.118Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:58:40.567Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:58:41.286Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:58:43.372Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:59:13.372Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T07:59:43.370Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:00:13.373Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:00:43.371Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:00:49.319Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:00:54.344Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:00:59.363Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:04.382Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:09.398Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:13.371Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:14.420Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:19.441Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:24.463Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:29.486Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:34.510Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"nSqEUMMLHA-Mh2Os16Rn7","service":"ProxyHandler","timestamp":"2025-07-18T08:01:37.081Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:42.906Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:43.375Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:44.909Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:49.931Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:54.950Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:01:59.383Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:02:04.849Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:02:04.851Z"}
+{"customerId":"cust-1","domain":"test.localhost","level":"info","message":"Route added","service":"RouteManager","timestamp":"2025-07-18T08:02:07.042Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"SvU7pcb_FFOcE2dNK1goZ","service":"ProxyHandler","timestamp":"2025-07-18T08:02:07.073Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:02:13.370Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:02:43.373Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"JGw2N45o8XCko2lIgHwlH","service":"ProxyHandler","timestamp":"2025-07-18T08:02:51.819Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:03:13.364Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"mBTCWlmM3C7wnJ3U1ler7","service":"ProxyHandler","timestamp":"2025-07-18T08:03:22.146Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"T37Pkyefhde3rScolrDWX","service":"ProxyHandler","timestamp":"2025-07-18T08:03:38.126Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:03:43.380Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"jL44H0YIAkyrIA525WY8C","service":"ProxyHandler","timestamp":"2025-07-18T08:04:08.227Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:04:13.375Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T08:04:17.675Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T08:04:17.675Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T08:04:17.676Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T08:04:21.550Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T08:04:21.555Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T08:04:21.555Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:04:43.380Z"}
+{"error":{"cmd":"docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}\"","code":127,"killed":false,"signal":null,"stderr":"/bin/sh: docker: not found\n","stdout":""},"level":"error","message":"Failed to get Docker stats","service":"MetricsCollector","timestamp":"2025-07-18T08:05:13.374Z"}
+{"customerId":"cust-1","domain":"test.localhost","level":"info","message":"Route removed","service":"RouteManager","timestamp":"2025-07-18T15:02:43.268Z"}
+{"customerId":"demo-customer","domain":"test.localhost","level":"info","message":"Route added","service":"RouteManager","timestamp":"2025-07-18T15:08:09.502Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T15:36:04.911Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T15:36:04.912Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T15:36:07.587Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T15:36:11.582Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T15:36:11.587Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T15:36:11.587Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"kdZp7EuT5qaRMGewVeh5x","service":"ProxyHandler","timestamp":"2025-07-18T15:37:11.812Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T15:38:05.260Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T15:38:05.260Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T15:38:18.978Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T15:38:18.983Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T15:38:18.983Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T15:39:50.210Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T15:39:50.211Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T15:39:53.962Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T15:39:53.966Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T15:39:53.966Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"14inHx1x_9A7wuS9Rj0AL","service":"ProxyHandler","timestamp":"2025-07-18T15:40:54.721Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:03:33.522Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:03:33.522Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:03:37.583Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:03:47.347Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:03:47.351Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:03:47.352Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:33:09.910Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:33:09.911Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:33:09.912Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:33:14.942Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:33:14.947Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:33:14.947Z"}
+{"error":{},"level":"error","message":"Failed to get route details","service":"SpinHub","timestamp":"2025-07-18T16:33:21.680Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:33:21.682Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:33:21.683Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:33:21.682Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:33:51.683Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:33:55.318Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:33:55.323Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:33:55.324Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:34:21.265Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:34:21.267Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:34:24.825Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:34:24.830Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:34:24.830Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:34:51.223Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:34:51.224Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:34:55.018Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:34:55.023Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:34:55.023Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:35:21.265Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:35:21.266Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:35:21.266Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:35:21.268Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:35:24.946Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:35:24.950Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:35:24.950Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:35:51.271Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:35:51.273Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:35:55.081Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:35:55.086Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:35:55.086Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:36:21.244Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:36:21.245Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:36:24.935Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:36:24.940Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:36:24.940Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:36:51.247Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:36:51.248Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:36:54.936Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:36:54.940Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:36:54.941Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:37:21.255Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:37:21.256Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:37:25.025Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:37:25.029Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:37:25.030Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:37:51.252Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:37:51.253Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:37:54.766Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:37:54.770Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:37:54.770Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:38:21.258Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:38:21.260Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:38:25.032Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:38:25.036Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:38:25.036Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:38:51.250Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:38:51.251Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:38:51.251Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:38:54.780Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:38:54.784Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:38:54.785Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:39:21.253Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:39:21.255Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:39:21.254Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:39:21.256Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:39:25.069Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:39:25.074Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:39:25.074Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:39:51.256Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:39:51.257Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:39:55.084Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:39:55.088Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:39:55.088Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:40:21.263Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:40:21.266Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:40:24.644Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:40:24.648Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:40:24.649Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:40:51.245Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:40:51.246Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:40:55.011Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:40:55.016Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:40:55.016Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:41:21.285Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:41:21.287Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:41:24.760Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:41:24.765Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:41:24.765Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:41:51.257Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:41:51.258Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:41:55.069Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:41:55.073Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:41:55.074Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:42:21.226Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:42:21.227Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:42:21.226Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:42:21.229Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:42:24.757Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:42:24.761Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:42:24.762Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:42:51.264Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:42:51.266Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:42:55.663Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:42:55.667Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:42:55.668Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:43:21.277Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:43:21.279Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:43:25.022Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:43:25.027Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:43:25.027Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:43:51.254Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:43:51.255Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:43:55.040Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:43:55.045Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:43:55.045Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:44:21.252Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:44:21.254Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:44:25.139Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:44:25.143Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:44:25.143Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:44:51.270Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:44:51.272Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:44:55.071Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:44:55.076Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:44:55.076Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:45:21.241Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:45:21.242Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:45:25.005Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:45:25.009Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:45:25.010Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:45:51.285Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:45:51.287Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:45:55.000Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:45:55.004Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:45:55.004Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:46:21.240Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:46:21.241Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:46:25.273Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:46:25.278Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:46:25.278Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:46:51.250Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:46:51.251Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:46:54.947Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:46:54.951Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:46:54.952Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:47:21.250Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:47:21.252Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:47:24.796Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:47:24.801Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:47:24.802Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:47:51.269Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:47:51.270Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:47:55.206Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:47:55.210Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:47:55.210Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:48:21.265Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:48:21.266Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:48:24.821Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:48:24.825Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:48:24.825Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:48:51.289Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:48:51.291Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:48:51.291Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:48:51.295Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:48:55.270Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:48:55.274Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:48:55.274Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:49:21.257Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:49:21.258Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:49:25.165Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:49:25.171Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:49:25.171Z"}
+{"error":{},"level":"error","message":"Unhandled error","path":"/_health","service":"SpinHub","timestamp":"2025-07-18T16:49:36.296Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:49:36.307Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:49:36.308Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:49:36.307Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:49:36.313Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:49:36.312Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:49:36.313Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:49:51.290Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:49:51.290Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:49:51.290Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:50:00.333Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:50:00.333Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:50:00.333Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:50:06.317Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:50:10.011Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:50:10.016Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:50:10.016Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:50:17.775Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:50:17.778Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:50:17.779Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:50:17.779Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:50:47.776Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:50:51.505Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:50:51.509Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:50:51.509Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:50:51.869Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:50:51.871Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:50:51.872Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:50:51.871Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:51:21.874Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:51:25.657Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:51:25.661Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:51:25.661Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:51:27.898Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:51:27.899Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:51:27.900Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:51:27.900Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:51:51.286Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:51:51.287Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:51:51.287Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:51:57.891Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:52:01.994Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:52:01.999Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:52:01.999Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:52:07.924Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:52:07.926Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:52:07.927Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:52:07.927Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:52:37.921Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:52:41.646Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:52:41.650Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:52:41.650Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:52:44.962Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:52:44.966Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:52:44.967Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:52:44.967Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:53:14.957Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:53:18.707Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:53:18.710Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:53:18.711Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:53:22.321Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:53:22.321Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:53:22.322Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:54:11.869Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:54:11.874Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:54:11.874Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:54:16.165Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:54:16.169Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:54:16.169Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:54:16.169Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:54:46.164Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:54:50.236Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:54:50.241Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:54:50.241Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:54:56.214Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:54:56.215Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:54:56.215Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:55:18.137Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:55:18.140Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:55:18.140Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:55:19.132Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:55:19.133Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:55:19.132Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:55:26.183Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:55:30.270Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:55:30.275Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:55:30.275Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:55:54.536Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:55:54.537Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:55:54.537Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:55:55.548Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:55:55.549Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:55:55.549Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:03.266Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:56:07.571Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:56:07.575Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:07.576Z"}
+{"error":{},"level":"error","message":"Unhandled error","path":"/_health","service":"SpinHub","timestamp":"2025-07-18T16:56:23.275Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:56:23.292Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:56:23.293Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:56:23.294Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:23.293Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:56:40.724Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:56:40.726Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:40.726Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:56:41.734Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:56:41.735Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:41.735Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:56:47.763Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:56:47.763Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:47.763Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:56:47.763Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:47.763Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:56:47.763Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:53.290Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:56:57.296Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:56:57.300Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:56:57.300Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:57:00.734Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:57:00.737Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:57:00.739Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:57:00.738Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T16:57:30.734Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:57:34.951Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:57:34.956Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:57:34.956Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:58:16.994Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:58:16.995Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:58:39.273Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:58:39.277Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:58:39.277Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:58:41.098Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:58:41.100Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:58:41.100Z"}
+{"error":{},"level":"error","message":"Unhandled error","path":"/_health","service":"SpinHub","timestamp":"2025-07-18T16:58:41.101Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:58:41.100Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:59:04.797Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:04.799Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:04.798Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:04.802Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:59:04.801Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:04.802Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:11.110Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:59:15.137Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:59:15.142Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:15.142Z"}
+{"error":{},"level":"error","message":"Unhandled error","path":"/_health","service":"SpinHub","timestamp":"2025-07-18T16:59:16.793Z"}
+{"error":{},"level":"error","message":"Unhandled error","path":"/_health","service":"SpinHub","timestamp":"2025-07-18T16:59:20.283Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:59:20.290Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:59:20.292Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:20.293Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:20.292Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:59:40.540Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:40.542Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:40.542Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:59:44.547Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:44.547Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:44.547Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:45.202Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:45.203Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:50.291Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T16:59:54.290Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T16:59:54.294Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:54.295Z"}
+{"error":{},"level":"error","message":"Unhandled error","path":"/_health","service":"SpinHub","timestamp":"2025-07-18T16:59:56.832Z"}
+{"error":{},"level":"error","message":"Failed to get all routes","service":"SpinHub","timestamp":"2025-07-18T16:59:57.326Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T16:59:57.328Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T16:59:57.329Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T16:59:57.328Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T17:00:18.204Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T17:00:18.206Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T17:00:18.206Z"}
+{"level":"error","message":"Unhandled rejection","promise":{},"reason":{},"service":"SpinHub:Server","timestamp":"2025-07-18T17:00:21.213Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T17:00:21.214Z"}
+{"level":"info","message":"Received unhandledRejection, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T17:00:21.213Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T17:00:21.251Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T17:00:21.251Z"}
+{"error":{"code":"ERR_SERVER_NOT_RUNNING"},"level":"error","message":"Error during shutdown","service":"SpinHub:Server","timestamp":"2025-07-18T17:00:27.320Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T17:00:44.646Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T17:00:44.651Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T17:00:44.651Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T17:01:38.836Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T17:01:38.836Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T17:01:38.837Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T17:01:42.366Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T17:01:42.371Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T17:01:42.371Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T19:59:23.035Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T19:59:23.042Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T19:59:24.535Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T19:59:30.303Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T19:59:30.308Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T19:59:30.308Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T20:34:19.738Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T20:34:19.740Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-18T20:34:29.572Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-18T20:34:34.663Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-18T20:34:34.666Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-18T20:34:34.666Z"}
+{"dockerError":{"cmd":"docker logs spinforge-demo-test-app --tail 10 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-demo-test-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-18T20:34:49.232Z"}
+{"dockerError":{"cmd":"docker logs spinforge-demo-test-app --tail 10 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-demo-test-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-18T20:35:02.623Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-18T20:35:40.803Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-18T20:35:40.804Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 50ms...","service":"spinforge","timestamp":"2025-07-18T20:35:40.930Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 50ms...","service":"spinforge","timestamp":"2025-07-18T20:35:40.931Z"}
+{"level":"warn","message":"Redis connection closed","service":"spinforge","timestamp":"2025-07-18T20:35:40.931Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 100ms...","service":"spinforge","timestamp":"2025-07-18T20:35:40.988Z"}
+{"address":"172.25.0.2","code":"ECONNREFUSED","errno":-111,"level":"error","message":"Redis error: connect ECONNREFUSED 172.25.0.2:6379","port":6379,"service":"spinforge","stack":"Error: connect ECONNREFUSED 172.25.0.2:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","syscall":"connect","timestamp":"2025-07-18T20:35:40.988Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 100ms...","service":"spinforge","timestamp":"2025-07-18T20:35:40.988Z"}
+{"level":"warn","message":"Redis connection closed","service":"spinforge","timestamp":"2025-07-18T20:35:40.990Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 150ms...","service":"spinforge","timestamp":"2025-07-18T20:35:41.088Z"}
+{"address":"172.25.0.2","code":"ECONNREFUSED","errno":-111,"level":"error","message":"Redis error: connect ECONNREFUSED 172.25.0.2:6379","port":6379,"service":"spinforge","stack":"Error: connect ECONNREFUSED 172.25.0.2:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","syscall":"connect","timestamp":"2025-07-18T20:35:41.092Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 150ms...","service":"spinforge","timestamp":"2025-07-18T20:35:41.092Z"}
+{"level":"warn","message":"Redis connection closed","service":"spinforge","timestamp":"2025-07-18T20:35:41.093Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 200ms...","service":"spinforge","timestamp":"2025-07-18T20:35:41.242Z"}
+{"address":"172.25.0.2","code":"ECONNREFUSED","errno":-111,"level":"error","message":"Redis error: connect ECONNREFUSED 172.25.0.2:6379","port":6379,"service":"spinforge","stack":"Error: connect ECONNREFUSED 172.25.0.2:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","syscall":"connect","timestamp":"2025-07-18T20:35:41.243Z"}
+{"level":"warn","message":"Redis connection failed, retrying in 200ms...","service":"spinforge","timestamp":"2025-07-18T20:35:41.243Z"}
+{"level":"warn","message":"Redis connection closed","service":"spinforge","timestamp":"2025-07-18T20:35:41.243Z"}

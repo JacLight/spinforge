@@ -24,6 +24,8 @@ export interface SpinletState {
   memory: number;
   cpu: number;
   host: string;
+  servicePath: string;  // e.g., "localhost:40000"
+  domains: string[];    // e.g., ["mynext.com", "www.mynext.com"]
 }
 
 export interface SpinletMetrics {
