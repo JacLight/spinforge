@@ -163,7 +163,7 @@ export default function DeployForm() {
         memory: formData.memory,
         cpu: formData.cpu,
         env: envVars,
-        gitUrl: formData.gitUrl, // Store for future use
+        ...(formData.gitUrl && { gitUrl: formData.gitUrl }), // Store for future use
       },
     });
   };

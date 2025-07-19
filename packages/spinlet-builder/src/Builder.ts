@@ -28,7 +28,7 @@ export class Builder {
   }
 
   async build(config: BuildConfig): Promise<BuildResult> {
-    return this.buildQueue.add(() => this.executeBuild(config));
+    return this.buildQueue.add(() => this.executeBuild(config)) as Promise<BuildResult>;
   }
 
   private async executeBuild(config: BuildConfig): Promise<BuildResult> {

@@ -5,7 +5,7 @@ import { BuildConfig, BuildResult } from '../types';
 
 export class RemixBuilder extends BaseFrameworkBuilder {
   constructor() {
-    super('remix');
+    super('remix' as const);
   }
 
   async validate(sourceDir: string): Promise<boolean> {

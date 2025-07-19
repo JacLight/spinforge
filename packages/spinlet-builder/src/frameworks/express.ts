@@ -5,7 +5,7 @@ import { BuildConfig, BuildResult } from '../types';
 
 export class ExpressBuilder extends BaseFrameworkBuilder {
   constructor() {
-    super('express');
+    super('express' as const);
   }
 
   async validate(sourceDir: string): Promise<boolean> {

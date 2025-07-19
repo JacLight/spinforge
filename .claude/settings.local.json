@@ -25,7 +25,11 @@
       "Bash(pkill:*)",
       "Bash(npm run dev:*)",
       "Bash(grep:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(node:*)",
+      "Bash(git commit:*)",
+      "Bash(npm ls:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

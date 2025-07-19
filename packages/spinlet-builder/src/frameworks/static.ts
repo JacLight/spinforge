@@ -5,7 +5,7 @@ import { BuildConfig, BuildResult } from '../types';
 
 export class StaticBuilder extends BaseFrameworkBuilder {
   constructor() {
-    super('static');
+    super('static' as const);
   }
 
   async validate(sourceDir: string): Promise<boolean> {
@@ -186,8 +186,7 @@ process.on('SIGTERM', () => {
         errors,
         warnings,
         metadata: {
-          nodeVersion: process.version,
-          staticDir
+          nodeVersion: process.version
         }
       };
     } catch (error: any) {

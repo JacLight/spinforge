@@ -161,3 +161,9 @@ out
 # Temporary folders
 tmp/
 temp/
+packages/spinlet-core/dist*
+packages/shared/dist*
+packages/spinlet-cli/dist*
+packages/spinlet-hub/dist*
+packages/spinlet-telemetry/dist*
+packages/spinlet-ui/dist*

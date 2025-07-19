@@ -2,12 +2,14 @@ import { execa, ExecaError } from 'execa';
 import fs from 'fs-extra';
 import path from 'path';
 import { createLogger } from '@spinforge/shared';
-import { BuildConfig, BuildResult, FrameworkBuilder } from '../types';
+import { BuildConfig, BuildResult, FrameworkBuilder, Framework } from '../types';
 
 export abstract class BaseFrameworkBuilder implements FrameworkBuilder {
-  protected logger = createLogger(`Builder:${this.framework}`);
+  protected logger: ReturnType<typeof createLogger>;
   
-  constructor(public readonly framework: string) {}
+  constructor(public readonly framework: Framework) {
+    this.logger = createLogger(`Builder:${this.framework}`);
+  }
 
   abstract build(config: BuildConfig): Promise<BuildResult>;
   abstract validate(sourceDir: string): Promise<boolean>;

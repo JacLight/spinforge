@@ -5,7 +5,7 @@ import { BuildConfig, BuildResult } from '../types';
 
 export class NextJsBuilder extends BaseFrameworkBuilder {
   constructor() {
-    super('nextjs');
+    super('nextjs' as const);
   }
 
   async validate(sourceDir: string): Promise<boolean> {
@@ -25,8 +25,8 @@ export class NextJsBuilder extends BaseFrameworkBuilder {
       }
 
       // Check for next.config.js or next.config.mjs
-      const hasConfig = await fs.pathExists(path.join(sourceDir, 'next.config.js')) ||
-                       await fs.pathExists(path.join(sourceDir, 'next.config.mjs'));
+      await fs.pathExists(path.join(sourceDir, 'next.config.js')) ||
+      await fs.pathExists(path.join(sourceDir, 'next.config.mjs'));
       
       return true;
     } catch {

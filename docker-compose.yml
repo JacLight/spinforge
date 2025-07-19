@@ -52,7 +52,7 @@ services:
         condition: service_healthy
     networks:
       - spinforge-network
-    command: sh -c "apk add --no-cache git python3 make g++ docker-cli && cd /spinforge && rm -f package-lock.json && mv package.json package.json.bak || true && cd packages/shared && npm install && npx tsc || true && cd ../spinlet-core && npm install && npx tsc || true && cd ../spinlet-hub && npm install && npx tsc || true && node dist/server.js"
+    command: sh -c "apk add --no-cache git python3 make g++ docker-cli && npm install -g typescript && cd /spinforge && rm -f package-lock.json && mv package.json package.json.bak || true && cd packages/shared && npm install && npm run build || true && cd ../spinlet-core && npm install && npm run build || true && cd ../spinlet-hub && npm install && npm run build || true && node dist/server.js"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/_health"]
       interval: 30s
@@ -62,9 +62,10 @@ services:
 
   # Builder Service - Handles compilation of apps
   builder:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
     container_name: spinforge-builder
-    working_dir: /spinforge
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -74,14 +75,13 @@ services:
       - BUILD_CACHE_DIR=/spinforge/cache
       - BUILD_OUTPUT_DIR=/spinforge/builds
     volumes:
-      - ./:/spinforge
       - builds-data:/spinforge/builds
       - build-cache:/spinforge/cache
+      - ./apps:/spinforge/apps:ro
     depends_on:
       - keydb
     networks:
       - spinforge-network
-    command: sh -c "apk add --no-cache git python3 make g++ docker-cli && cd /spinforge && rm -f package-lock.json && mv package.json package.json.bak || true && cd packages/shared && npm install && npx tsc || true && cd ../spinlet-core && npm install && npx tsc || true && cd ../spinlet-builder && npm install && npx tsc || true && node dist/service.js"
 
   # Nginx - Reverse proxy and SSL termination
   nginx:

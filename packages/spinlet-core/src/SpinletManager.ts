@@ -5,7 +5,8 @@ import pidusage from 'pidusage';
 import { SpinletConfig, SpinletState } from './types';
 import { PortAllocator } from './PortAllocator';
 import { SpinletMonitor } from './SpinletMonitor';
-import { IDLE_TIMEOUT_MS, HEALTH_CHECK_INTERVAL_MS } from './constants';
+import { IDLE_TIMEOUT_MS } from './constants';
+import { createLogger } from '@spinforge/shared';
 
 export class SpinletManager extends EventEmitter {
   private spinlets: Map<string, ChildProcess> = new Map();
@@ -15,6 +16,7 @@ export class SpinletManager extends EventEmitter {
   private portAllocator: PortAllocator;
   private idleCheckInterval?: NodeJS.Timeout;
   private metricsInterval?: NodeJS.Timeout;
+  private logger = createLogger('SpinletManager');
 
   constructor(redis: Redis, portRange?: { start: number; end: number }) {
     super();
@@ -300,8 +302,16 @@ export class SpinletManager extends EventEmitter {
     this.idleCheckInterval = setInterval(async () => {
       const now = Date.now();
       
-      for (const [spinletId, state] of this.states) {
-        if (state.state === 'running' && now - state.lastAccess > IDLE_TIMEOUT_MS) {
+      // Get all spinlet IDs from Redis
+      const spinletIds = await this.redis.zrange('spinforge:active', 0, -1);
+      
+      for (const spinletId of spinletIds) {
+        const state = await this.getState(spinletId);
+        if (state && state.state === 'running' && now - state.lastAccess > IDLE_TIMEOUT_MS) {
+          this.logger.info(`Stopping idle spinlet ${spinletId}`, {
+            lastAccess: new Date(state.lastAccess),
+            idleTime: Math.floor((now - state.lastAccess) / 1000 / 60) + ' minutes'
+          });
           await this.stop(spinletId, 'idle');
         }
       }
