@@ -1,41 +1,42 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { api, Route } from '../services/api';
-import { Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { api, Route } from "../services/api";
+import { Upload, AlertCircle, CheckCircle } from "lucide-react";
+import BusyIcon from "@/components/icons/svg";
 
 const frameworks = [
-  { value: 'remix', label: 'Remix' },
-  { value: 'nextjs', label: 'Next.js' },
-  { value: 'express', label: 'Express' },
-  { value: 'static', label: 'Static Files' },
+  { value: "remix", label: "Remix" },
+  { value: "nextjs", label: "Next.js" },
+  { value: "express", label: "Express" },
+  { value: "static", label: "Static Files" },
 ];
 
 export default function Deploy() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    domain: '',
-    customerId: '',
-    buildPath: '',
-    framework: 'express',
-    memory: '512MB',
-    cpu: '0.5',
-    env: '',
+    domain: "",
+    customerId: "",
+    buildPath: "",
+    framework: "express",
+    memory: "512MB",
+    cpu: "0.5",
+    env: "",
   });
 
   const deployMutation = useMutation({
     mutationFn: (data: Route) => api.createRoute(data),
     onSuccess: () => {
-      navigate('/applications');
+      navigate("/applications");
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const envVars = formData.env
-      ? formData.env.split('\n').reduce((acc, line) => {
-          const [key, value] = line.split('=');
+      ? formData.env.split("\n").reduce((acc, line) => {
+          const [key, value] = line.split("=");
           if (key && value) acc[key.trim()] = value.trim();
           return acc;
         }, {} as Record<string, string>)
@@ -70,7 +71,10 @@ export default function Deploy() {
           <div className="px-4 py-6 sm:p-8">
             <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <label htmlFor="domain" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="domain"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   Domain
                 </label>
                 <div className="mt-2">
@@ -80,7 +84,9 @@ export default function Deploy() {
                     id="domain"
                     required
                     value={formData.domain}
-                    onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, domain: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                     placeholder="myapp.example.com"
                   />
@@ -88,7 +94,10 @@ export default function Deploy() {
               </div>
 
               <div className="sm:col-span-3">
-                <label htmlFor="customerId" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="customerId"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   Customer ID
                 </label>
                 <div className="mt-2">
@@ -98,7 +107,9 @@ export default function Deploy() {
                     id="customerId"
                     required
                     value={formData.customerId}
-                    onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, customerId: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                     placeholder="customer-123"
                   />
@@ -106,7 +117,10 @@ export default function Deploy() {
               </div>
 
               <div className="sm:col-span-4">
-                <label htmlFor="buildPath" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="buildPath"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   Build Path
                 </label>
                 <div className="mt-2">
@@ -116,16 +130,23 @@ export default function Deploy() {
                     id="buildPath"
                     required
                     value={formData.buildPath}
-                    onChange={(e) => setFormData({ ...formData, buildPath: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, buildPath: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                     placeholder="/path/to/your/app"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">Absolute path to your application directory</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Absolute path to your application directory
+                </p>
               </div>
 
               <div className="sm:col-span-2">
-                <label htmlFor="framework" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="framework"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   Framework
                 </label>
                 <div className="mt-2">
@@ -133,7 +154,9 @@ export default function Deploy() {
                     id="framework"
                     name="framework"
                     value={formData.framework}
-                    onChange={(e) => setFormData({ ...formData, framework: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, framework: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                   >
                     {frameworks.map((fw) => (
@@ -146,7 +169,10 @@ export default function Deploy() {
               </div>
 
               <div className="sm:col-span-3">
-                <label htmlFor="memory" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="memory"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   Memory Limit
                 </label>
                 <div className="mt-2">
@@ -155,7 +181,9 @@ export default function Deploy() {
                     name="memory"
                     id="memory"
                     value={formData.memory}
-                    onChange={(e) => setFormData({ ...formData, memory: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, memory: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                     placeholder="512MB"
                   />
@@ -163,7 +191,10 @@ export default function Deploy() {
               </div>
 
               <div className="sm:col-span-3">
-                <label htmlFor="cpu" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="cpu"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   CPU Limit
                 </label>
                 <div className="mt-2">
@@ -172,7 +203,9 @@ export default function Deploy() {
                     name="cpu"
                     id="cpu"
                     value={formData.cpu}
-                    onChange={(e) => setFormData({ ...formData, cpu: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cpu: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                     placeholder="0.5"
                   />
@@ -180,7 +213,10 @@ export default function Deploy() {
               </div>
 
               <div className="col-span-full">
-                <label htmlFor="env" className="block text-sm font-medium leading-6 text-gray-900">
+                <label
+                  htmlFor="env"
+                  className="block text-sm font-medium leading-6 text-gray-900"
+                >
                   Environment Variables
                 </label>
                 <div className="mt-2">
@@ -189,12 +225,16 @@ export default function Deploy() {
                     name="env"
                     rows={4}
                     value={formData.env}
-                    onChange={(e) => setFormData({ ...formData, env: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, env: e.target.value })
+                    }
                     className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                     placeholder="KEY=value&#10;ANOTHER_KEY=another_value"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">One per line in KEY=value format</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  One per line in KEY=value format
+                </p>
               </div>
             </div>
           </div>
@@ -204,7 +244,9 @@ export default function Deploy() {
               <div className="flex">
                 <AlertCircle className="h-5 w-5 text-red-400" />
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Deployment failed</h3>
+                  <h3 className="text-sm font-medium text-red-800">
+                    Deployment failed
+                  </h3>
                   <p className="mt-2 text-sm text-red-700">
                     {(deployMutation.error as Error).message}
                   </p>
@@ -218,7 +260,9 @@ export default function Deploy() {
               <div className="flex">
                 <CheckCircle className="h-5 w-5 text-green-400" />
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-green-800">Deployment successful!</h3>
+                  <h3 className="text-sm font-medium text-green-800">
+                    Deployment successful!
+                  </h3>
                   <p className="mt-2 text-sm text-green-700">
                     Your application has been deployed successfully.
                   </p>
@@ -230,7 +274,7 @@ export default function Deploy() {
           <div className="flex items-center justify-end gap-x-6 border-t border-gray-900/10 px-4 py-4 sm:px-8">
             <button
               type="button"
-              onClick={() => navigate('/applications')}
+              onClick={() => navigate("/applications")}
               className="text-sm font-semibold leading-6 text-gray-900"
             >
               Cancel
@@ -240,8 +284,8 @@ export default function Deploy() {
               disabled={deployMutation.isPending}
               className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
             >
-              <Upload className="h-4 w-4 mr-2" />
-              {deployMutation.isPending ? 'Deploying...' : 'Deploy Application'}
+              <BusyIcon isLoading={deployMutation.isPending} />
+              {deployMutation.isPending ? "Deploying..." : "Deploy Application"}
             </button>
           </div>
         </div>

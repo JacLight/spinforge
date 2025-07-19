@@ -24,7 +24,8 @@
       "Bash(/Users/imzee/projects/spinforge/test-routing.sh:*)",
       "Bash(pkill:*)",
       "Bash(npm run dev:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(echo:*)"
     ],
     "deny": []
   }

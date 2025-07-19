@@ -1,0 +1,36 @@
+name: express-api
+version: 1.0.0
+description: Express API with MongoDB
+
+domain: api.myapp.com
+customerId: customer-123
+
+framework: express
+runtime: node
+nodeVersion: "20"
+
+build:
+  command: npm install && npm run build
+  outputDir: dist
+
+start:
+  command: npm start
+  port: 3000
+  healthCheck:
+    path: /health
+    interval: 30
+
+resources:
+  memory: 512MB
+  cpu: 0.5
+
+env:
+  NODE_ENV: production
+  PORT: 3000
+  MONGODB_URI: ${MONGODB_URI}
+  JWT_SECRET: ${JWT_SECRET}
+
+monitoring:
+  logs:
+    level: info
+    format: json

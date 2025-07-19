@@ -1,6 +1,48 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const API_BASE = '';
+
+// Add request/response interceptors for better error handling
+axios.interceptors.request.use(
+  (config) => {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('[API] Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+axios.interceptors.response.use(
+  (response) => {
+    console.log(`[API] Response ${response.status} from ${response.config.url}`);
+    return response;
+  },
+  (error: AxiosError) => {
+    console.error('[API] Response error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
+    // Enhance error message
+    let enhancedMessage = error.message;
+    if (error.response?.status === 502) {
+      enhancedMessage = 'Cannot connect to SpinHub API (502 Bad Gateway). Please check if the service is running.';
+    } else if (error.response?.status === 404) {
+      enhancedMessage = `API endpoint not found: ${error.config?.url}`;
+    } else if (!error.response) {
+      enhancedMessage = 'Network error: Cannot reach the server';
+    }
+    
+    const enhancedError = new Error(enhancedMessage);
+    (enhancedError as any).originalError = error;
+    return Promise.reject(enhancedError);
+  }
+);
 
 export interface Route {
   domain: string;

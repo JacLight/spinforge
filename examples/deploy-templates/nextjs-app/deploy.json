@@ -1,0 +1,39 @@
+{
+  "name": "nextjs-store",
+  "version": "2.0.0",
+  "description": "Next.js E-commerce Store",
+  "domain": ["shop.example.com", "www.shop.example.com"],
+  "customerId": "store-customer",
+  "framework": "nextjs",
+  "runtime": "node",
+  "nodeVersion": "20",
+  "build": {
+    "command": "npm install && npm run build",
+    "outputDir": ".next",
+    "env": {
+      "NEXT_PUBLIC_API_URL": "https://api.example.com"
+    }
+  },
+  "start": {
+    "command": "npm start",
+    "port": 3000
+  },
+  "resources": {
+    "memory": "1GB",
+    "cpu": 1,
+    "disk": "2GB"
+  },
+  "env": {
+    "NODE_ENV": "production",
+    "DATABASE_URL": "${DATABASE_URL}"
+  },
+  "scaling": {
+    "min": 2,
+    "max": 5,
+    "targetCPU": 70
+  },
+  "networking": {
+    "cors": true,
+    "timeout": 60
+  }
+}

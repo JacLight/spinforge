@@ -1,0 +1,128 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$tsc",
+      "label": "Build All",
+      "detail": "Build all TypeScript packages"
+    },
+    {
+      "label": "Start Docker Debug",
+      "type": "shell",
+      "command": "docker-compose -f docker-compose.yml -f docker-compose.debug.yml up",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^(error|warning):\\s+(.*)$",
+          "severity": 1,
+          "message": 2
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*Starting SpinForge services.*$",
+          "endsPattern": "^.*All services started.*$"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Start Infrastructure Only",
+      "type": "shell",
+      "command": "docker-compose up keydb nginx prometheus grafana",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Build SpinHub",
+      "type": "npm",
+      "script": "build",
+      "path": "packages/spinlet-hub",
+      "group": "build",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "Build Builder",
+      "type": "npm",
+      "script": "build",
+      "path": "packages/spinlet-builder",
+      "group": "build",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "Build UI",
+      "type": "npm",
+      "script": "build",
+      "path": "packages/spinforge-ui",
+      "group": "build",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "Install Dependencies",
+      "type": "npm",
+      "script": "install",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Watch All",
+      "type": "npm",
+      "script": "watch",
+      "isBackground": true,
+      "problemMatcher": "$tsc-watch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Stop All Docker Services",
+      "type": "shell",
+      "command": "docker-compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean All",
+      "type": "shell",
+      "command": "npm run clean",
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Logs - SpinHub",
+      "type": "shell",
+      "command": "docker-compose logs -f spinhub",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Docker Logs - Builder",
+      "type": "shell",
+      "command": "docker-compose logs -f builder",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

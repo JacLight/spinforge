@@ -32,20 +32,30 @@ const deploySchema = {
       placeholder: "customer@example.com",
       description: "Unique identifier for the customer",
     },
-    buildPath: {
-      name: "buildPath",
-      label: "Build Path",
+    gitUrl: {
+      name: "gitUrl",
+      label: "Git Repository URL",
       type: "string",
-      required: true,
-      placeholder: "/path/to/your/app",
-      description: "Absolute path to your application directory",
+      required: false,
+      placeholder: "https://github.com/username/repo.git",
+      description: "Git repository URL (leave empty to upload a file instead)",
     },
     upload: {
       name: "upload",
       label: "Upload Application",
       type: "string",
       "x-control": "file",
+      required: false,
       description: "Upload your application package (zip, tar.gz, etc.)",
+    },
+    buildPath: {
+      name: "buildPath",
+      label: "Build Path (Optional)",
+      type: "string",
+      required: false,
+      placeholder: "auto-generated",
+      description: "Leave empty for automatic path generation",
+      hidden: true,
     },
     framework: {
       name: "framework",
@@ -111,7 +121,7 @@ export default function DeployForm() {
     setFormData(data);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsDeploying(true);
 
     const envVars = formData.env
@@ -122,16 +132,38 @@ export default function DeployForm() {
         }, {} as Record<string, string>)
       : undefined;
 
+    // Generate build path if not provided
+    const spinletId = `spin-${Date.now()}`;
+    let buildPath = formData.buildPath;
+    
+    // If no build path, generate one based on deployment method
+    if (!buildPath) {
+      if (formData.gitUrl) {
+        // For git repos, use a standard path
+        buildPath = `/builds/${spinletId}/repo`;
+      } else if (formData.upload) {
+        // For uploads, use upload path
+        buildPath = `/builds/${spinletId}/upload`;
+      } else {
+        // Default path
+        buildPath = `/builds/${spinletId}`;
+      }
+    }
+
+    // TODO: In production, handle file upload and git clone here
+    // For now, we'll just use the provided or generated path
+    
     deployMutation.mutate({
       domain: formData.domain,
-      customerId: formData.customerId,
-      spinletId: `spin-${Date.now()}`,
-      buildPath: formData.buildPath,
+      customerId: formData.customerEmail || formData.customerId,
+      spinletId: spinletId,
+      buildPath: buildPath,
       framework: formData.framework,
       config: {
         memory: formData.memory,
         cpu: formData.cpu,
         env: envVars,
+        gitUrl: formData.gitUrl, // Store for future use
       },
     });
   };
@@ -227,8 +259,8 @@ export default function DeployForm() {
               disabled={
                 isDeploying ||
                 !formData.domain ||
-                !formData.customerId ||
-                !formData.buildPath
+                !(formData.customerEmail || formData.customerId) ||
+                (!formData.gitUrl && !formData.upload && !formData.buildPath)
               }
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

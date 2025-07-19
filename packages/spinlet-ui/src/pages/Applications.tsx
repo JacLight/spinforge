@@ -68,13 +68,36 @@ export default function Applications() {
   };
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isNetworkError = errorMessage.includes('502') || errorMessage.includes('Network');
+    
     return (
       <div className="rounded-lg bg-red-50 border border-red-200 p-6">
         <div className="flex">
           <AlertCircle className="h-5 w-5 text-red-400 mt-0.5" />
           <div className="ml-3">
             <h3 className="text-sm font-medium text-red-800">Error loading applications</h3>
-            <p className="mt-2 text-sm text-red-700">{(error as Error).message}</p>
+            <p className="mt-2 text-sm text-red-700">{errorMessage}</p>
+            {isNetworkError && (
+              <div className="mt-3 text-sm text-red-600">
+                <p className="font-medium">Troubleshooting tips:</p>
+                <ul className="mt-1 list-disc list-inside space-y-1">
+                  <li>Check if SpinHub service is running on port 8080</li>
+                  <li>Verify nginx proxy configuration is correct</li>
+                  <li>Ensure the API endpoint /_admin/routes is accessible</li>
+                  <li>Check browser console for more details</li>
+                </ul>
+                <div className="mt-3">
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="inline-flex items-center px-3 py-1 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

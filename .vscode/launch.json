@@ -1,0 +1,173 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to SpinHub (Docker)",
+      "address": "localhost",
+      "port": 9229,
+      "localRoot": "${workspaceFolder}/packages/spinlet-hub",
+      "remoteRoot": "/spinforge/packages/spinlet-hub",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "sourceMaps": true,
+      "restart": true
+    },
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to Builder (Docker)",
+      "address": "localhost",
+      "port": 9230,
+      "localRoot": "${workspaceFolder}/packages/spinlet-builder",
+      "remoteRoot": "/spinforge/packages/spinlet-builder",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "sourceMaps": true,
+      "restart": true
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug SpinHub (Native)",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "program": "${workspaceFolder}/packages/spinlet-hub/src/server.ts",
+      "cwd": "${workspaceFolder}/packages/spinlet-hub",
+      "sourceMaps": true,
+      "env": {
+        "NODE_ENV": "development",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "9000",
+        "REDIS_PASSWORD": "changeThisStrongPassword123",
+        "PORT": "8080",
+        "LOG_LEVEL": "debug",
+        "ADMIN_TOKEN": "changeMe123",
+        "TS_NODE_PROJECT": "${workspaceFolder}/packages/spinlet-hub/tsconfig.json"
+      },
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug SpinHub (Compiled)",
+      "program": "${workspaceFolder}/packages/spinlet-hub/dist/server.js",
+      "preLaunchTask": "Build SpinHub",
+      "cwd": "${workspaceFolder}/packages/spinlet-hub",
+      "sourceMaps": true,
+      "env": {
+        "NODE_ENV": "development",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "9000",
+        "REDIS_PASSWORD": "changeThisStrongPassword123",
+        "PORT": "8080",
+        "LOG_LEVEL": "debug",
+        "ADMIN_TOKEN": "changeMe123"
+      },
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "outFiles": ["${workspaceFolder}/packages/spinlet-hub/dist/**/*.js"],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "sourceMapPathOverrides": {
+        "../src/*": "${workspaceFolder}/packages/spinlet-hub/src/*"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Test Debug Setup",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "program": "${workspaceFolder}/packages/spinlet-hub/src/test-debug.ts",
+      "cwd": "${workspaceFolder}/packages/spinlet-hub",
+      "sourceMaps": true,
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/packages/spinlet-hub/tsconfig.json"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Builder (Native)",
+      "program": "${workspaceFolder}/packages/spinlet-builder/src/service.ts",
+      "preLaunchTask": "Build Builder",
+      "outFiles": ["${workspaceFolder}/packages/spinlet-builder/dist/**/*.js"],
+      "sourceMaps": true,
+      "env": {
+        "NODE_ENV": "development",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "9000",
+        "REDIS_PASSWORD": "changeThisStrongPassword123",
+        "BUILD_CACHE_DIR": "${workspaceFolder}/cache",
+        "BUILD_OUTPUT_DIR": "${workspaceFolder}/builds",
+        "LOG_LEVEL": "debug"
+      },
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug UI (Chrome)",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/packages/spinforge-ui",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/src/*"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug UI (Native)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/packages/spinforge-ui",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "console": "integratedTerminal",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug All (Docker)",
+      "configurations": [
+        "Attach to SpinHub (Docker)",
+        "Attach to Builder (Docker)"
+      ],
+      "preLaunchTask": "Start Docker Debug",
+      "stopAll": true
+    },
+    {
+      "name": "Debug Full Stack (Native)",
+      "configurations": [
+        "Debug SpinHub (Native)",
+        "Debug Builder (Native)",
+        "Debug UI (Native)"
+      ],
+      "preLaunchTask": "Start Infrastructure Only",
+      "stopAll": true
+    },
+    {
+      "name": "Debug Backend (Native)",
+      "configurations": [
+        "Debug SpinHub (Native)",
+        "Debug Builder (Native)"
+      ],
+      "preLaunchTask": "Start Infrastructure Only",
+      "stopAll": true
+    }
+  ]
+}
