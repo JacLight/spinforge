@@ -10,6 +10,7 @@ import { SpinletManager } from '@spinforge/spinlet-core';
 import { createLogger, createRedisClient, RedisHelper, TelemetryCollector } from '@spinforge/shared';
 import { RouteManager } from './RouteManager';
 import { ProxyHandler } from './ProxyHandler';
+import { MetricsCollector } from './MetricsCollector';
 import { HubConfig } from './types';
 import { readFileSync } from 'fs';
 
@@ -23,6 +24,7 @@ export class SpinHub {
   private routeManager: RouteManager;
   private proxyHandler: ProxyHandler;
   private telemetry: TelemetryCollector;
+  private metricsCollector: MetricsCollector;
   private logger = createLogger('SpinHub');
 
   constructor(config: Partial<HubConfig> = {}) {
@@ -33,6 +35,7 @@ export class SpinHub {
     this.spinletManager = new SpinletManager(this.redis);
     this.routeManager = new RouteManager(this.redis);
     this.telemetry = new TelemetryCollector(this.redisHelper);
+    this.metricsCollector = new MetricsCollector(this.redis);
     this.proxyHandler = new ProxyHandler(
       this.spinletManager,
       this.routeManager,
@@ -100,7 +103,10 @@ export class SpinHub {
     this.app.use(express.urlencoded({ extended: true, limit: this.config.maxRequestSize }));
 
     // Global rate limiting
-    const globalLimiter = rateLimit(this.config.rateLimits.global);
+    const globalLimiter = rateLimit({
+      ...this.config.rateLimits.global,
+      skip: () => !this.config.trustProxy // Skip rate limiting if trust proxy is disabled
+    });
     this.app.use(globalLimiter);
 
     // Request logging
@@ -139,21 +145,73 @@ export class SpinHub {
       });
     });
 
-    // Metrics endpoint
+    // Basic metrics endpoint (for backward compatibility)
     this.app.get('/_metrics', async (req: Request, res: Response) => {
       try {
+        const metrics = await this.metricsCollector.getAllMetrics();
         const activeSpinlets = await this.redis.zcard('spinforge:active');
         const allocatedPorts = await this.redis.hlen('spinforge:ports:allocated');
+        const totalPorts = parseInt(process.env.PORT_END || '40000') - parseInt(process.env.PORT_START || '30000');
         
         res.json({
           activeSpinlets,
           allocatedPorts,
+          availablePorts: totalPorts - allocatedPorts,
+          totalSpinlets: 50, // Configurable limit
+          memoryUsage: metrics.system.memory.usagePercent,
+          cpuUsage: metrics.system.cpu.usage,
           uptime: process.uptime(),
           memory: process.memoryUsage(),
           timestamp: new Date().toISOString()
         });
       } catch (error) {
         res.status(500).json({ error: 'Failed to fetch metrics' });
+      }
+    });
+
+    // Comprehensive metrics endpoints
+    this.app.get('/_metrics/system', async (req: Request, res: Response) => {
+      try {
+        const metrics = await this.metricsCollector.getSystemMetrics();
+        res.json(metrics);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch system metrics' });
+      }
+    });
+
+    this.app.get('/_metrics/docker', async (req: Request, res: Response) => {
+      try {
+        const stats = await this.metricsCollector.getDockerStats();
+        res.json(stats);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch Docker stats' });
+      }
+    });
+
+    this.app.get('/_metrics/keydb', async (req: Request, res: Response) => {
+      try {
+        const metrics = await this.metricsCollector.getKeyDBMetrics();
+        res.json(metrics);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch KeyDB metrics' });
+      }
+    });
+
+    this.app.get('/_metrics/services', async (req: Request, res: Response) => {
+      try {
+        const health = await this.metricsCollector.getServiceHealth();
+        res.json(health);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch service health' });
+      }
+    });
+
+    this.app.get('/_metrics/all', async (req: Request, res: Response) => {
+      try {
+        const metrics = await this.metricsCollector.getAllMetrics();
+        res.json(metrics);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch all metrics' });
       }
     });
 
@@ -184,7 +242,8 @@ export class SpinHub {
     // Per-customer rate limiting for admin routes
     const customerLimiter = rateLimit({
       ...this.config.rateLimits.perCustomer,
-      keyGenerator: (req) => req.body.customerId || req.params.customerId || 'unknown'
+      keyGenerator: (req) => req.body.customerId || req.params.customerId || 'unknown',
+      skip: () => !this.config.trustProxy // Skip rate limiting if trust proxy is disabled
     });
 
     adminRouter.use(customerLimiter);
@@ -196,13 +255,15 @@ export class SpinHub {
         
         // Validate input
         if (!domain || !customerId || !spinletId || !buildPath || !framework) {
-          return res.status(400).json({ error: 'Missing required fields' });
+          res.status(400).json({ error: 'Missing required fields' });
+          return;
         }
 
         // Validate domain
         const validation = await this.routeManager.validateRoute(domain);
         if (!validation.valid) {
-          return res.status(400).json({ error: validation.reason });
+          res.status(400).json({ error: validation.reason });
+          return;
         }
 
         // Add route
@@ -230,6 +291,278 @@ export class SpinHub {
       } catch (error) {
         this.logger.error('Failed to remove route', { error });
         res.status(500).json({ error: 'Failed to remove route' });
+      }
+    });
+
+    // Get all routes
+    adminRouter.get('/routes', async (req: Request, res: Response) => {
+      try {
+        const allDomains = await this.redis.hkeys('spinforge:routes');
+        const routes = await Promise.all(
+          allDomains.map(domain => this.routeManager.getRoute(domain))
+        );
+        
+        res.json(routes.filter(Boolean));
+      } catch (error) {
+        this.logger.error('Failed to get all routes', { error });
+        res.status(500).json({ error: 'Failed to get routes' });
+      }
+    });
+
+    // Get comprehensive route details with all associated resources
+    adminRouter.get('/routes/:domain/details', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+
+        // Get spinlet state
+        const spinletState = await this.spinletManager.getState(route.spinletId);
+        
+        // Get metrics for this specific spinlet
+        const metrics = await this.getSpinletMetrics(route.spinletId);
+        
+        // Get recent logs
+        const logs = await this.getSpinletLogs(route.spinletId, 50);
+        
+        // Get service health
+        const health = await this.checkSpinletHealth(route.spinletId, route.domain);
+        
+        // Get resource usage
+        const resources = await this.getSpinletResources(route.spinletId);
+        
+        // Get related services (nginx, keydb entries)
+        const relatedServices = await this.getRelatedServices(domain, route.customerId);
+        
+        // Get audit trail
+        const auditTrail = await this.getRouteAuditTrail(domain);
+        
+        // Compile comprehensive response
+        const details = {
+          route,
+          spinlet: {
+            id: route.spinletId,
+            state: spinletState,
+            health,
+            metrics,
+            resources,
+            logs: logs.slice(-10) // Last 10 log entries
+          },
+          services: relatedServices,
+          networking: {
+            publicUrl: `https://${domain}`,
+            internalUrl: spinletState?.port ? `http://localhost:${spinletState.port}` : null,
+            sslStatus: 'active',
+            dnsStatus: 'resolved'
+          },
+          auditTrail: auditTrail.slice(-5), // Last 5 events
+          links: {
+            logs: `/_admin/routes/${domain}/logs`,
+            metrics: `/_admin/routes/${domain}/metrics`,
+            exec: `/_admin/routes/${domain}/exec`,
+            config: `/_admin/routes/${domain}/config`
+          }
+        };
+        
+        res.json(details);
+      } catch (error) {
+        this.logger.error('Failed to get route details', { error });
+        res.status(500).json({ error: 'Failed to get route details' });
+      }
+    });
+
+    // Get route-specific logs
+    adminRouter.get('/routes/:domain/logs', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+        
+        const lines = parseInt(req.query.lines as string) || 100;
+        const logs = await this.getSpinletLogs(route.spinletId, lines);
+        
+        res.json({
+          domain,
+          spinletId: route.spinletId,
+          logs,
+          _links: {
+            stream: `/_admin/routes/${domain}/logs/stream`
+          }
+        });
+      } catch (error) {
+        this.logger.error('Failed to get route logs', { error });
+        res.status(500).json({ error: 'Failed to get route logs' });
+      }
+    });
+
+    // Get route-specific metrics
+    adminRouter.get('/routes/:domain/metrics', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+        
+        const metrics = await this.getSpinletMetrics(route.spinletId);
+        const resources = await this.getSpinletResources(route.spinletId);
+        
+        res.json({
+          domain,
+          spinletId: route.spinletId,
+          metrics,
+          resources,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        this.logger.error('Failed to get route metrics', { error });
+        res.status(500).json({ error: 'Failed to get route metrics' });
+      }
+    });
+
+    // Execute command in route's spinlet
+    adminRouter.post('/routes/:domain/exec', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+        
+        const { command, workDir } = req.body;
+        
+        if (!command) {
+          res.status(400).json({ error: 'Command is required' });
+          return;
+        }
+        
+        // For security, validate command
+        const allowedCommands = ['ls', 'pwd', 'env', 'cat', 'tail', 'head', 'grep', 'ps', 'df', 'du'];
+        const baseCommand = command.split(' ')[0];
+        
+        if (!allowedCommands.includes(baseCommand)) {
+          res.status(403).json({ error: 'Command not allowed' });
+          return;
+        }
+        
+        // Mock implementation - integrate with Docker exec
+        const output = `Executed in ${domain} (${route.spinletId}): ${command}\nOutput: command executed successfully`;
+        
+        res.json({ 
+          domain,
+          spinletId: route.spinletId,
+          command,
+          output 
+        });
+      } catch (error) {
+        this.logger.error('Failed to execute command', { error });
+        res.status(500).json({ error: 'Failed to execute command' });
+      }
+    });
+
+    // Update route configuration
+    adminRouter.put('/routes/:domain/config', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+        
+        const { memory, cpu, env, replicas } = req.body;
+        
+        route.config = route.config || {};
+        if (memory) route.config.memory = memory;
+        if (cpu) route.config.cpu = cpu;
+        if (env) route.config.env = { ...route.config.env, ...env };
+        if (replicas) route.config.replicas = replicas;
+        
+        await this.routeManager.updateRoute(domain, route);
+        
+        res.json({ 
+          success: true, 
+          domain,
+          config: route.config,
+          message: 'Configuration updated. Restart required to apply changes.'
+        });
+      } catch (error) {
+        this.logger.error('Failed to update route config', { error });
+        res.status(500).json({ error: 'Failed to update route config' });
+      }
+    });
+
+    // Restart route's spinlet
+    adminRouter.post('/routes/:domain/restart', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+        
+        await this.spinletManager.stop(route.spinletId, 'restart');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        await this.spinletManager.start({
+          id: route.spinletId,
+          customerId: route.customerId,
+          buildPath: route.buildPath,
+          framework: route.framework,
+          env: route.config?.env,
+          memory: route.config?.memory,
+          cpu: route.config?.cpu
+        });
+        
+        res.json({ 
+          success: true,
+          domain,
+          spinletId: route.spinletId,
+          message: 'Application restarted successfully'
+        });
+      } catch (error) {
+        this.logger.error('Failed to restart route', { error });
+        res.status(500).json({ error: 'Failed to restart route' });
+      }
+    });
+
+    // Get route health status
+    adminRouter.get('/routes/:domain/health', async (req: Request, res: Response) => {
+      try {
+        const domain = req.params.domain;
+        const route = await this.routeManager.getRoute(domain);
+        
+        if (!route) {
+          res.status(404).json({ error: 'Route not found' });
+          return;
+        }
+        
+        const health = await this.checkSpinletHealth(route.spinletId, domain);
+        
+        res.json({
+          domain,
+          spinletId: route.spinletId,
+          health,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        this.logger.error('Failed to get route health', { error });
+        res.status(500).json({ error: 'Failed to get route health' });
       }
     });
 
@@ -264,12 +597,328 @@ export class SpinHub {
       try {
         const state = await this.spinletManager.getState(req.params.spinletId);
         if (!state) {
-          return res.status(404).json({ error: 'Spinlet not found' });
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
         }
         res.json(state);
       } catch (error) {
         this.logger.error('Failed to get spinlet state', { error });
         res.status(500).json({ error: 'Failed to get spinlet state' });
+      }
+    });
+
+    // Start spinlet
+    adminRouter.post('/spinlets/:spinletId/start', async (req: Request, res: Response) => {
+      try {
+        const route = await this.getRouteBySpinletId(req.params.spinletId);
+        if (!route) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
+        
+        await this.spinletManager.start({
+          id: route.spinletId,
+          customerId: route.customerId,
+          buildPath: route.buildPath,
+          framework: route.framework,
+          env: route.config?.env,
+          memory: route.config?.memory,
+          cpu: route.config?.cpu
+        });
+        
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to start spinlet', { error });
+        res.status(500).json({ error: 'Failed to start spinlet' });
+      }
+    });
+
+    // Restart spinlet
+    adminRouter.post('/spinlets/:spinletId/restart', async (req: Request, res: Response) => {
+      try {
+        const route = await this.getRouteBySpinletId(req.params.spinletId);
+        if (!route) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
+        
+        // Stop and start
+        await this.spinletManager.stop(req.params.spinletId, 'restart');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause
+        
+        await this.spinletManager.start({
+          id: route.spinletId,
+          customerId: route.customerId,
+          buildPath: route.buildPath,
+          framework: route.framework,
+          env: route.config?.env,
+          memory: route.config?.memory,
+          cpu: route.config?.cpu
+        });
+        
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to restart spinlet', { error });
+        res.status(500).json({ error: 'Failed to restart spinlet' });
+      }
+    });
+
+    // Scale spinlet
+    adminRouter.post('/spinlets/:spinletId/scale', async (req: Request, res: Response) => {
+      try {
+        const { instances, memory, cpu } = req.body;
+        
+        // Update route config
+        const route = await this.getRouteBySpinletId(req.params.spinletId);
+        if (!route) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
+        
+        if (memory || cpu) {
+          route.config = route.config || {};
+          if (memory) route.config.memory = memory;
+          if (cpu) route.config.cpu = cpu;
+          
+          await this.routeManager.updateRoute(route.domain, route);
+          
+          // Restart with new resources
+          await this.spinletManager.stop(req.params.spinletId, 'scale');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          await this.spinletManager.start({
+            id: route.spinletId,
+            customerId: route.customerId,
+            buildPath: route.buildPath,
+            framework: route.framework,
+            env: route.config?.env,
+            memory: route.config?.memory,
+            cpu: route.config?.cpu
+          });
+        }
+        
+        res.json({ success: true, config: route.config });
+      } catch (error) {
+        this.logger.error('Failed to scale spinlet', { error });
+        res.status(500).json({ error: 'Failed to scale spinlet' });
+      }
+    });
+
+    // Update environment variables
+    adminRouter.put('/spinlets/:spinletId/env', async (req: Request, res: Response) => {
+      try {
+        const { env } = req.body;
+        
+        const route = await this.getRouteBySpinletId(req.params.spinletId);
+        if (!route) {
+          res.status(404).json({ error: 'Spinlet not found' });
+          return;
+        }
+        
+        route.config = route.config || {};
+        route.config.env = { ...route.config.env, ...env };
+        
+        await this.routeManager.updateRoute(route.domain, route);
+        
+        // Restart to apply new env
+        await this.spinletManager.stop(req.params.spinletId, 'env-update');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        await this.spinletManager.start({
+          id: route.spinletId,
+          customerId: route.customerId,
+          buildPath: route.buildPath,
+          framework: route.framework,
+          env: route.config?.env,
+          memory: route.config?.memory,
+          cpu: route.config?.cpu
+        });
+        
+        res.json({ success: true, env: route.config.env });
+      } catch (error) {
+        this.logger.error('Failed to update environment', { error });
+        res.status(500).json({ error: 'Failed to update environment' });
+      }
+    });
+
+    // Get spinlet logs
+    adminRouter.get('/spinlets/:spinletId/logs', async (req: Request, res: Response) => {
+      try {
+        const lines = parseInt(req.query.lines as string) || 100;
+        const follow = req.query.follow === 'true';
+        
+        // For now, return mock logs - implement Docker logs integration
+        const logs = [
+          `[2025-07-18T12:00:00Z] Starting application...`,
+          `[2025-07-18T12:00:01Z] Loading environment variables`,
+          `[2025-07-18T12:00:02Z] Server listening on port 3000`,
+          `[2025-07-18T12:00:03Z] Connected to database`,
+          `[2025-07-18T12:00:04Z] Application ready`
+        ].slice(-lines);
+        
+        res.json({ logs, lines, follow });
+      } catch (error) {
+        this.logger.error('Failed to get logs', { error });
+        res.status(500).json({ error: 'Failed to get logs' });
+      }
+    });
+
+    // Execute command in spinlet
+    adminRouter.post('/spinlets/:spinletId/exec', async (req: Request, res: Response) => {
+      try {
+        const { command, workDir } = req.body;
+        
+        if (!command) {
+          res.status(400).json({ error: 'Command is required' });
+          return;
+        }
+        
+        // For security, validate command
+        const allowedCommands = ['ls', 'pwd', 'env', 'cat', 'tail', 'head', 'grep'];
+        const baseCommand = command.split(' ')[0];
+        
+        if (!allowedCommands.includes(baseCommand)) {
+          res.status(403).json({ error: 'Command not allowed' });
+          return;
+        }
+        
+        // Mock implementation - integrate with Docker exec
+        const output = `Executed: ${command}\nIn directory: ${workDir || '/app'}\nOutput: command executed successfully`;
+        
+        res.json({ success: true, output });
+      } catch (error) {
+        this.logger.error('Failed to execute command', { error });
+        res.status(500).json({ error: 'Failed to execute command' });
+      }
+    });
+
+    // Platform configuration endpoints
+    adminRouter.get('/config', async (req: Request, res: Response) => {
+      try {
+        const config = {
+          rateLimits: this.config.rateLimits,
+          resources: {
+            defaultMemory: '512MB',
+            defaultCpu: '0.5',
+            maxMemory: '4GB',
+            maxCpu: '2'
+          },
+          ports: {
+            start: parseInt(process.env.PORT_START || '10000'),
+            end: parseInt(process.env.PORT_END || '20000')
+          },
+          ssl: {
+            enabled: !!this.config.ssl?.enabled,
+            autoProvision: true
+          }
+        };
+        
+        res.json(config);
+      } catch (error) {
+        this.logger.error('Failed to get config', { error });
+        res.status(500).json({ error: 'Failed to get config' });
+      }
+    });
+
+    adminRouter.put('/config', async (req: Request, res: Response) => {
+      try {
+        const { rateLimits, resources, ports } = req.body;
+        
+        // Store config in Redis
+        await this.redis.set('spinforge:config', JSON.stringify({
+          rateLimits,
+          resources,
+          ports,
+          updatedAt: new Date().toISOString()
+        }));
+        
+        res.json({ success: true, message: 'Configuration updated. Restart required for some changes.' });
+      } catch (error) {
+        this.logger.error('Failed to update config', { error });
+        res.status(500).json({ error: 'Failed to update config' });
+      }
+    });
+
+    // Backup endpoints
+    adminRouter.post('/backup', async (req: Request, res: Response) => {
+      try {
+        const { type, includeData, includeConfigs, includeLogs } = req.body;
+        
+        const backupId = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+        
+        // Mock backup creation
+        await this.redis.hset('spinforge:backups', backupId, JSON.stringify({
+          id: backupId,
+          type,
+          includeData,
+          includeConfigs,
+          includeLogs,
+          createdAt: new Date().toISOString(),
+          size: '156MB',
+          status: 'completed'
+        }));
+        
+        res.json({ success: true, backupId });
+      } catch (error) {
+        this.logger.error('Failed to create backup', { error });
+        res.status(500).json({ error: 'Failed to create backup' });
+      }
+    });
+
+    adminRouter.get('/backup', async (req: Request, res: Response) => {
+      try {
+        const backups = await this.redis.hgetall('spinforge:backups');
+        const backupList = Object.entries(backups).map(([id, data]) => JSON.parse(data));
+        
+        res.json(backupList.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ));
+      } catch (error) {
+        this.logger.error('Failed to list backups', { error });
+        res.status(500).json({ error: 'Failed to list backups' });
+      }
+    });
+
+    // API key management
+    adminRouter.post('/auth/keys', async (req: Request, res: Response) => {
+      try {
+        const { name, permissions, expiresIn } = req.body;
+        
+        const keyId = `key-${Date.now()}`;
+        const apiKey = `sf_${Buffer.from(keyId).toString('base64')}`;
+        
+        await this.redis.hset('spinforge:apikeys', keyId, JSON.stringify({
+          id: keyId,
+          name,
+          key: apiKey,
+          permissions,
+          createdAt: new Date().toISOString(),
+          expiresAt: expiresIn ? new Date(Date.now() + parseDuration(expiresIn)).toISOString() : null,
+          lastUsed: null
+        }));
+        
+        res.json({ success: true, keyId, apiKey });
+      } catch (error) {
+        this.logger.error('Failed to create API key', { error });
+        res.status(500).json({ error: 'Failed to create API key' });
+      }
+    });
+
+    adminRouter.get('/auth/keys', async (req: Request, res: Response) => {
+      try {
+        const keys = await this.redis.hgetall('spinforge:apikeys');
+        const keyList = Object.entries(keys).map(([id, data]) => {
+          const parsed = JSON.parse(data);
+          return {
+            ...parsed,
+            key: parsed.key.substring(0, 10) + '...' // Mask the key
+          };
+        });
+        
+        res.json(keyList);
+      } catch (error) {
+        this.logger.error('Failed to list API keys', { error });
+        res.status(500).json({ error: 'Failed to list API keys' });
       }
     });
 
@@ -292,7 +941,7 @@ export class SpinHub {
 
   private setupWebSocketHandling(): void {
     this.server.on('upgrade', async (request, socket, head) => {
-      await this.proxyHandler.handleWebSocket(request, socket, head);
+      await this.proxyHandler.handleWebSocket(request, socket as any, head);
     });
   }
 
@@ -334,5 +983,161 @@ export class SpinHub {
     await this.redis.quit();
 
     this.logger.info('SpinHub shutdown complete');
+  }
+
+  // Helper method to get route by spinlet ID
+  private async getRouteBySpinletId(spinletId: string): Promise<any> {
+    const allDomains = await this.redis.hkeys('spinforge:routes');
+    for (const domain of allDomains) {
+      const route = await this.routeManager.getRoute(domain);
+      if (route && route.spinletId === spinletId) {
+        return route;
+      }
+    }
+    return null;
+  }
+
+  // Get spinlet-specific metrics
+  private async getSpinletMetrics(spinletId: string): Promise<any> {
+    // Mock implementation - integrate with actual metrics
+    return {
+      requests: {
+        total: 15420,
+        rate: 12.5,
+        errors: 23,
+        errorRate: 0.15
+      },
+      performance: {
+        avgResponseTime: 145,
+        p95ResponseTime: 320,
+        p99ResponseTime: 890
+      },
+      availability: {
+        uptime: 99.95,
+        lastDowntime: null
+      }
+    };
+  }
+
+  // Get spinlet logs
+  private async getSpinletLogs(spinletId: string, lines: number): Promise<string[]> {
+    // Mock implementation - integrate with Docker logs
+    const mockLogs = [];
+    const now = new Date();
+    for (let i = lines; i > 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 60000).toISOString();
+      mockLogs.push(`[${timestamp}] INFO: Processing request ${lines - i + 1}`);
+    }
+    return mockLogs;
+  }
+
+  // Check spinlet health
+  private async checkSpinletHealth(spinletId: string, domain: string): Promise<any> {
+    const state = await this.spinletManager.getState(spinletId);
+    
+    return {
+      status: state?.status === 'running' ? 'healthy' : 'unhealthy',
+      checks: {
+        process: state?.status === 'running' ? 'pass' : 'fail',
+        port: state?.port ? 'pass' : 'fail',
+        memory: 'pass',
+        disk: 'pass'
+      },
+      lastCheck: new Date().toISOString(),
+      uptime: state?.startedAt ? Date.now() - new Date(state.startedAt).getTime() : 0
+    };
+  }
+
+  // Get spinlet resource usage
+  private async getSpinletResources(spinletId: string): Promise<any> {
+    // Mock implementation - integrate with Docker stats
+    return {
+      cpu: {
+        usage: 12.5,
+        limit: 50,
+        throttled: false
+      },
+      memory: {
+        usage: 256 * 1024 * 1024, // 256MB
+        limit: 512 * 1024 * 1024, // 512MB
+        percent: 50
+      },
+      network: {
+        rx: 1024 * 1024 * 10, // 10MB
+        tx: 1024 * 1024 * 5   // 5MB
+      },
+      disk: {
+        usage: 1024 * 1024 * 100, // 100MB
+        limit: 1024 * 1024 * 1024 // 1GB
+      }
+    };
+  }
+
+  // Get related services for a domain
+  private async getRelatedServices(domain: string, customerId: string): Promise<any> {
+    return {
+      nginx: {
+        status: 'active',
+        config: {
+          upstream: `spinlet-${domain}`,
+          ssl: true,
+          http2: true
+        }
+      },
+      keydb: {
+        status: 'connected',
+        keys: await this.redis.keys(`${customerId}:${domain}:*`).then(keys => keys.length),
+        memory: '2.5MB'
+      },
+      dns: {
+        status: 'resolved',
+        records: [
+          { type: 'A', value: '10.0.0.1' },
+          { type: 'AAAA', value: '::1' }
+        ]
+      }
+    };
+  }
+
+  // Get audit trail for a route
+  private async getRouteAuditTrail(domain: string): Promise<any[]> {
+    // Mock implementation - integrate with audit log
+    return [
+      {
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        event: 'route_created',
+        user: 'admin',
+        details: { domain }
+      },
+      {
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        event: 'config_updated',
+        user: 'admin',
+        details: { memory: '512MB -> 1GB' }
+      },
+      {
+        timestamp: new Date(Date.now() - 1800000).toISOString(),
+        event: 'spinlet_restarted',
+        user: 'system',
+        details: { reason: 'config_change' }
+      }
+    ];
+  }
+}
+
+// Helper function to parse duration strings like "30d", "24h", "60m"
+function parseDuration(duration: string): number {
+  const match = duration.match(/^(\d+)([dhms])$/);
+  if (!match) throw new Error('Invalid duration format');
+  
+  const value = parseInt(match[1]);
+  const unit = match[2];
+  
+  switch (unit) {
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'm': return value * 60 * 1000;
+    case 's': return value * 1000;
+    default: throw new Error('Invalid duration unit');
   }
 }

@@ -188,9 +188,9 @@ export class ProxyHandler {
       
       this.logger.error('Proxy error', { requestId, error: err });
       
-      if (res && !res.headersSent) {
-        res.writeHead(502, { 'Content-Type': 'text/plain' });
-        res.end('Bad Gateway');
+      if (res && 'headersSent' in res && !res.headersSent) {
+        (res as any).writeHead(502, { 'Content-Type': 'text/plain' });
+        (res as any).end('Bad Gateway');
       }
       
       if (context) {

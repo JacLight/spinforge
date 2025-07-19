@@ -15,7 +15,12 @@
       "Bash(npm install:*)",
       "Bash(npx lerna:*)",
       "Bash(curl:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(tsc)",
+      "Bash(tsc:*)",
+      "Bash(true)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }

@@ -38,6 +38,40 @@ interface ServiceStatus {
   lastCheck: string;
 }
 
+// Helper functions
+function formatUptime(seconds: number): string {
+  if (!seconds) return '0s';
+  
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else {
+    return `${minutes}m`;
+  }
+}
+
+function formatLastCheck(dateStr: string): string {
+  if (!dateStr) return 'Never';
+  
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hours ago`;
+  
+  return `${Math.floor(diffHours / 24)} days ago`;
+}
+
 export default function AdminDashboard() {
   const { data: health } = useQuery({
     queryKey: ['health'],
@@ -54,41 +88,52 @@ export default function AdminDashboard() {
     queryFn: () => api.metrics(),
   });
 
-  // Mock data for demonstration
+  const { data: allMetrics } = useQuery({
+    queryKey: ['allMetrics'],
+    queryFn: () => api.allMetrics(),
+    refetchInterval: 5000, // Refresh every 5 seconds
+  });
+
+  // Use real data when available, fallback to defaults
   const systemMetrics: SystemMetric[] = [
     {
       label: 'CPU Usage',
-      value: `${metrics?.cpuUsage || 42}%`,
-      status: (metrics?.cpuUsage || 42) > 80 ? 'critical' : (metrics?.cpuUsage || 42) > 60 ? 'warning' : 'good',
+      value: `${allMetrics?.system?.cpu?.usage || metrics?.cpuUsage || 0}%`,
+      status: (allMetrics?.system?.cpu?.usage || metrics?.cpuUsage || 0) > 80 ? 'critical' : 
+              (allMetrics?.system?.cpu?.usage || metrics?.cpuUsage || 0) > 60 ? 'warning' : 'good',
       icon: Cpu
     },
     {
       label: 'Memory Usage',
-      value: `${metrics?.memoryUsage || 58}%`,
-      status: (metrics?.memoryUsage || 58) > 80 ? 'critical' : (metrics?.memoryUsage || 58) > 60 ? 'warning' : 'good',
+      value: `${allMetrics?.system?.memory?.usagePercent || metrics?.memoryUsage || 0}%`,
+      status: (allMetrics?.system?.memory?.usagePercent || metrics?.memoryUsage || 0) > 80 ? 'critical' : 
+              (allMetrics?.system?.memory?.usagePercent || metrics?.memoryUsage || 0) > 60 ? 'warning' : 'good',
       icon: HardDrive
     },
     {
       label: 'Network I/O',
-      value: '124 MB/s',
+      value: allMetrics?.system?.network?.interfaces?.length 
+        ? `${allMetrics.system.network.interfaces.length} interfaces` 
+        : 'N/A',
       status: 'good',
       icon: Network
     },
     {
       label: 'Storage',
-      value: '73%',
-      status: 'warning',
+      value: `${allMetrics?.system?.disk?.usagePercent || 0}%`,
+      status: (allMetrics?.system?.disk?.usagePercent || 0) > 80 ? 'critical' : 
+              (allMetrics?.system?.disk?.usagePercent || 0) > 60 ? 'warning' : 'good',
       icon: Database
     }
   ];
 
-  const services: ServiceStatus[] = [
-    { name: 'SpinHub Router', status: 'healthy', uptime: '15d 4h 23m', lastCheck: '2 min ago' },
-    { name: 'KeyDB Database', status: 'healthy', uptime: '15d 4h 23m', lastCheck: '2 min ago' },
-    { name: 'Nginx Proxy', status: 'healthy', uptime: '15d 4h 23m', lastCheck: '2 min ago' },
-    { name: 'Builder Service', status: 'healthy', uptime: '12d 18h 45m', lastCheck: '2 min ago' },
-    { name: 'Metrics Collector', status: 'healthy', uptime: '15d 4h 23m', lastCheck: '2 min ago' },
-  ];
+  // Convert real service health data
+  const services: ServiceStatus[] = allMetrics?.services?.map(service => ({
+    name: service.name,
+    status: service.status,
+    uptime: formatUptime(service.uptime),
+    lastCheck: formatLastCheck(service.lastCheck)
+  })) || [];
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { 
   Save, 
@@ -42,6 +43,13 @@ export default function Settings() {
   const [activeSection, setActiveSection] = useState('authentication');
   const [adminToken, setAdminToken] = useState('');
   const [saved, setSaved] = useState(false);
+  
+  // Fetch real metrics data
+  const { data: allMetrics } = useQuery({
+    queryKey: ['allMetrics'],
+    queryFn: () => api.allMetrics(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
   
   // Resource settings
   const [defaultMemory, setDefaultMemory] = useState('512MB');
@@ -218,7 +226,11 @@ export default function Settings() {
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-blue-800">Resource Usage</h3>
                   <p className="mt-1 text-sm text-blue-700">
-                    Current cluster usage: 8.5GB / 32GB RAM, 4.2 / 16 CPUs
+                    Current cluster usage: {allMetrics?.system?.memory?.used 
+                      ? `${(allMetrics.system.memory.used / 1024 / 1024 / 1024).toFixed(1)}GB / ${(allMetrics.system.memory.total / 1024 / 1024 / 1024).toFixed(1)}GB`
+                      : 'Loading...'} RAM, {allMetrics?.system?.cpu?.usage 
+                      ? `${(allMetrics.system.cpu.usage * allMetrics.system.cpu.cores / 100).toFixed(1)} / ${allMetrics.system.cpu.cores}`
+                      : 'Loading...'} CPUs
                   </p>
                 </div>
               </div>
@@ -257,7 +269,7 @@ export default function Settings() {
               </div>
               <p className="mt-2 text-sm text-gray-500">
                 Available ports: {parseInt(portRangeEnd) - parseInt(portRangeStart)} 
-                (Currently allocated: 127)
+                (Currently allocated: {allMetrics?.docker?.running || 0})
               </p>
             </div>
 

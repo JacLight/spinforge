@@ -48,6 +48,9 @@ export class RouteManager {
     // Store in Redis
     await this.redisHelper.setJSON(`routes:${route.domain}`, route);
     
+    // Also store in hash for easy listing
+    await this.redis.hset('spinforge:routes', route.domain, JSON.stringify(route));
+    
     // Add to customer's domain set
     await this.redis.sadd(`customer:${route.customerId}:domains`, route.domain);
     
@@ -72,6 +75,9 @@ export class RouteManager {
 
     // Remove from Redis
     await this.redis.del(`routes:${domain}`);
+    
+    // Remove from hash
+    await this.redis.hdel('spinforge:routes', domain);
     
     // Remove from customer's domain set
     await this.redis.srem(`customer:${route.customerId}:domains`, domain);
@@ -98,7 +104,17 @@ export class RouteManager {
     }
 
     const updated = { ...existing, ...updates };
-    await this.addRoute(updated);
+    
+    // Store in Redis
+    await this.redisHelper.setJSON(`routes:${domain}`, updated);
+    
+    // Update in hash
+    await this.redis.hset('spinforge:routes', domain, JSON.stringify(updated));
+    
+    // Update cache
+    this.routeCache.set(domain, updated);
+    
+    this.logger.info('Route updated', { domain, updates });
   }
 
   async getCustomerDomains(customerId: string): Promise<string[]> {

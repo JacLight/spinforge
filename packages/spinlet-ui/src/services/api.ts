@@ -35,6 +35,109 @@ export interface Metrics {
   cpuUsage: number;
 }
 
+export interface SystemMetrics {
+  cpu: {
+    usage: number;
+    cores: number;
+    model: string;
+    speed: number;
+    loadAverage: number[];
+  };
+  memory: {
+    total: number;
+    used: number;
+    free: number;
+    usagePercent: number;
+  };
+  disk: {
+    total: number;
+    used: number;
+    free: number;
+    usagePercent: number;
+  };
+  network: {
+    interfaces: Array<{
+      name: string;
+      address: string;
+      bytesReceived: number;
+      bytesSent: number;
+    }>;
+    totalBytesIn: number;
+    totalBytesOut: number;
+  };
+  process: {
+    uptime: number;
+    pid: number;
+    memory: any;
+    cpuUsage: any;
+  };
+}
+
+export interface DockerStats {
+  containers: Array<{
+    id: string;
+    name: string;
+    image: string;
+    status: string;
+    cpu: number;
+    memory: {
+      usage: number;
+      limit: number;
+      percent: number;
+    };
+    network: {
+      rx: number;
+      tx: number;
+    };
+    block: {
+      read: number;
+      write: number;
+    };
+  }>;
+  total: number;
+  running: number;
+  stopped: number;
+}
+
+export interface KeyDBMetrics {
+  connected: boolean;
+  info: {
+    version: string;
+    uptime: number;
+    connectedClients: number;
+    usedMemory: number;
+    usedMemoryHuman: string;
+    totalKeys: number;
+    totalExpires: number;
+  };
+  stats: {
+    totalCommands: number;
+    opsPerSec: number;
+    hitRate: number;
+    evictedKeys: number;
+  };
+  replication: {
+    role: string;
+    connectedSlaves: number;
+  };
+}
+
+export interface ServiceHealth {
+  name: string;
+  status: 'healthy' | 'degraded' | 'down';
+  uptime: number;
+  lastCheck: string;
+  details: Record<string, any>;
+}
+
+export interface AllMetrics {
+  system: SystemMetrics;
+  docker: DockerStats;
+  keydb: KeyDBMetrics;
+  services: ServiceHealth[];
+  timestamp: string;
+}
+
 class SpinForgeAPI {
   private adminToken: string;
 
@@ -61,6 +164,32 @@ class SpinForgeAPI {
 
   async metrics(): Promise<Metrics> {
     const response = await axios.get(`${API_BASE}/_metrics`);
+    return response.data;
+  }
+
+  // New comprehensive metrics endpoints
+  async systemMetrics(): Promise<SystemMetrics> {
+    const response = await axios.get(`${API_BASE}/_metrics/system`);
+    return response.data;
+  }
+
+  async dockerStats(): Promise<DockerStats> {
+    const response = await axios.get(`${API_BASE}/_metrics/docker`);
+    return response.data;
+  }
+
+  async keydbMetrics(): Promise<KeyDBMetrics> {
+    const response = await axios.get(`${API_BASE}/_metrics/keydb`);
+    return response.data;
+  }
+
+  async serviceHealth(): Promise<ServiceHealth[]> {
+    const response = await axios.get(`${API_BASE}/_metrics/services`);
+    return response.data;
+  }
+
+  async allMetrics(): Promise<AllMetrics> {
+    const response = await axios.get(`${API_BASE}/_metrics/all`);
     return response.data;
   }
 
