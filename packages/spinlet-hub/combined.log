@@ -984,3 +984,9 @@
 {"address":"172.25.0.2","code":"ECONNREFUSED","errno":-111,"level":"error","message":"Redis error: connect ECONNREFUSED 172.25.0.2:6379","port":6379,"service":"spinforge","stack":"Error: connect ECONNREFUSED 172.25.0.2:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","syscall":"connect","timestamp":"2025-07-18T20:35:41.243Z"}
 {"level":"warn","message":"Redis connection failed, retrying in 200ms...","service":"spinforge","timestamp":"2025-07-18T20:35:41.243Z"}
 {"level":"warn","message":"Redis connection closed","service":"spinforge","timestamp":"2025-07-18T20:35:41.243Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-19T01:43:01.853Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-19T01:43:01.858Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-19T01:43:01.858Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-19T02:51:47.138Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-19T02:51:47.139Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-19T02:51:47.141Z"}
