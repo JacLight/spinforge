@@ -9,3 +9,10 @@
 {"error":{},"level":"error","message":"Request handling error","requestId":"Z-_-Lq0HrugFRPPf9HTMt","service":"ProxyHandler","timestamp":"2025-07-19T17:27:35.457Z"}
 {"command":"ls","execError":{"cmd":"docker exec  spinforge-example-app ls","code":1,"killed":false,"signal":null,"stderr":"Error response from daemon: No such container: spinforge-example-app\n","stdout":""},"level":"error","message":"Command execution failed","service":"SpinHub","spinletId":"example-app","timestamp":"2025-07-19T17:30:56.125Z"}
 {"command":"pwd","execError":{"cmd":"docker exec  spinforge-example-app pwd","code":1,"killed":false,"signal":null,"stderr":"Error response from daemon: No such container: spinforge-example-app\n","stdout":""},"level":"error","message":"Command execution failed","service":"SpinHub","spinletId":"example-app","timestamp":"2025-07-19T17:31:06.814Z"}
+{"level":"error","message":"Deployment directory not found: /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-19T17:39:36.740Z"}
+{"level":"error","message":"Deployment directory not found: /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-19T17:40:05.772Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"OEt16xUSjd4PdFtpFY9kH","service":"ProxyHandler","timestamp":"2025-07-19T17:41:35.298Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"QJhKIaMBRXruHP8EpoKjV","service":"ProxyHandler","timestamp":"2025-07-19T17:42:05.613Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"iydK8ayWm7obWWf0ioA1A","service":"ProxyHandler","timestamp":"2025-07-19T17:42:11.007Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"tnPEvVvD0Cmh8akeQbRob","service":"ProxyHandler","timestamp":"2025-07-19T17:42:41.071Z"}
+{"error":{"command":{"args":["spinforge:routes:test.example.com"],"name":"get"}},"level":"error","message":"Request handling error","requestId":"jLrcBPy0vWS9fdrmAZKni","service":"ProxyHandler","timestamp":"2025-07-19T17:44:01.256Z"}

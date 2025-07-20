@@ -9,6 +9,7 @@ export interface SpinletConfig {
     memory?: string; // e.g., "512MB"
     cpu?: string;    // e.g., "0.5"
   };
+  domains?: string[]; // Optional domains for the spinlet
 }
 
 export interface SpinletState {

@@ -58,3 +58,85 @@
 {"command":"pwd","execError":{"cmd":"docker exec  spinforge-example-app pwd","code":1,"killed":false,"signal":null,"stderr":"Error response from daemon: No such container: spinforge-example-app\n","stdout":""},"level":"error","message":"Command execution failed","service":"SpinHub","spinletId":"example-app","timestamp":"2025-07-19T17:31:06.814Z"}
 {"dockerError":{"cmd":"docker logs spinforge-example-app --tail 1000 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:31:51.064Z"}
 {"idleTime":"5 minutes","lastAccess":"2025-07-19T17:26:53.115Z","level":"info","message":"Stopping idle spinlet demo-test-app","service":"SpinletManager","timestamp":"2025-07-19T17:32:03.333Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-19T17:37:53.304Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-19T17:37:53.305Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-19T17:37:58.323Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-19T17:39:36.734Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-19T17:39:36.739Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-19T17:39:36.740Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-19T17:39:36.740Z"}
+{"level":"error","message":"Deployment directory not found: /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-19T17:39:36.740Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-19T17:39:42.678Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-19T17:39:42.679Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-19T17:39:42.680Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-19T17:40:05.768Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-19T17:40:05.771Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-19T17:40:05.772Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-19T17:40:05.772Z"}
+{"level":"error","message":"Deployment directory not found: /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-19T17:40:05.772Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"OEt16xUSjd4PdFtpFY9kH","service":"ProxyHandler","timestamp":"2025-07-19T17:41:35.298Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"QJhKIaMBRXruHP8EpoKjV","service":"ProxyHandler","timestamp":"2025-07-19T17:42:05.613Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"iydK8ayWm7obWWf0ioA1A","service":"ProxyHandler","timestamp":"2025-07-19T17:42:11.007Z"}
+{"error":{},"level":"error","message":"Request handling error","requestId":"tnPEvVvD0Cmh8akeQbRob","service":"ProxyHandler","timestamp":"2025-07-19T17:42:41.071Z"}
+{"error":{"command":{"args":["spinforge:routes:test.example.com"],"name":"get"}},"level":"error","message":"Request handling error","requestId":"jLrcBPy0vWS9fdrmAZKni","service":"ProxyHandler","timestamp":"2025-07-19T17:44:01.256Z"}
+{"idleTime":"5 minutes","lastAccess":"2025-07-19T17:41:17.586Z","level":"info","message":"Stopping idle spinlet example-app","service":"SpinletManager","timestamp":"2025-07-19T17:46:35.781Z"}
+{"idleTime":"5 minutes","lastAccess":"2025-07-19T17:45:09.087Z","level":"info","message":"Stopping idle spinlet spin-test-example","service":"SpinletManager","timestamp":"2025-07-19T17:50:35.863Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 1000 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:57:55.268Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:57:57.286Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:57:59.303Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:01.325Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:03.349Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:05.370Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:07.386Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:09.406Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:11.428Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:13.455Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:15.478Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:17.501Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:19.518Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:21.540Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:23.562Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:25.605Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:27.635Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:29.661Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:31.679Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 100 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T17:58:33.706Z"}
+{"idleTime":"5 minutes","lastAccess":"2025-07-19T17:56:45.057Z","level":"info","message":"Stopping idle spinlet spin-test-example","service":"SpinletManager","timestamp":"2025-07-19T18:02:07.366Z"}
+{"dockerError":{"cmd":"docker logs spinforge-example-app --tail 1000 2>&1","code":1,"killed":false,"signal":null,"stderr":"","stdout":"Error response from daemon: No such container: spinforge-example-app\n"},"level":"warn","message":"Failed to get Docker logs, using fallback","service":"SpinHub","timestamp":"2025-07-19T20:09:25.384Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-19T20:10:59.858Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-19T20:10:59.859Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-19T20:11:04.871Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-19T20:11:11.353Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-19T20:11:11.360Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-19T20:11:11.361Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-19T20:11:11.363Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-19T20:11:11.363Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-19T21:30:50.906Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-19T21:30:50.910Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-19T21:30:50.912Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-19T21:30:55.927Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-19T21:31:03.418Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-19T21:31:03.422Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-19T21:31:03.423Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-19T21:31:03.424Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-19T21:31:03.425Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-20T00:35:13.896Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T00:35:13.898Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T00:35:13.899Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-20T00:35:23.017Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-20T00:35:30.407Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-20T00:35:30.413Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T00:35:30.414Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T00:35:30.416Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T00:35:30.416Z"}
+{"buildPath":"/spinforge/examples/test-app","customerId":"demo-customer","framework":"express","level":"info","message":"Starting spinlet demo-test-app","service":"SpinletManager","timestamp":"2025-07-20T00:36:04.732Z"}
+{"level":"info","message":"Spinlet demo-test-app started successfully","pid":325,"port":3049,"service":"SpinletManager","servicePath":"localhost:3049","startupTime":"214ms","timestamp":"2025-07-20T00:36:04.952Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-20T01:28:37.052Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T01:28:37.053Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T01:28:37.053Z"}
+{"errors":0,"level":"info","message":"Stopping spinlet demo-test-app","reason":"shutdown","requests":0,"service":"SpinletManager","timestamp":"2025-07-20T01:28:42.133Z","uptime":"3157s"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-20T01:28:52.408Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-20T01:28:52.411Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T01:28:52.412Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T01:28:52.414Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T01:28:52.414Z"}
