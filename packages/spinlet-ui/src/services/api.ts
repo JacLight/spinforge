@@ -74,6 +74,25 @@ export interface Spinlet {
   domains: string[];
 }
 
+export interface IdleInfo {
+  spinletId: string;
+  ttl: number;
+  willExpireAt: string;
+  timeRemaining: number;
+  timeRemainingFormatted: string;
+}
+
+export interface IdleMetrics {
+  totalActive: number;
+  idleTimeouts: Array<{
+    spinletId: string;
+    ttl: number;
+    willExpireAt: string;
+  }>;
+  aboutToExpire: number;
+  avgTimeToExpire: number;
+}
+
 export interface Metrics {
   activeSpinlets: number;
   totalSpinlets: number;
@@ -251,6 +270,25 @@ class SpinForgeAPI {
     return response.data;
   }
 
+  async getIdleMetrics(): Promise<IdleMetrics> {
+    const response = await axios.get(`${API_BASE}/_metrics/idle`);
+    return response.data;
+  }
+
+  async getIdleInfo(spinletId: string): Promise<IdleInfo> {
+    const response = await axios.get(`${API_BASE}/_metrics/idle/${spinletId}`);
+    return response.data;
+  }
+
+  async extendIdleTimeout(spinletId: string, seconds: number = 300): Promise<any> {
+    const response = await axios.post(
+      `${API_BASE}/_admin/spinlets/${spinletId}/extend-timeout`,
+      { seconds },
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
   async createRoute(route: Route) {
     const response = await axios.post(
       `${API_BASE}/_admin/routes`,
@@ -284,15 +322,26 @@ class SpinForgeAPI {
     return response.data;
   }
 
-  async getRoutesWithStates(): Promise<(Route & { spinletState?: Spinlet })[]> {
+  async getRoutesWithStates(): Promise<(Route & { spinletState?: Spinlet; idleInfo?: IdleInfo })[]> {
     const routes = await this.getAllRoutes();
     const routesWithStates = await Promise.all(
       routes.map(async (route) => {
         try {
           const spinlet = await this.getSpinlet(route.spinletId);
-          return { ...route, spinletState: spinlet };
+          let idleInfo;
+          
+          // Get idle info if spinlet is running
+          if (spinlet && spinlet.state === 'running') {
+            try {
+              idleInfo = await this.getIdleInfo(route.spinletId);
+            } catch (error) {
+              // Ignore if idle info is not available
+            }
+          }
+          
+          return { ...route, spinletState: spinlet, idleInfo };
         } catch (error) {
-          return { ...route, spinletState: undefined };
+          return { ...route, spinletState: undefined, idleInfo: undefined };
         }
       })
     );

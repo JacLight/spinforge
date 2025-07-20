@@ -312,6 +312,56 @@ export class SpinHub {
       }
     );
 
+    // Idle timeout metrics endpoint
+    this.app.get("/_metrics/idle", async (req: Request, res: Response) => {
+      try {
+        const idleMetrics = await this.spinletManager.getIdleMetrics();
+        res.json(idleMetrics);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch idle metrics" });
+      }
+    });
+
+    // Get idle info for specific spinlet
+    this.app.get("/_metrics/idle/:spinletId", async (req: Request, res: Response) => {
+      try {
+        const { spinletId } = req.params;
+        const idleInfo = await this.spinletManager.getIdleInfo(spinletId);
+        
+        if (!idleInfo) {
+          return res.status(404).json({ error: "Spinlet not found or not active" });
+        }
+        
+        res.json({
+          spinletId,
+          ...idleInfo,
+          timeRemaining: idleInfo.ttl,
+          timeRemainingFormatted: this.formatTime(idleInfo.ttl)
+        });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch idle info" });
+      }
+    });
+
+    // Extend idle timeout endpoint
+    this.app.post("/_admin/spinlets/:spinletId/extend-timeout", async (req: Request, res: Response) => {
+      try {
+        const { spinletId } = req.params;
+        const { seconds = 300 } = req.body; // Default 5 minutes
+        
+        await this.spinletManager.extendIdleTimeout(spinletId, seconds);
+        
+        const newIdleInfo = await this.spinletManager.getIdleInfo(spinletId);
+        res.json({
+          success: true,
+          spinletId,
+          newTimeout: newIdleInfo
+        });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to extend timeout" });
+      }
+    });
+
     // Admin API routes (should be protected in production)
     this.setupAdminRoutes();
 
@@ -334,6 +384,20 @@ export class SpinHub {
         }
       }
     );
+  }
+
+  private formatTime(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes}m ${remainingSeconds}s`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m`;
+    }
   }
 
   private setupAdminRoutes(): void {

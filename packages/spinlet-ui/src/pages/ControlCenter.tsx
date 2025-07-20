@@ -16,7 +16,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../services/api';
+import { api, Route, Spinlet, IdleInfo } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 export default function ControlCenter() {
@@ -28,6 +28,14 @@ export default function ControlCenter() {
     queryFn: () => api.allMetrics(),
     refetchInterval: 5000,
   });
+
+  const { data: routes = [] } = useQuery({
+    queryKey: ['routes'],
+    queryFn: () => api.getRoutesWithStates(),
+    refetchInterval: 5000,
+  });
+
+  const runningSpinlets = routes.filter(r => r.spinletState?.state === 'running');
 
   const services = [
     {
@@ -312,6 +320,103 @@ export default function ControlCenter() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         ↓ {formatBytes(container.network.rx)} / ↑ {formatBytes(container.network.tx)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Running Spinlets */}
+        {runningSpinlets.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Running Applications</h2>
+              <span className="text-sm text-gray-500">{runningSpinlets.length} active</span>
+            </div>
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Application
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Port
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Uptime
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Idle Timeout
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Requests
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Resources
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {runningSpinlets.map((route: Route & { spinletState?: Spinlet; idleInfo?: IdleInfo }) => (
+                    <tr key={route.spinletId} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                            <Globe className="h-4 w-4 text-indigo-600" />
+                          </div>
+                          <div className="ml-3">
+                            <div className="text-sm font-medium text-gray-900">{route.domain}</div>
+                            <div className="text-xs text-gray-500">{route.spinletState?.spinletId}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-mono text-gray-900">{route.spinletState?.port || '-'}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">
+                          {route.spinletState?.startTime 
+                            ? formatUptime((Date.now() - route.spinletState.startTime) / 1000)
+                            : '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {route.idleInfo ? (
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 mr-1 text-gray-400" />
+                            <span className={`text-sm font-medium ${
+                              route.idleInfo.ttl < 60 ? 'text-red-600' : 'text-gray-900'
+                            }`}>
+                              {route.idleInfo.timeRemainingFormatted}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {route.spinletState?.requests || 0}
+                          {route.spinletState?.errors ? (
+                            <span className="text-xs text-red-600 ml-1">({route.spinletState.errors} errors)</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-3 text-sm">
+                          <div className="flex items-center">
+                            <MemoryStick className="h-4 w-4 mr-1 text-gray-400" />
+                            <span>{route.spinletState?.memory || 0} MB</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Cpu className="h-4 w-4 mr-1 text-gray-400" />
+                            <span>{route.spinletState?.cpu || 0}%</span>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ))}

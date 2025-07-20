@@ -1,12 +1,12 @@
-import { ChildProcess, fork } from 'child_process';
-import { EventEmitter } from 'events';
-import Redis from 'ioredis';
-import pidusage from 'pidusage';
-import { SpinletConfig, SpinletState } from './types';
-import { PortAllocator } from './PortAllocator';
-import { SpinletMonitor } from './SpinletMonitor';
-import { IDLE_TIMEOUT_MS } from './constants';
-import { createLogger } from '@spinforge/shared';
+import { ChildProcess, fork } from "child_process";
+import { EventEmitter } from "events";
+import Redis from "ioredis";
+import pidusage from "pidusage";
+import { SpinletConfig, SpinletState } from "./types";
+import { PortAllocator } from "./PortAllocator";
+import { SpinletMonitor } from "./SpinletMonitor";
+import { IDLE_TIMEOUT_MS } from "./constants";
+import { createLogger } from "@spinforge/shared";
 
 export class SpinletManager extends EventEmitter {
   private spinlets: Map<string, ChildProcess> = new Map();
@@ -14,40 +14,54 @@ export class SpinletManager extends EventEmitter {
   private monitors: Map<string, SpinletMonitor> = new Map();
   private redis: Redis;
   private portAllocator: PortAllocator;
-  private idleCheckInterval?: NodeJS.Timeout;
   private metricsInterval?: NodeJS.Timeout;
-  private logger = createLogger('SpinletManager');
+  private logger = createLogger("SpinletManager");
 
   constructor(redis: Redis, portRange?: { start: number; end: number }) {
     super();
     this.redis = redis;
     this.portAllocator = new PortAllocator(redis, portRange);
-    this.startIdleChecker();
+    this.setupKeyspaceNotifications();
     this.startMetricsCollector();
+
+    // Check for orphaned spinlets on startup
+    setTimeout(() => {
+      this.checkAndFixOrphanedSpinlets().catch((err) => {
+        this.logger.error("Error checking orphaned spinlets", { error: err });
+      });
+    }, 5000); // Wait 5 seconds for system to stabilize
   }
 
   async spawn(config: SpinletConfig): Promise<SpinletState> {
     const existingState = await this.getState(config.spinletId);
-    if (existingState && existingState.state === 'running') {
-      await this.updateLastAccess(config.spinletId);
+    if (existingState && existingState.state === "running") {
+      await this.resetIdleTimeout(config.spinletId);
       return existingState;
     }
 
-    const port = config.port || await this.portAllocator.allocate(config.spinletId);
-    
+    this.logger.info(`Starting spinlet ${config.spinletId}`, {
+      customerId: config.customerId,
+      framework: config.framework,
+      buildPath: config.buildPath,
+      domains: config.domains,
+    });
+
+    const port =
+      config.port || (await this.portAllocator.allocate(config.spinletId));
+
     const env = {
       PORT: port.toString(),
       SPINLET_ID: config.spinletId,
       CUSTOMER_ID: config.customerId,
-      NODE_ENV: 'production',
-      ...config.env
+      NODE_ENV: "production",
+      ...config.env,
     };
 
     const child = fork(config.buildPath, [], {
-      cwd: config.buildPath.substring(0, config.buildPath.lastIndexOf('/')),
+      cwd: config.buildPath.substring(0, config.buildPath.lastIndexOf("/")),
       env,
       silent: true, // Capture stdout/stderr
-      execArgv: this.getExecArgv(config)
+      execArgv: this.getExecArgv(config),
     });
 
     const state: SpinletState = {
@@ -55,72 +69,137 @@ export class SpinletManager extends EventEmitter {
       customerId: config.customerId,
       pid: child.pid!,
       port,
-      state: 'starting',
+      state: "starting",
       startTime: Date.now(),
       lastAccess: Date.now(),
       requests: 0,
       errors: 0,
       memory: 0,
       cpu: 0,
-      host: process.env.HOSTNAME || 'localhost',
+      host: process.env.HOSTNAME || "localhost",
       servicePath: `localhost:${port}`,
-      domains: []
+      domains: [],
     };
 
     this.spinlets.set(config.spinletId, child);
     this.states.set(config.spinletId, state);
-    
+
     // Setup monitoring
     const monitor = new SpinletMonitor(config.spinletId, child);
     this.monitors.set(config.spinletId, monitor);
-    
+
     // Handle process events
     this.setupProcessHandlers(config.spinletId, child);
-    
+
     // Wait for process to be ready
     await this.waitForReady(config.spinletId, port);
-    
+
     // Update state in Redis
     await this.persistState(state);
-    
-    this.emit('spinlet:started', { spinletId: config.spinletId, port });
-    
+
+    // Set initial idle timeout
+    await this.resetIdleTimeout(state.spinletId);
+
+    this.logger.info(`Spinlet ${config.spinletId} started successfully`, {
+      port,
+      pid: state.pid,
+      servicePath: state.servicePath,
+      startupTime: Date.now() - state.startTime + "ms",
+    });
+
+    this.emit("spinlet:started", { spinletId: config.spinletId, port });
+
     return state;
   }
 
-  async stop(spinletId: string, reason: string = 'manual'): Promise<void> {
-    const child = this.spinlets.get(spinletId);
-    const state = this.states.get(spinletId);
-    
-    if (!child || !state) {
+  /**
+   * Stop a spinlet process and clean up all Redis / port allocations.
+   *
+   * Previous logic aborted when the in-memory ChildProcess or state map entry
+   * was missing, which left stale records in KeyDB and caused the router to
+   * believe the spinlet was still running. We now:
+   *   1. Attempt to hydrate state from Redis if it is not in memory.
+   *   2. If a ChildProcess is not tracked but state exists, run cleanup()
+   *      so ports and KeyDB mappings are released.
+   *   3. If both child and state are absent we simply return (nothing to do).
+   */
+  async stop(spinletId: string, reason: string = "manual"): Promise<void> {
+    let child = this.spinlets.get(spinletId);
+    let state: SpinletState | null | undefined = this.states.get(spinletId);
+
+    // If the spinlet state is not cached locally, try to fetch it from Redis
+    if (!state) {
+      state = await this.getState(spinletId);
+      if (state) {
+        this.states.set(spinletId, state);
+      }
+    }
+
+    // If the process reference is missing but state still exists,
+    // perform stateless cleanup to avoid leaving stale entries in KeyDB.
+    if (!child && state) {
+      await this.cleanup(spinletId, reason);
       return;
     }
 
-    state.state = 'stopping';
-    await this.persistState(state);
+    // If we have neither a child nor state, there is nothing left to stop.
+    if (!child) {
+      return;
+    }
+
+    if (state) {
+      this.logger.info(`Stopping spinlet ${spinletId}`, {
+        reason,
+        uptime: Math.floor((Date.now() - state.startTime) / 1000) + "s",
+        requests: state.requests,
+        errors: state.errors,
+      });
+    } else {
+      this.logger.info(`Stopping spinlet ${spinletId}`, {
+        reason,
+        note: "no cached state",
+      });
+    }
+
+    if (state) {
+      state.state = "stopping";
+      await this.persistState(state);
+    }
 
     // Graceful shutdown
-    child.send({ type: 'shutdown' });
-    
+    child.send({ type: "shutdown" });
+
     // Give it 5 seconds to shut down gracefully
     await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
-        child.kill('SIGKILL');
+        child.kill("SIGKILL");
         resolve();
       }, 5000);
 
-      child.once('exit', () => {
+      child.once("exit", () => {
         clearTimeout(timeout);
         resolve();
       });
     });
 
     await this.cleanup(spinletId, reason);
+
+    if (state) {
+      this.logger.info(`Spinlet ${spinletId} stopped`, {
+        reason,
+        finalState: state.state,
+      });
+    } else {
+      this.logger.info(`Spinlet ${spinletId} stopped`, {
+        reason,
+        note: "state unknown",
+      });
+    }
   }
 
   async stopAll(): Promise<void> {
-    const promises = Array.from(this.spinlets.keys()).map(id => 
-      this.stop(id, 'shutdown')
+    const promises = Array.from(this.spinlets.keys()).map((id) =>
+      this.stop(id, "shutdown")
     );
     await Promise.all(promises);
   }
@@ -138,7 +217,7 @@ export class SpinletManager extends EventEmitter {
 
     // Update state with new domains
     state.domains = domains;
-    
+
     // Create new domain mappings
     for (const domain of domains) {
       await this.redis.set(`spinforge:domain:${domain}`, spinletId);
@@ -155,11 +234,13 @@ export class SpinletManager extends EventEmitter {
     return await this.redis.get(`spinforge:domain:${domain}`);
   }
 
-  async getStateByServicePathOrDomain(pathOrDomain: string): Promise<SpinletState | null> {
+  async getStateByServicePathOrDomain(
+    pathOrDomain: string
+  ): Promise<SpinletState | null> {
     let spinletId: string | null = null;
 
     // Check if it's a servicePath (contains port)
-    if (pathOrDomain.includes(':')) {
+    if (pathOrDomain.includes(":")) {
       spinletId = await this.findByServicePath(pathOrDomain);
     } else {
       // Assume it's a domain
@@ -177,76 +258,99 @@ export class SpinletManager extends EventEmitter {
     const state = this.states.get(spinletId);
     if (state) {
       await this.portAllocator.release(state.port);
-      
+
       // Clean up reverse mappings
       await this.redis.del(`spinforge:servicepath:${state.servicePath}`);
       for (const domain of state.domains) {
         await this.redis.del(`spinforge:domain:${domain}`);
       }
-      
-      state.state = 'stopped';
+
+      state.state = "stopped";
       await this.persistState(state);
     }
 
     this.spinlets.delete(spinletId);
     this.states.delete(spinletId);
-    
+
     const monitor = this.monitors.get(spinletId);
     if (monitor) {
       monitor.stop();
       this.monitors.delete(spinletId);
     }
 
-    // Remove from Redis active set
-    await this.redis.zrem('spinforge:active', spinletId);
-    
-    this.emit('spinlet:stopped', { spinletId, reason });
+    // Remove from Redis active set and idle timeout key
+    await this.redis.zrem("spinforge:active", spinletId);
+    await this.redis.del(`spinforge:idle:${spinletId}`);
+
+    this.emit("spinlet:stopped", { spinletId, reason });
   }
 
   private setupProcessHandlers(spinletId: string, child: ChildProcess): void {
-    child.on('error', (error) => {
+    child.on("error", (error) => {
+      this.logger.error(`Spinlet ${spinletId} crashed`, {
+        error: error.message,
+        stack: error.stack,
+      });
       console.error(`Spinlet ${spinletId} error:`, error);
-      this.emit('spinlet:error', { spinletId, error });
+      this.emit("spinlet:error", { spinletId, error });
     });
 
-    child.on('exit', (code, signal) => {
-      const reason = code === 0 ? 'normal' : `crashed (${signal || code})`;
+    child.on("exit", (code, signal) => {
+      const reason = code === 0 ? "normal" : `crashed (${signal || code})`;
+      this.logger.info(`Spinlet ${spinletId} process exited`, {
+        code,
+        signal,
+        reason,
+        exitType: code === 0 ? "normal" : "abnormal",
+      });
       this.cleanup(spinletId, reason);
-      
+
       if (code !== 0) {
-        this.emit('spinlet:crashed', { spinletId, error: new Error(reason) });
+        this.emit("spinlet:crashed", { spinletId, error: new Error(reason) });
       }
     });
 
     // Handle stdout/stderr
     if (child.stdout) {
-      child.stdout.on('data', (data) => {
+      child.stdout.on("data", (data) => {
         // Forward to telemetry system
-        this.emit('spinlet:log', { spinletId, level: 'info', message: data.toString() });
+        this.emit("spinlet:log", {
+          spinletId,
+          level: "info",
+          message: data.toString(),
+        });
       });
     }
 
     if (child.stderr) {
-      child.stderr.on('data', (data) => {
+      child.stderr.on("data", (data) => {
         // Forward to telemetry system
-        this.emit('spinlet:log', { spinletId, level: 'error', message: data.toString() });
+        this.emit("spinlet:log", {
+          spinletId,
+          level: "error",
+          message: data.toString(),
+        });
       });
     }
   }
 
-  private async waitForReady(spinletId: string, port: number, timeout: number = 30000): Promise<void> {
+  private async waitForReady(
+    spinletId: string,
+    port: number,
+    timeout: number = 30000
+  ): Promise<void> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < timeout) {
       try {
         // Check if process is still alive
         const child = this.spinlets.get(spinletId);
         if (!child || child.killed) {
-          throw new Error('Process died during startup');
+          throw new Error("Process died during startup");
         }
 
         // Try to connect to the port
-        const http = await import('http');
+        const http = await import("http");
         await new Promise<void>((resolve, reject) => {
           const req = http.get(`http://localhost:${port}/health`, (res) => {
             if (res.statusCode === 200) {
@@ -255,20 +359,20 @@ export class SpinletManager extends EventEmitter {
               reject(new Error(`Health check returned ${res.statusCode}`));
             }
           });
-          req.on('error', reject);
+          req.on("error", reject);
           req.setTimeout(1000);
         });
 
         // Process is ready
         const state = this.states.get(spinletId);
         if (state) {
-          state.state = 'running';
+          state.state = "running";
           await this.persistState(state);
         }
         return;
       } catch (error) {
         // Not ready yet, wait a bit
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 
@@ -277,7 +381,7 @@ export class SpinletManager extends EventEmitter {
 
   private getExecArgv(config: SpinletConfig): string[] {
     const args: string[] = [];
-    
+
     if (config.resources?.memory) {
       const memoryMB = this.parseMemory(config.resources.memory);
       args.push(`--max-old-space-size=${memoryMB}`);
@@ -291,49 +395,116 @@ export class SpinletManager extends EventEmitter {
     if (!match) {
       throw new Error(`Invalid memory format: ${memory}`);
     }
-    
+
     const value = parseInt(match[1]);
     const unit = match[2].toUpperCase();
-    
-    return unit === 'GB' ? value * 1024 : value;
+
+    return unit === "GB" ? value * 1024 : value;
   }
 
-  private startIdleChecker(): void {
-    this.idleCheckInterval = setInterval(async () => {
-      const now = Date.now();
-      
-      // Get all spinlet IDs from Redis
-      const spinletIds = await this.redis.zrange('spinforge:active', 0, -1);
-      
-      for (const spinletId of spinletIds) {
+  private async setupKeyspaceNotifications(): Promise<void> {
+    // Enable keyspace notifications for expired keys
+    await this.redis.config("SET", "notify-keyspace-events", "Ex");
+
+    // Subscribe to expired key events
+    const subscriber = this.redis.duplicate();
+    await subscriber.subscribe("__keyevent@0__:expired");
+
+    subscriber.on("message", async (_channel, key) => {
+      // Check if this is an idle timeout key
+      if (key.startsWith("spinforge:idle:")) {
+        const spinletId = key.replace("spinforge:idle:", "");
         const state = await this.getState(spinletId);
-        if (state && state.state === 'running' && now - state.lastAccess > IDLE_TIMEOUT_MS) {
+
+        if (state && state.state === "running") {
           this.logger.info(`Stopping idle spinlet ${spinletId}`, {
             lastAccess: new Date(state.lastAccess),
-            idleTime: Math.floor((now - state.lastAccess) / 1000 / 60) + ' minutes'
+            reason: "idle timeout expired",
           });
-          await this.stop(spinletId, 'idle');
+          await this.stop(spinletId, "idle");
         }
       }
-    }, 30000); // Check every 30 seconds
+    });
+  }
+
+  private async resetIdleTimeout(spinletId: string): Promise<void> {
+    // Set/reset the idle timeout key with TTL
+    const ttlSeconds = Math.floor(IDLE_TIMEOUT_MS / 1000);
+    await this.redis.setex(`spinforge:idle:${spinletId}`, ttlSeconds, "1");
+
+    // Also update lastAccess for monitoring
+    const state = this.states.get(spinletId);
+    if (state) {
+      state.lastAccess = Date.now();
+      await this.persistState(state);
+    }
+  }
+
+  private async checkAndFixOrphanedSpinlets(): Promise<void> {
+    // Get all active spinlets from Redis
+    const spinletIds = await this.redis.zrange("spinforge:active", 0, -1);
+
+    for (const spinletId of spinletIds) {
+      const state = await this.getState(spinletId);
+      if (state && state.state === "running") {
+        // Check if idle timeout key exists
+        const ttl = await this.redis.ttl(`spinforge:idle:${spinletId}`);
+        if (ttl === -2) {
+          // Key doesn't exist
+          this.logger.warn(
+            `Found orphaned spinlet without idle timeout: ${spinletId}`,
+            {
+              lastAccess: new Date(state.lastAccess),
+              timeSinceLastAccess:
+                Math.floor((Date.now() - state.lastAccess) / 1000) + "s",
+            }
+          );
+
+          // Check if it should be stopped immediately
+          const timeSinceLastAccess = Date.now() - state.lastAccess;
+          if (timeSinceLastAccess > IDLE_TIMEOUT_MS) {
+            this.logger.info(`Stopping orphaned idle spinlet ${spinletId}`);
+            await this.stop(spinletId, "orphaned-idle");
+          } else {
+            // Create idle timeout key for remaining time
+            const remainingTime = Math.floor(
+              (IDLE_TIMEOUT_MS - timeSinceLastAccess) / 1000
+            );
+            if (remainingTime > 0) {
+              await this.redis.setex(
+                `spinforge:idle:${spinletId}`,
+                remainingTime,
+                "1"
+              );
+              this.logger.info(
+                `Created idle timeout for orphaned spinlet ${spinletId}`,
+                {
+                  remainingTime: remainingTime + "s",
+                }
+              );
+            }
+          }
+        }
+      }
+    }
   }
 
   private startMetricsCollector(): void {
     this.metricsInterval = setInterval(async () => {
       for (const [spinletId, state] of this.states) {
-        if (state.state === 'running') {
+        if (state.state === "running") {
           try {
             const usage = await pidusage(state.pid);
             state.cpu = usage.cpu;
             state.memory = usage.memory;
-            
+
             // Update resource metrics in Redis
             const key = `spinforge:metrics:resources:${spinletId}:${Date.now()}`;
             await this.redis.hset(key, {
               cpu_percent: usage.cpu,
               memory_bytes: usage.memory,
               memory_percent: (usage.memory / (1024 * 1024 * 1024)) * 100, // Assume 1GB max
-              timestamp: Date.now()
+              timestamp: Date.now(),
             });
             await this.redis.expire(key, 7 * 24 * 60 * 60); // 7 days TTL
           } catch (error) {
@@ -363,17 +534,85 @@ export class SpinletManager extends EventEmitter {
       customerId: data.customerId,
       pid: parseInt(data.pid),
       port: parseInt(data.port),
-      state: data.state as SpinletState['state'],
+      state: data.state as SpinletState["state"],
       startTime: parseInt(data.startTime),
       lastAccess: parseInt(data.lastAccess),
-      requests: parseInt(data.requests || '0'),
-      errors: parseInt(data.errors || '0'),
-      memory: parseInt(data.memory || '0'),
-      cpu: parseFloat(data.cpu || '0'),
+      requests: parseInt(data.requests || "0"),
+      errors: parseInt(data.errors || "0"),
+      memory: parseInt(data.memory || "0"),
+      cpu: parseFloat(data.cpu || "0"),
       host: data.host,
       servicePath: data.servicePath || `localhost:${data.port}`,
-      domains: data.domains ? JSON.parse(data.domains) : []
+      domains: data.domains ? JSON.parse(data.domains) : [],
     };
+  }
+
+  async getIdleInfo(
+    spinletId: string
+  ): Promise<{ ttl: number; willExpireAt: Date } | null> {
+    const ttl = await this.redis.ttl(`spinforge:idle:${spinletId}`);
+    if (ttl <= 0) return null;
+
+    return {
+      ttl,
+      willExpireAt: new Date(Date.now() + ttl * 1000),
+    };
+  }
+
+  async extendIdleTimeout(
+    spinletId: string,
+    additionalSeconds: number = 300
+  ): Promise<void> {
+    const state = await this.getState(spinletId);
+    if (!state || state.state !== "running") return;
+
+    const currentTTL = await this.redis.ttl(`spinforge:idle:${spinletId}`);
+    if (currentTTL > 0) {
+      const newTTL = currentTTL + additionalSeconds;
+      await this.redis.expire(`spinforge:idle:${spinletId}`, newTTL);
+
+      this.logger.info(`Extended idle timeout for ${spinletId}`, {
+        previousTTL: currentTTL,
+        newTTL,
+        additionalTime: additionalSeconds,
+      });
+    }
+  }
+
+  async getIdleMetrics(): Promise<any> {
+    const spinletIds = await this.redis.zrange("spinforge:active", 0, -1);
+    const metrics = {
+      totalActive: spinletIds.length,
+      idleTimeouts: [] as any[],
+      aboutToExpire: 0,
+      avgTimeToExpire: 0,
+    };
+
+    let totalTTL = 0;
+    for (const spinletId of spinletIds) {
+      const idleInfo = await this.getIdleInfo(spinletId);
+      if (idleInfo) {
+        metrics.idleTimeouts.push({
+          spinletId,
+          ttl: idleInfo.ttl,
+          willExpireAt: idleInfo.willExpireAt,
+        });
+
+        totalTTL += idleInfo.ttl;
+        if (idleInfo.ttl < 60) {
+          // Less than 1 minute
+          metrics.aboutToExpire++;
+        }
+      }
+    }
+
+    if (metrics.idleTimeouts.length > 0) {
+      metrics.avgTimeToExpire = Math.round(
+        totalTTL / metrics.idleTimeouts.length
+      );
+    }
+
+    return metrics;
   }
 
   private async persistState(state: SpinletState): Promise<void> {
@@ -381,43 +620,49 @@ export class SpinletManager extends EventEmitter {
     // Convert domains array to JSON for storage
     const stateToStore = {
       ...state,
-      domains: JSON.stringify(state.domains)
+      domains: JSON.stringify(state.domains),
     };
     await this.redis.hset(key, stateToStore as any);
-    
+
     // Create reverse mappings for quick lookup
-    await this.redis.set(`spinforge:servicepath:${state.servicePath}`, state.spinletId);
+    await this.redis.set(
+      `spinforge:servicepath:${state.servicePath}`,
+      state.spinletId
+    );
     for (const domain of state.domains) {
       await this.redis.set(`spinforge:domain:${domain}`, state.spinletId);
     }
-    
-    if (state.state === 'running') {
-      await this.redis.zadd('spinforge:active', state.lastAccess, state.spinletId);
+
+    if (state.state === "running") {
+      await this.redis.zadd(
+        "spinforge:active",
+        state.lastAccess,
+        state.spinletId
+      );
     }
   }
 
   async updateLastAccess(spinletId: string): Promise<void> {
-    const state = this.states.get(spinletId);
-    if (state) {
-      state.lastAccess = Date.now();
-      await this.persistState(state);
-    }
+    await this.resetIdleTimeout(spinletId);
   }
 
-  async incrementRequests(spinletId: string, errors: number = 0): Promise<void> {
+  async incrementRequests(
+    spinletId: string,
+    errors: number = 0
+  ): Promise<void> {
     const state = this.states.get(spinletId);
     if (state) {
       state.requests++;
       state.errors += errors;
       state.lastAccess = Date.now();
       await this.persistState(state);
+
+      // Reset idle timeout on each request
+      await this.resetIdleTimeout(spinletId);
     }
   }
 
   destroy(): void {
-    if (this.idleCheckInterval) {
-      clearInterval(this.idleCheckInterval);
-    }
     if (this.metricsInterval) {
       clearInterval(this.metricsInterval);
     }

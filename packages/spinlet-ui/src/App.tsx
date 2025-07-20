@@ -15,6 +15,7 @@ import { DialogManager } from './components/view-manager/dialog-manager';
 import AdminDashboard from './pages/AdminDashboard';
 import ControlCenter from './pages/ControlCenter';
 import Analytics from './pages/Analytics';
+import ActiveSpinlets from './pages/ActiveSpinlets';
 
 function App() {
 
@@ -49,6 +50,7 @@ function App() {
           <Route path="/dynamic-ui" element={<DynamicUIDemo />} />
           <Route path="/control-center" element={<ControlCenter />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/active-spinlets" element={<ActiveSpinlets />} />
           <Route path="/applications/:domain" element={<ApplicationDetail />} />
         </Routes>
       </ModernLayout>

@@ -140,3 +140,250 @@
 {"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T01:28:52.412Z"}
 {"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T01:28:52.414Z"}
 {"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T01:28:52.414Z"}
+{"buildPath":"/spinforge/examples/test-app","customerId":"test-customer","framework":"express","level":"info","message":"Starting spinlet example-app","service":"SpinletManager","timestamp":"2025-07-20T01:37:57.792Z"}
+{"level":"info","message":"Spinlet example-app started successfully","pid":3537,"port":3050,"service":"SpinletManager","servicePath":"localhost:3050","startupTime":"214ms","timestamp":"2025-07-20T01:37:58.012Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-20T01:41:04.748Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T01:41:04.748Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T01:41:04.749Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-20T01:41:20.250Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-20T01:41:20.253Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T01:41:20.255Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T01:41:20.256Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T01:41:20.256Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-20T02:01:31.733Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T02:01:31.735Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T02:01:31.735Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-20T02:01:31.736Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-20T02:01:38.102Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-20T02:01:38.106Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T02:01:38.107Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T02:01:38.109Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T02:01:38.109Z"}
+{"lastAccess":"2025-07-20T01:38:10.841Z","level":"warn","message":"Found orphaned spinlet without idle timeout: example-app","service":"SpinletManager","timeSinceLastAccess":"1412s","timestamp":"2025-07-20T02:01:43.095Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet example-app","service":"SpinletManager","timestamp":"2025-07-20T02:01:43.095Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-20T02:02:09.172Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T02:02:09.173Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T02:02:09.173Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-20T02:02:12.275Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-20T02:02:20.361Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-20T02:02:20.365Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T02:02:20.366Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T02:02:20.367Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T02:02:20.367Z"}
+{"lastAccess":"2025-07-20T01:38:10.841Z","level":"warn","message":"Found orphaned spinlet without idle timeout: example-app","service":"SpinletManager","timeSinceLastAccess":"1454s","timestamp":"2025-07-20T02:02:25.354Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet example-app","service":"SpinletManager","timestamp":"2025-07-20T02:02:25.355Z"}
+{"error":{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T02:26:25.609Z"}
+{"error":{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T02:26:25.614Z"}
+{"error":{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T02:26:36.649Z"}
+{"error":{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T02:26:36.649Z"}
+{"error":{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T02:26:37.313Z"}
+{"error":{"address":"172.25.0.4","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T02:26:37.314Z"}
+{"buildPath":"/spinforge/examples/test-app","customerId":"demo-customer","framework":"express","level":"info","message":"Starting spinlet demo-test-app","service":"SpinletManager","timestamp":"2025-07-20T02:26:39.214Z"}
+{"level":"info","message":"Spinlet demo-test-app started successfully","pid":8272,"port":3051,"service":"SpinletManager","servicePath":"localhost:3051","startupTime":"320ms","timestamp":"2025-07-20T02:26:39.567Z"}
+{"buildPath":"/spinforge/examples/test-app","customerId":"test-customer","framework":"express","level":"info","message":"Starting spinlet spin-test-example","service":"SpinletManager","timestamp":"2025-07-20T02:26:44.288Z"}
+{"level":"info","message":"Spinlet spin-test-example started successfully","pid":8314,"port":3052,"service":"SpinletManager","servicePath":"localhost:3052","startupTime":"212ms","timestamp":"2025-07-20T02:26:44.507Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-20T03:10:46.440Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-20T03:10:46.443Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-20T03:10:46.444Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-20T03:10:46.445Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-20T03:10:46.446Z"}
+{"lastAccess":"2025-07-20T01:38:10.841Z","level":"warn","message":"Found orphaned spinlet without idle timeout: example-app","service":"SpinletManager","timeSinceLastAccess":"5560s","timestamp":"2025-07-20T03:10:51.431Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet example-app","service":"SpinletManager","timestamp":"2025-07-20T03:10:51.432Z"}
+{"lastAccess":"2025-07-20T02:26:39.567Z","level":"warn","message":"Found orphaned spinlet without idle timeout: demo-test-app","service":"SpinletManager","timeSinceLastAccess":"2651s","timestamp":"2025-07-20T03:10:51.434Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet demo-test-app","service":"SpinletManager","timestamp":"2025-07-20T03:10:51.434Z"}
+{"lastAccess":"2025-07-20T02:26:44.507Z","level":"warn","message":"Found orphaned spinlet without idle timeout: spin-test-example","service":"SpinletManager","timeSinceLastAccess":"2646s","timestamp":"2025-07-20T03:10:51.436Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet spin-test-example","service":"SpinletManager","timestamp":"2025-07-20T03:10:51.436Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T03:16:52.044Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T03:16:52.046Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:03.527Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:03.528Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:07.084Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:07.086Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:07.207Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:07.208Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:08.782Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:08.783Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:10.678Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:10.679Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:10.791Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:10.792Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:16.096Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:16.097Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:16.211Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:16.212Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:18.711Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:18.711Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:18.821Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:18.822Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:19.244Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:19.245Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:19.362Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:19.363Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:20.168Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:20.169Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.044Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.045Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.162Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.162Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.657Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.658Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.769Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:18:21.769Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:06.373Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:06.374Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:06.497Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:06.498Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.164Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.164Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.278Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.279Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.652Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.652Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.764Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:07.765Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:08.581Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:08.582Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:08.695Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:08.695Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:09.239Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:09.240Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:09.352Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:09.353Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.452Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.453Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.571Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.572Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.855Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.855Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.965Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:12.965Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:13.129Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:13.129Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:13.229Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:13.230Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:16.823Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:16.824Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:16.937Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:16.937Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:17.155Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:17.157Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:17.262Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:19:17.262Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:10.387Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:10.388Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:10.508Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:10.509Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:10.948Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:10.949Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:11.062Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:11.062Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:16.540Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:16.540Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:16.644Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:16.644Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.161Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.162Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.273Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.273Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.437Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.438Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.543Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.543Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.644Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.645Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.739Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:20:17.740Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:16.368Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:16.369Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:16.490Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:16.490Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.100Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.101Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.212Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.212Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.521Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.522Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.634Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.635Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.781Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.781Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.882Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:17.882Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:23.610Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:23.611Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:23.728Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:23.729Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:24.137Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:24.137Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:24.250Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:21:24.250Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:31.684Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:31.685Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:31.967Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:31.968Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:40.324Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:40.325Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:40.653Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:40.654Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:44.200Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:44.200Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:44.524Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:22:44.525Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:31.571Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:31.572Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:31.867Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:31.867Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:41.533Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:41.534Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:41.650Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:24:41.651Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:25:36.350Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:25:36.352Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:25:36.645Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T04:25:36.646Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:02:14.957Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:02:14.959Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:02:15.247Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:02:15.248Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:38.371Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:38.372Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:38.694Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:38.694Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:56.093Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:56.093Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:56.206Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:56.206Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:57.823Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:57.824Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:57.938Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:57.939Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:58.482Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:58.483Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:58.594Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:10:58.594Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:11:00.049Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:11:00.050Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:11:00.159Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:11:00.159Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:48.064Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:48.067Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:48.376Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:48.376Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:50.841Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:50.842Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:51.167Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3050,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:51.167Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:52.856Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:52.856Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:53.188Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:17:53.189Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:19:39.750Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3051,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:19:39.752Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:30:25.653Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:30:25.656Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"Proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:30:25.981Z"}
+{"error":{"address":"172.25.0.3","code":"ECONNREFUSED","errno":-111,"port":3052,"syscall":"connect"},"level":"error","message":"WebSocket proxy error","service":"ProxyHandler","timestamp":"2025-07-20T05:30:25.981Z"}
+{"level":"info","message":"Received SIGTERM, starting graceful shutdown...","service":"SpinHub:Server","timestamp":"2025-07-20T05:31:04.937Z"}
+{"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T05:31:04.939Z"}
+{"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T05:31:04.939Z"}
+{"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-20T05:31:04.941Z"}

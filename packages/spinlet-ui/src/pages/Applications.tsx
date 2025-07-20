@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, Route, Spinlet } from '../services/api';
+import { api, Route, Spinlet, IdleInfo } from '../services/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -17,8 +17,24 @@ import {
   Activity,
   Server,
   Plus,
-  ChevronRight
+  ChevronRight,
+  Clock,
+  Timer
 } from 'lucide-react';
+
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  } else {
+    return `${seconds}s`;
+  }
+}
 
 export default function Applications() {
   const queryClient = useQueryClient();
@@ -31,7 +47,7 @@ export default function Applications() {
       selectedCustomer === 'all' 
         ? api.getRoutesWithStates() 
         : api.getCustomerRoutes(selectedCustomer),
-    refetchInterval: 10000, // Refresh every 10 seconds to show state changes
+    refetchInterval: 5000, // Refresh every 5 seconds to show TTL countdown
   });
 
   const deleteMutation = useMutation({
@@ -65,6 +81,16 @@ export default function Applications() {
   const handleViewLogs = (domain: string) => {
     toast.info(`Opening logs for ${domain}...`);
     // TODO: Implement logs viewer
+  };
+  
+  const handleExtendTimeout = async (spinletId: string) => {
+    try {
+      await api.extendIdleTimeout(spinletId, 300); // Extend by 5 minutes
+      queryClient.invalidateQueries({ queryKey: ['routes'] });
+      toast.success('Idle timeout extended by 5 minutes');
+    } catch (error) {
+      toast.error('Failed to extend timeout');
+    }
   };
 
   if (error) {
@@ -187,6 +213,9 @@ export default function Applications() {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Idle Timeout
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Resources
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -195,7 +224,7 @@ export default function Applications() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {routes.map((route: Route & { spinletState?: Spinlet }) => (
+                {routes.map((route: Route & { spinletState?: Spinlet; idleInfo?: IdleInfo }) => (
                   <tr key={route.domain} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -255,11 +284,37 @@ export default function Applications() {
                           </>
                         )}
                         {route.spinletState?.lastAccess && (
-                          <span className="ml-2 text-xs text-gray-400">
-                            Last: {new Date(route.spinletState.lastAccess).toLocaleTimeString()}
-                          </span>
+                          <div className="mt-1">
+                            <span className="text-xs text-gray-400">
+                              Last: {new Date(route.spinletState.lastAccess).toLocaleTimeString()}
+                            </span>
+                            {route.spinletState.startTime && (
+                              <span className="ml-2 text-xs text-gray-400">
+                                • Up: {formatUptime(Date.now() - route.spinletState.startTime)}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {route.idleInfo ? (
+                        <div className="flex items-center">
+                          <Timer className="h-4 w-4 mr-2 text-gray-400" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {route.idleInfo.timeRemainingFormatted}
+                            </div>
+                            {route.idleInfo.ttl < 60 && (
+                              <div className="text-xs text-red-600 font-medium">
+                                Expires soon
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -285,6 +340,17 @@ export default function Applications() {
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
+
+                        {/* Extend Timeout Button */}
+                        {route.idleInfo && route.spinletState?.state === 'running' && (
+                          <button
+                            onClick={() => handleExtendTimeout(route.spinletId)}
+                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Extend Idle Timeout"
+                          >
+                            <Clock className="h-4 w-4" />
+                          </button>
+                        )}
 
                         {/* Restart Button */}
                         <button

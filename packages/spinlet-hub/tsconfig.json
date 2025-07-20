@@ -7,7 +7,9 @@
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "noImplicitThis": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"],
+    "lib": ["ES2022", "dom"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
