@@ -57,12 +57,32 @@ export class SpinletManager extends EventEmitter {
       ...config.env,
     };
 
-    const child = fork(config.buildPath, [], {
-      cwd: config.buildPath.substring(0, config.buildPath.lastIndexOf("/")),
-      env,
-      silent: true, // Capture stdout/stderr
-      execArgv: this.getExecArgv(config),
-    });
+    // Determine the working directory
+    const cwd = config.framework === "nextjs" && config.buildPath.endsWith("/.next")
+      ? config.buildPath.substring(0, config.buildPath.length - 6) // Remove /.next
+      : config.buildPath;
+
+    let child: ChildProcess;
+    
+    if (config.framework === "nextjs") {
+      // For Next.js, use spawn with npx/npm
+      const { spawn } = require("child_process");
+      child = spawn("npm", ["run", "start"], {
+        cwd,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } else if (config.framework === "express" || config.framework === "custom") {
+      // For Express/custom, use fork with the entry point
+      child = fork(config.buildPath, [], {
+        cwd: config.buildPath.substring(0, config.buildPath.lastIndexOf("/")),
+        env,
+        silent: true,
+        execArgv: this.getExecArgv(config),
+      });
+    } else {
+      throw new Error(`Unsupported framework: ${config.framework}`);
+    }
 
     const state: SpinletState = {
       spinletId: config.spinletId,

@@ -336,8 +336,12 @@ export class HotDeploymentWatcher {
     // For Next.js projects, ensure TypeScript is installed and handle linting issues
     if (command.includes("npm run build")) {
       // Set environment variables to be more lenient with linting/type checking
-      buildCommand =
-        "npm install --include=dev && npm run build -- --no-lint || (echo 'Build with linting failed, trying without linting...' && npm run build -- --no-lint --no-types) || npm run build";
+      // For Next.js 15+, we need to set NEXT_ESLINT_DISABLE=true to skip linting during build
+      env = {
+        ...env,
+        NEXT_ESLINT_DISABLE: "true"
+      };
+      buildCommand = "npm install --include=dev && npm run build";
     }
 
     await execAsync(buildCommand, {

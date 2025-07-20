@@ -29,7 +29,8 @@
       "Bash(node:*)",
       "Bash(git commit:*)",
       "Bash(npm ls:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
