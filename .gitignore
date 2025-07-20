@@ -167,3 +167,5 @@ packages/spinlet-cli/dist*
 packages/spinlet-hub/dist*
 packages/spinlet-telemetry/dist*
 packages/spinlet-ui/dist*
+
+deployments*

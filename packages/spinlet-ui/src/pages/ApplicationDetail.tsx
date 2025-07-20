@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../services/api';
-import { 
-  ArrowLeft, 
-  Play, 
-  RotateCw, 
-  Square, 
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "../services/api";
+import {
+  ArrowLeft,
+  Play,
+  RotateCw,
+  Square,
   ExternalLink,
   Terminal as TerminalIcon,
   FileCode,
@@ -22,92 +22,101 @@ import {
   Server,
   Clock,
   MemoryStick,
-  Cpu
-} from 'lucide-react';
-import { motion } from 'framer-motion';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import '@xterm/xterm/css/xterm.css';
+  Cpu,
+  Wrench,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import "@xterm/xterm/css/xterm.css";
 
 export default function ApplicationDetail() {
   const { domain } = useParams<{ domain: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
   const [editMode, setEditMode] = useState(false);
   const [envVars, setEnvVars] = useState<Record<string, string>>({});
-  const [newDomain, setNewDomain] = useState('');
+  const [newDomain, setNewDomain] = useState("");
+  const [diag, setDiag] = useState<any>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const commandHistoryRef = useRef<string[]>([]);
   const historyIndexRef = useRef<number>(-1);
 
-  const { data: routeDetails, isLoading, error } = useQuery({
-    queryKey: ['route-details', domain],
+  const {
+    data: routeDetails,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["route-details", domain],
     queryFn: () => api.getRouteDetails(domain!),
     refetchInterval: 5000,
     retry: 2,
   });
 
   const { data: logs } = useQuery({
-    queryKey: ['spinlet-logs', routeDetails?.spinlet?.spinletId],
-    queryFn: () => api.getSpinletLogs(routeDetails?.spinlet?.spinletId || ''),
-    enabled: !!routeDetails?.spinlet?.spinletId && activeTab === 'logs',
+    queryKey: ["spinlet-logs", routeDetails?.spinlet?.spinletId],
+    queryFn: () => api.getSpinletLogs(routeDetails?.spinlet?.spinletId || ""),
+    enabled: !!routeDetails?.spinlet?.spinletId && activeTab === "logs",
     refetchInterval: 2000,
   });
 
   const startMutation = useMutation({
-    mutationFn: () => api.startSpinlet(routeDetails?.spinlet?.spinletId || ''),
+    mutationFn: () => api.startSpinlet(routeDetails?.spinlet?.spinletId || ""),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['route-details'] });
+      queryClient.invalidateQueries({ queryKey: ["route-details"] });
     },
   });
 
   const stopMutation = useMutation({
-    mutationFn: () => api.stopSpinlet(routeDetails?.spinlet?.spinletId || ''),
+    mutationFn: () => api.stopSpinlet(routeDetails?.spinlet?.spinletId || ""),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['route-details'] });
+      queryClient.invalidateQueries({ queryKey: ["route-details"] });
     },
   });
 
   const restartMutation = useMutation({
-    mutationFn: () => api.restartSpinlet(routeDetails?.spinlet?.spinletId || ''),
+    mutationFn: () =>
+      api.restartSpinlet(routeDetails?.spinlet?.spinletId || ""),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['route-details'] });
+      queryClient.invalidateQueries({ queryKey: ["route-details"] });
     },
   });
 
   const updateEnvMutation = useMutation({
-    mutationFn: () => api.updateSpinletEnv(routeDetails?.spinlet?.spinletId || '', envVars),
+    mutationFn: () =>
+      api.updateSpinletEnv(routeDetails?.spinlet?.spinletId || "", envVars),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['route-details'] });
+      queryClient.invalidateQueries({ queryKey: ["route-details"] });
       setEditMode(false);
     },
   });
 
   const addDomainMutation = useMutation({
-    mutationFn: () => api.createRoute({
-      domain: newDomain,
-      spinletId: routeDetails?.spinlet?.spinletId || '',
-      customerId: routeDetails?.route?.customerId || '',
-      buildPath: routeDetails?.route?.buildPath || '',
-      framework: routeDetails?.route?.framework || 'static',
-    }),
+    mutationFn: () =>
+      api.createRoute({
+        domain: newDomain,
+        spinletId: routeDetails?.spinlet?.spinletId || "",
+        customerId: routeDetails?.route?.customerId || "",
+        buildPath: routeDetails?.route?.buildPath || "",
+        framework: routeDetails?.route?.framework || "static",
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['route-details'] });
-      setNewDomain('');
+      queryClient.invalidateQueries({ queryKey: ["route-details"] });
+      setNewDomain("");
     },
   });
 
   const removeDomainMutation = useMutation({
     mutationFn: (domainToRemove: string) => api.deleteRoute(domainToRemove),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['route-details'] });
+      queryClient.invalidateQueries({ queryKey: ["route-details"] });
     },
   });
-
 
   if (isLoading) {
     return (
@@ -124,7 +133,9 @@ export default function ApplicationDetail() {
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <p className="text-lg">Error loading application</p>
           <p className="text-sm text-gray-500 mt-2">Domain: {domain}</p>
-          <p className="text-xs text-red-600 mt-2">{(error as any)?.message || 'Unknown error'}</p>
+          <p className="text-xs text-red-600 mt-2">
+            {(error as any)?.message || "Unknown error"}
+          </p>
         </div>
       </div>
     );
@@ -144,32 +155,52 @@ export default function ApplicationDetail() {
 
   const { route, spinlet, metrics, health } = routeDetails;
   const spinletState = spinlet?.state;
-  const isRunning = spinletState?.state === 'running';
+  const isRunning = spinletState?.state === "running";
 
   const formatUptime = (seconds: number) => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     if (days > 0) return `${days}d ${hours}h`;
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
   };
 
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const runTroubleshoot = async () => {
+    if (!routeDetails?.spinlet?.spinletId) return;
+    setDiagLoading(true);
+    setDiag(null);
+    try {
+      const response = await fetch(
+        `/_admin/spinlets/${routeDetails.spinlet.spinletId}/health`
+      );
+      const data = await response.json();
+      setDiag(data);
+    } catch (error) {
+      setDiag({
+        error: "Failed to run troubleshoot",
+        message: (error as any).message,
+      });
+    }
+    setDiagLoading(false);
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'logs', label: 'Logs', icon: FileCode },
-    { id: 'metrics', label: 'Metrics', icon: Activity },
-    { id: 'config', label: 'Configuration', icon: Edit },
-    { id: 'console', label: 'Console', icon: TerminalIcon },
+    { id: "overview", label: "Overview", icon: Activity },
+    { id: "logs", label: "Logs", icon: FileCode },
+    { id: "metrics", label: "Metrics", icon: Activity },
+    { id: "config", label: "Configuration", icon: Edit },
+    { id: "console", label: "Console", icon: TerminalIcon },
+    { id: "troubleshoot", label: "Troubleshoot", icon: Wrench },
   ];
 
   return (
@@ -181,7 +212,7 @@ export default function ApplicationDetail() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <button
-                  onClick={() => navigate('/applications')}
+                  onClick={() => navigate("/applications")}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <ArrowLeft className="h-5 w-5" />
@@ -193,7 +224,7 @@ export default function ApplicationDetail() {
                   </p>
                 </div>
               </div>
-              
+
               {/* Action Buttons */}
               <div className="flex items-center space-x-3">
                 {!isRunning && (
@@ -240,8 +271,8 @@ export default function ApplicationDetail() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center space-x-2 px-1 py-4 border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? 'border-indigo-600 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -255,7 +286,7 @@ export default function ApplicationDetail() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'overview' && (
+        {activeTab === "overview" && (
           <div className="space-y-6">
             {/* Status Card */}
             <div className="bg-white rounded-lg shadow p-6">
@@ -269,27 +300,39 @@ export default function ApplicationDetail() {
                     ) : (
                       <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
                     )}
-                    <span className={`font-medium ${isRunning ? 'text-green-700' : 'text-red-700'}`}>
-                      {spinletState?.state || 'Unknown'}
+                    <span
+                      className={`font-medium ${
+                        isRunning ? "text-green-700" : "text-red-700"
+                      }`}
+                    >
+                      {spinletState?.state || "Unknown"}
                     </span>
                   </div>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Uptime</p>
                   <p className="font-medium mt-1">
-                    {spinletState?.startTime ? formatUptime((Date.now() - spinletState.startTime) / 1000) : '-'}
+                    {spinletState?.startTime
+                      ? formatUptime(
+                          (Date.now() - spinletState.startTime) / 1000
+                        )
+                      : "-"}
                   </p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Requests</p>
-                  <p className="font-medium mt-1">{spinletState?.requests || 0}</p>
+                  <p className="font-medium mt-1">
+                    {spinletState?.requests || 0}
+                  </p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Errors</p>
-                  <p className="font-medium mt-1 text-red-600">{spinletState?.errors || 0}</p>
+                  <p className="font-medium mt-1 text-red-600">
+                    {spinletState?.errors || 0}
+                  </p>
                 </div>
               </div>
             </div>
@@ -297,13 +340,16 @@ export default function ApplicationDetail() {
             {/* Access URLs */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold mb-4">Access URLs</h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-gray-500 mb-2">Public Domains</p>
                   <div className="space-y-2">
                     {spinletState?.domains?.map((d) => (
-                      <div key={d} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div
+                        key={d}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
                         <div className="flex items-center space-x-3">
                           <Globe className="h-5 w-5 text-gray-400" />
                           <a
@@ -326,7 +372,7 @@ export default function ApplicationDetail() {
                         )}
                       </div>
                     ))}
-                    
+
                     {!editMode && (
                       <button
                         onClick={() => setEditMode(true)}
@@ -336,7 +382,7 @@ export default function ApplicationDetail() {
                         <span>Add Domain</span>
                       </button>
                     )}
-                    
+
                     {editMode && (
                       <div className="flex space-x-2">
                         <input
@@ -356,7 +402,7 @@ export default function ApplicationDetail() {
                         <button
                           onClick={() => {
                             setEditMode(false);
-                            setNewDomain('');
+                            setNewDomain("");
                           }}
                           className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                         >
@@ -366,9 +412,11 @@ export default function ApplicationDetail() {
                     )}
                   </div>
                 </div>
-                
+
                 <div>
-                  <p className="text-sm text-gray-500 mb-2">Internal Service Path</p>
+                  <p className="text-sm text-gray-500 mb-2">
+                    Internal Service Path
+                  </p>
                   <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <Server className="h-5 w-5 text-gray-400" />
                     <a
@@ -395,7 +443,9 @@ export default function ApplicationDetail() {
                       <Cpu className="h-4 w-4 text-gray-400" />
                       <span className="text-sm text-gray-600">CPU Usage</span>
                     </div>
-                    <span className="text-sm font-medium">{spinletState?.cpu || 0}%</span>
+                    <span className="text-sm font-medium">
+                      {spinletState?.cpu || 0}%
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -404,19 +454,32 @@ export default function ApplicationDetail() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <MemoryStick className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">Memory Usage</span>
+                      <span className="text-sm text-gray-600">
+                        Memory Usage
+                      </span>
                     </div>
-                    <span className="text-sm font-medium">{formatBytes(spinletState?.memory || 0)}</span>
+                    <span className="text-sm font-medium">
+                      {formatBytes(spinletState?.memory || 0)}
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full"
-                      style={{ width: `${Math.min(100, Math.round((spinletState?.memory || 0) / (1024 * 1024 * 512) * 100))}%` }}
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            ((spinletState?.memory || 0) /
+                              (1024 * 1024 * 512)) *
+                              100
+                          )
+                        )}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -425,7 +488,9 @@ export default function ApplicationDetail() {
 
             {/* Deployment Info */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold mb-4">Deployment Information</h3>
+              <h3 className="text-lg font-semibold mb-4">
+                Deployment Information
+              </h3>
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <dt className="text-sm text-gray-500">Framework</dt>
@@ -433,28 +498,40 @@ export default function ApplicationDetail() {
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Deployment Path</dt>
-                  <dd className="font-medium mt-1 font-mono text-sm">{route.buildPath}</dd>
+                  <dd className="font-medium mt-1 font-mono text-sm">
+                    {route.buildPath}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Server</dt>
-                  <dd className="font-medium mt-1">{spinletState?.host || 'localhost'}</dd>
+                  <dd className="font-medium mt-1">
+                    {spinletState?.host || "localhost"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Service Path</dt>
-                  <dd className="font-medium mt-1 font-mono">{spinletState?.servicePath || '-'}</dd>
+                  <dd className="font-medium mt-1 font-mono">
+                    {spinletState?.servicePath || "-"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Process ID</dt>
-                  <dd className="font-medium mt-1">{spinletState?.pid || '-'}</dd>
+                  <dd className="font-medium mt-1">
+                    {spinletState?.pid || "-"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Port</dt>
-                  <dd className="font-medium mt-1">{spinletState?.port || '-'}</dd>
+                  <dd className="font-medium mt-1">
+                    {spinletState?.port || "-"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Last Access</dt>
                   <dd className="font-medium mt-1">
-                    {spinletState?.lastAccess ? new Date(spinletState.lastAccess).toLocaleString() : 'Never'}
+                    {spinletState?.lastAccess
+                      ? new Date(spinletState.lastAccess).toLocaleString()
+                      : "Never"}
                   </dd>
                 </div>
                 <div>
@@ -466,7 +543,7 @@ export default function ApplicationDetail() {
           </div>
         )}
 
-        {activeTab === 'logs' && (
+        {activeTab === "logs" && (
           <div className="bg-white rounded-lg shadow">
             <div className="p-6 border-b flex items-center justify-between">
               <h3 className="text-lg font-semibold">Application Logs</h3>
@@ -483,7 +560,12 @@ export default function ApplicationDetail() {
                 </button>
                 <button
                   onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: ['spinlet-logs', routeDetails?.spinlet?.spinletId] });
+                    queryClient.invalidateQueries({
+                      queryKey: [
+                        "spinlet-logs",
+                        routeDetails?.spinlet?.spinletId,
+                      ],
+                    });
                   }}
                   className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
                 >
@@ -492,22 +574,26 @@ export default function ApplicationDetail() {
               </div>
             </div>
             <div className="p-6">
-              <LogTerminal spinletId={routeDetails?.spinlet?.spinletId || ''} />
+              <LogTerminal spinletId={routeDetails?.spinlet?.spinletId || ""} />
             </div>
           </div>
         )}
 
-        {activeTab === 'metrics' && (
+        {activeTab === "metrics" && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold mb-4">Performance Metrics</h3>
+              <h3 className="text-lg font-semibold mb-4">
+                Performance Metrics
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600">CPU Usage</span>
                     <Cpu className="h-4 w-4 text-gray-400" />
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">{spinletState?.cpu || 0}%</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {spinletState?.cpu || 0}%
+                  </div>
                   <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
@@ -515,52 +601,89 @@ export default function ApplicationDetail() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600">Memory</span>
                     <MemoryStick className="h-4 w-4 text-gray-400" />
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">{formatBytes(spinletState?.memory || 0)}</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {formatBytes(spinletState?.memory || 0)}
+                  </div>
                   <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
-                      style={{ width: `${Math.min(100, Math.round((spinletState?.memory || 0) / (1024 * 1024 * 512) * 100))}%` }}
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            ((spinletState?.memory || 0) /
+                              (1024 * 1024 * 512)) *
+                              100
+                          )
+                        )}%`,
+                      }}
                     />
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600">Requests</span>
                     <Activity className="h-4 w-4 text-gray-400" />
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">{spinletState?.requests || 0}</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {spinletState?.requests || 0}
+                  </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {spinletState?.errors || 0} errors
                   </div>
                 </div>
               </div>
-              
+
               <div className="mt-6 border-t pt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-4">Application Health</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-4">
+                  Application Health
+                </h4>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Process Status</span>
-                    <span className={`text-sm font-medium ${health?.checks?.process === 'pass' ? 'text-green-600' : 'text-red-600'}`}>
-                      {health?.checks?.process === 'pass' ? 'Healthy' : 'Unhealthy'}
+                    <span className="text-sm text-gray-600">
+                      Process Status
+                    </span>
+                    <span
+                      className={`text-sm font-medium ${
+                        health?.checks?.process === "pass"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {health?.checks?.process === "pass"
+                        ? "Healthy"
+                        : "Unhealthy"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Port Accessibility</span>
-                    <span className={`text-sm font-medium ${health?.checks?.port === 'pass' ? 'text-green-600' : 'text-red-600'}`}>
-                      {health?.checks?.port === 'pass' ? 'Open' : 'Closed'}
+                    <span className="text-sm text-gray-600">
+                      Port Accessibility
+                    </span>
+                    <span
+                      className={`text-sm font-medium ${
+                        health?.checks?.port === "pass"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {health?.checks?.port === "pass" ? "Open" : "Closed"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Last Health Check</span>
+                    <span className="text-sm text-gray-600">
+                      Last Health Check
+                    </span>
                     <span className="text-sm text-gray-900">
-                      {health?.lastCheck ? new Date(health.lastCheck).toLocaleTimeString() : 'Never'}
+                      {health?.lastCheck
+                        ? new Date(health.lastCheck).toLocaleTimeString()
+                        : "Never"}
                     </span>
                   </div>
                 </div>
@@ -569,7 +692,7 @@ export default function ApplicationDetail() {
           </div>
         )}
 
-        {activeTab === 'config' && (
+        {activeTab === "config" && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
@@ -586,15 +709,21 @@ export default function ApplicationDetail() {
                   </button>
                 )}
               </div>
-              
+
               {!editMode ? (
                 <dl className="space-y-2">
-                  {Object.entries(route.config?.env || {}).map(([key, value]) => (
-                    <div key={key} className="flex">
-                      <dt className="font-mono text-sm text-gray-600 w-1/3">{key}</dt>
-                      <dd className="font-mono text-sm text-gray-900">{String(value)}</dd>
-                    </div>
-                  ))}
+                  {Object.entries(route.config?.env || {}).map(
+                    ([key, value]) => (
+                      <div key={key} className="flex">
+                        <dt className="font-mono text-sm text-gray-600 w-1/3">
+                          {key}
+                        </dt>
+                        <dd className="font-mono text-sm text-gray-900">
+                          {String(value)}
+                        </dd>
+                      </div>
+                    )
+                  )}
                 </dl>
               ) : (
                 <div className="space-y-4">
@@ -609,7 +738,9 @@ export default function ApplicationDetail() {
                       <input
                         type="text"
                         value={String(value)}
-                        onChange={(e) => setEnvVars({ ...envVars, [key]: e.target.value })}
+                        onChange={(e) =>
+                          setEnvVars({ ...envVars, [key]: e.target.value })
+                        }
                         className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                       <button
@@ -624,15 +755,15 @@ export default function ApplicationDetail() {
                       </button>
                     </div>
                   ))}
-                  
+
                   <div className="flex justify-between">
                     <button
-                      onClick={() => setEnvVars({ ...envVars, '': '' })}
+                      onClick={() => setEnvVars({ ...envVars, "": "" })}
                       className="text-indigo-600 hover:text-indigo-800"
                     >
                       Add Variable
                     </button>
-                    
+
                     <div className="space-x-2">
                       <button
                         onClick={() => updateEnvMutation.mutate()}
@@ -661,26 +792,213 @@ export default function ApplicationDetail() {
               <dl className="space-y-2">
                 <div className="flex">
                   <dt className="text-sm text-gray-600 w-1/3">Memory</dt>
-                  <dd className="text-sm text-gray-900">{route.config?.memory || 'Default'}</dd>
+                  <dd className="text-sm text-gray-900">
+                    {route.config?.memory || "Default"}
+                  </dd>
                 </div>
                 <div className="flex">
                   <dt className="text-sm text-gray-600 w-1/3">CPU</dt>
-                  <dd className="text-sm text-gray-900">{route.config?.cpu || 'Default'}</dd>
+                  <dd className="text-sm text-gray-900">
+                    {route.config?.cpu || "Default"}
+                  </dd>
                 </div>
               </dl>
             </div>
           </div>
         )}
 
-        {activeTab === 'console' && (
+        {activeTab === "console" && (
           <div className="bg-white rounded-lg shadow">
             <div className="p-6 border-b">
               <h3 className="text-lg font-semibold">Interactive Console</h3>
-              <p className="text-sm text-gray-500 mt-1">Execute commands in the container</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Execute commands in the container
+              </p>
             </div>
             <div className="p-6">
-              <CommandTerminal spinletId={routeDetails?.spinlet?.spinletId || ''} />
+              <CommandTerminal
+                spinletId={routeDetails?.spinlet?.spinletId || ""}
+              />
             </div>
+          </div>
+        )}
+
+        {activeTab === "troubleshoot" && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">
+                Application Troubleshoot
+              </h3>
+              <button
+                onClick={runTroubleshoot}
+                disabled={diagLoading}
+                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Wrench className="h-4 w-4" />
+                <span>{diagLoading ? "Running..." : "Run Diagnostics"}</span>
+              </button>
+            </div>
+
+            {diagLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <span className="ml-3 text-gray-600">
+                  Running diagnostics...
+                </span>
+              </div>
+            )}
+
+            {diag && !diagLoading && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">
+                      Health Status
+                    </h4>
+                    <div className="flex items-center space-x-2">
+                      {diag.healthy ? (
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5 text-red-500" />
+                      )}
+                      <span
+                        className={`font-medium ${
+                          diag.healthy ? "text-green-700" : "text-red-700"
+                        }`}
+                      >
+                        {diag.status || "Unknown"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">Uptime</h4>
+                    <p className="text-sm text-gray-600">
+                      {diag.uptime ? formatUptime(diag.uptime / 1000) : "N/A"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Diagnostic Checks
+                  </h4>
+                  <div className="space-y-2">
+                    {Object.entries(diag.checks || {}).map(
+                      ([check, status]) => {
+                        // Special handling for endpoints array
+                        if (check === "endpoints" && Array.isArray(status)) {
+                          return (
+                            <div key={check} className="space-y-2">
+                              <div className="text-sm font-medium text-gray-700 mb-2">
+                                Health Endpoints
+                              </div>
+                              {status.map((endpoint: any, index: number) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center justify-between py-1 px-3 bg-gray-100 rounded text-xs"
+                                >
+                                  <span className="font-mono text-gray-600">
+                                    {endpoint.path}
+                                  </span>
+                                  <div className="flex items-center space-x-2">
+                                    {endpoint.ok ? (
+                                      <CheckCircle className="h-3 w-3 text-green-500" />
+                                    ) : (
+                                      <AlertCircle className="h-3 w-3 text-red-500" />
+                                    )}
+                                    <span
+                                      className={`font-medium ${
+                                        endpoint.ok
+                                          ? "text-green-700"
+                                          : "text-red-700"
+                                      }`}
+                                    >
+                                      {endpoint.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        // Regular check handling
+                        return (
+                          <div
+                            key={check}
+                            className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded"
+                          >
+                            <span className="text-sm font-medium text-gray-700 capitalize">
+                              {check.replace("_", " ")}
+                            </span>
+                            <div className="flex items-center space-x-2">
+                              {status === "pass" || status === true ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <AlertCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span
+                                className={`text-xs font-medium ${
+                                  status === "pass" || status === true
+                                    ? "text-green-700"
+                                    : "text-red-700"
+                                }`}
+                              >
+                                {typeof status === "boolean"
+                                  ? status
+                                    ? "PASS"
+                                    : "FAIL"
+                                  : status?.toString().toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Raw Diagnostic Data
+                  </h4>
+                  <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto text-xs font-mono">
+                    {JSON.stringify(diag, null, 2)}
+                  </pre>
+                </div>
+
+                {diag.error && (
+                  <div className="border-t pt-4">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2">
+                        <AlertCircle className="h-5 w-5 text-red-500" />
+                        <h4 className="font-medium text-red-800">Error</h4>
+                      </div>
+                      <p className="text-sm text-red-700 mt-2">{diag.error}</p>
+                      {diag.message && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {diag.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!diag && !diagLoading && (
+              <div className="text-center py-12">
+                <Wrench className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">
+                  Click "Run Diagnostics" to troubleshoot this application
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  This will check process health, port accessibility, and other
+                  system status
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -696,7 +1014,7 @@ function LogTerminal({ spinletId }: { spinletId: string }) {
   const queryClient = useQueryClient();
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['spinlet-logs', spinletId],
+    queryKey: ["spinlet-logs", spinletId],
     queryFn: () => api.getSpinletLogs(spinletId, 1000),
     enabled: !!spinletId,
     refetchInterval: 2000,
@@ -707,10 +1025,10 @@ function LogTerminal({ spinletId }: { spinletId: string }) {
 
     const terminal = new Terminal({
       theme: {
-        background: '#1a1a1a',
-        foreground: '#e4e4e4',
-        cursor: '#e4e4e4',
-        cursorAccent: '#1a1a1a',
+        background: "#1a1a1a",
+        foreground: "#e4e4e4",
+        cursor: "#e4e4e4",
+        cursorAccent: "#1a1a1a",
       },
       fontSize: 13,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -725,9 +1043,9 @@ function LogTerminal({ spinletId }: { spinletId: string }) {
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.open(terminalRef.current);
-    
+
     fitAddon.fit();
-    
+
     xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
@@ -735,10 +1053,10 @@ function LogTerminal({ spinletId }: { spinletId: string }) {
     const handleResize = () => {
       fitAddon.fit();
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
       terminal.dispose();
     };
   }, [spinletId]);
@@ -753,7 +1071,11 @@ function LogTerminal({ spinletId }: { spinletId: string }) {
   }, [logs]);
 
   if (isLoading) {
-    return <div className="h-96 flex items-center justify-center text-gray-500">Loading logs...</div>;
+    return (
+      <div className="h-96 flex items-center justify-center text-gray-500">
+        Loading logs...
+      </div>
+    );
   }
 
   return <div ref={terminalRef} className="h-96 bg-gray-900 rounded-lg" />;
@@ -764,7 +1086,7 @@ function CommandTerminal({ spinletId }: { spinletId: string }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const currentCommandRef = useRef<string>('');
+  const currentCommandRef = useRef<string>("");
   const commandHistoryRef = useRef<string[]>([]);
   const historyIndexRef = useRef<number>(-1);
 
@@ -772,14 +1094,20 @@ function CommandTerminal({ spinletId }: { spinletId: string }) {
     mutationFn: (command: string) => api.executeCommand(spinletId, command),
     onSuccess: (data) => {
       if (xtermRef.current) {
-        xtermRef.current.writeln(data.output || 'Command executed successfully');
-        xtermRef.current.write('\r\n$ ');
+        xtermRef.current.writeln(
+          data.output || "Command executed successfully"
+        );
+        xtermRef.current.write("\r\n$ ");
       }
     },
     onError: (error: any) => {
       if (xtermRef.current) {
-        xtermRef.current.writeln(`\x1b[31mError: ${error.response?.data?.error || error.message}\x1b[0m`);
-        xtermRef.current.write('\r\n$ ');
+        xtermRef.current.writeln(
+          `\x1b[31mError: ${
+            error.response?.data?.error || error.message
+          }\x1b[0m`
+        );
+        xtermRef.current.write("\r\n$ ");
       }
     },
   });
@@ -789,10 +1117,10 @@ function CommandTerminal({ spinletId }: { spinletId: string }) {
 
     const terminal = new Terminal({
       theme: {
-        background: '#1a1a1a',
-        foreground: '#e4e4e4',
-        cursor: '#e4e4e4',
-        cursorAccent: '#1a1a1a',
+        background: "#1a1a1a",
+        foreground: "#e4e4e4",
+        cursor: "#e4e4e4",
+        cursorAccent: "#1a1a1a",
       },
       fontSize: 13,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -807,76 +1135,85 @@ function CommandTerminal({ spinletId }: { spinletId: string }) {
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.open(terminalRef.current);
-    
+
     fitAddon.fit();
-    
-    terminal.writeln('Welcome to SpinForge Interactive Console');
+
+    terminal.writeln("Welcome to SpinForge Interactive Console");
     terminal.writeln('Type "help" for available commands');
-    terminal.write('\r\n$ ');
+    terminal.write("\r\n$ ");
 
     // Handle input
     terminal.onData((data) => {
       const code = data.charCodeAt(0);
-      
-      if (code === 13) { // Enter
-        terminal.write('\r\n');
+
+      if (code === 13) {
+        // Enter
+        terminal.write("\r\n");
         const command = currentCommandRef.current.trim();
-        
+
         if (command) {
           commandHistoryRef.current.push(command);
           historyIndexRef.current = commandHistoryRef.current.length;
-          
-          if (command === 'clear') {
+
+          if (command === "clear") {
             terminal.clear();
-            terminal.write('$ ');
-          } else if (command === 'help') {
-            terminal.writeln('Available commands:');
-            terminal.writeln('  ls         - List files and directories');
-            terminal.writeln('  pwd        - Print working directory');
-            terminal.writeln('  env        - Show environment variables');
-            terminal.writeln('  ps         - Show running processes');
-            terminal.writeln('  cat <file> - Display file content');
-            terminal.writeln('  tail <file> - Show last lines of file');
-            terminal.writeln('  grep <pattern> <file> - Search in file');
-            terminal.writeln('  clear      - Clear terminal');
-            terminal.write('\r\n$ ');
+            terminal.write("$ ");
+          } else if (command === "help") {
+            terminal.writeln("Available commands:");
+            terminal.writeln("  ls         - List files and directories");
+            terminal.writeln("  pwd        - Print working directory");
+            terminal.writeln("  env        - Show environment variables");
+            terminal.writeln("  ps         - Show running processes");
+            terminal.writeln("  cat <file> - Display file content");
+            terminal.writeln("  tail <file> - Show last lines of file");
+            terminal.writeln("  grep <pattern> <file> - Search in file");
+            terminal.writeln("  clear      - Clear terminal");
+            terminal.write("\r\n$ ");
           } else {
             executeMutation.mutate(command);
           }
         } else {
-          terminal.write('$ ');
+          terminal.write("$ ");
         }
-        
-        currentCommandRef.current = '';
-      } else if (code === 127) { // Backspace
+
+        currentCommandRef.current = "";
+      } else if (code === 127) {
+        // Backspace
         if (currentCommandRef.current.length > 0) {
           currentCommandRef.current = currentCommandRef.current.slice(0, -1);
-          terminal.write('\b \b');
+          terminal.write("\b \b");
         }
-      } else if (code === 27) { // Escape sequences (arrows)
-        if (data === '\x1b[A') { // Up arrow
+      } else if (code === 27) {
+        // Escape sequences (arrows)
+        if (data === "\x1b[A") {
+          // Up arrow
           if (historyIndexRef.current > 0) {
             historyIndexRef.current--;
             const cmd = commandHistoryRef.current[historyIndexRef.current];
             // Clear current line
-            terminal.write('\r\x1b[K$ ');
+            terminal.write("\r\x1b[K$ ");
             terminal.write(cmd);
             currentCommandRef.current = cmd;
           }
-        } else if (data === '\x1b[B') { // Down arrow
+        } else if (data === "\x1b[B") {
+          // Down arrow
           if (historyIndexRef.current < commandHistoryRef.current.length - 1) {
             historyIndexRef.current++;
             const cmd = commandHistoryRef.current[historyIndexRef.current];
-            terminal.write('\r\x1b[K$ ');
+            terminal.write("\r\x1b[K$ ");
             terminal.write(cmd);
             currentCommandRef.current = cmd;
-          } else if (historyIndexRef.current === commandHistoryRef.current.length - 1) {
+          } else if (
+            historyIndexRef.current ===
+            commandHistoryRef.current.length - 1
+          ) {
             historyIndexRef.current = commandHistoryRef.current.length;
-            terminal.write('\r\x1b[K$ ');
-            currentCommandRef.current = '';
+            terminal.write("\r\x1b[K$ ");
+            currentCommandRef.current = "";
           }
         }
-      } else if (code >= 32) { // Printable characters
+      } else if (code >= 32) {
+        // Printable characters
         currentCommandRef.current += data;
         terminal.write(data);
       }
@@ -889,10 +1226,10 @@ function CommandTerminal({ spinletId }: { spinletId: string }) {
     const handleResize = () => {
       fitAddon.fit();
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
       terminal.dispose();
     };
   }, [spinletId]);

@@ -21,6 +21,7 @@ import { ProxyHandler } from "./ProxyHandler";
 import { MetricsCollector } from "./MetricsCollector";
 import { HubConfig } from "./types";
 import { HotDeploymentWatcher } from "./deployment/HotDeploymentWatcher";
+import { DeploymentAPI } from "./deployment/DeploymentAPI";
 import { readFileSync } from "fs";
 
 export class SpinHub {
@@ -35,6 +36,7 @@ export class SpinHub {
   private telemetry: TelemetryCollector;
   private metricsCollector: MetricsCollector;
   private hotDeploymentWatcher?: HotDeploymentWatcher;
+  private deploymentAPI?: DeploymentAPI;
   private logger = createLogger("SpinHub");
   private requestMetrics = {
     total: 0,
@@ -146,11 +148,13 @@ export class SpinHub {
       ...this.config.rateLimits.global,
       keyGenerator: (req) => {
         // Use forwarded IP if behind proxy, otherwise use req.ip
-        return req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || 
-               req.socket.remoteAddress || 
-               'unknown';
+        return (
+          req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() ||
+          req.socket.remoteAddress ||
+          "unknown"
+        );
       },
-      skip: () => !this.config.trustProxy
+      skip: () => !this.config.trustProxy,
     });
     this.app.use(globalLimiter);
 
@@ -323,44 +327,52 @@ export class SpinHub {
     });
 
     // Get idle info for specific spinlet
-    this.app.get("/_metrics/idle/:spinletId", async (req: Request, res: Response) => {
-      try {
-        const { spinletId } = req.params;
-        const idleInfo = await this.spinletManager.getIdleInfo(spinletId);
-        
-        if (!idleInfo) {
-          return res.status(404).json({ error: "Spinlet not found or not active" });
+    this.app.get(
+      "/_metrics/idle/:spinletId",
+      async (req: Request, res: Response) => {
+        try {
+          const { spinletId } = req.params;
+          const idleInfo = await this.spinletManager.getIdleInfo(spinletId);
+
+          if (!idleInfo) {
+            return res
+              .status(404)
+              .json({ error: "Spinlet not found or not active" });
+          }
+
+          res.json({
+            spinletId,
+            ...idleInfo,
+            timeRemaining: idleInfo.ttl,
+            timeRemainingFormatted: this.formatTime(idleInfo.ttl),
+          });
+        } catch (error) {
+          res.status(500).json({ error: "Failed to fetch idle info" });
         }
-        
-        res.json({
-          spinletId,
-          ...idleInfo,
-          timeRemaining: idleInfo.ttl,
-          timeRemainingFormatted: this.formatTime(idleInfo.ttl)
-        });
-      } catch (error) {
-        res.status(500).json({ error: "Failed to fetch idle info" });
       }
-    });
+    );
 
     // Extend idle timeout endpoint
-    this.app.post("/_admin/spinlets/:spinletId/extend-timeout", async (req: Request, res: Response) => {
-      try {
-        const { spinletId } = req.params;
-        const { seconds = 300 } = req.body; // Default 5 minutes
-        
-        await this.spinletManager.extendIdleTimeout(spinletId, seconds);
-        
-        const newIdleInfo = await this.spinletManager.getIdleInfo(spinletId);
-        res.json({
-          success: true,
-          spinletId,
-          newTimeout: newIdleInfo
-        });
-      } catch (error) {
-        res.status(500).json({ error: "Failed to extend timeout" });
+    this.app.post(
+      "/_admin/spinlets/:spinletId/extend-timeout",
+      async (req: Request, res: Response) => {
+        try {
+          const { spinletId } = req.params;
+          const { seconds = 300 } = req.body; // Default 5 minutes
+
+          await this.spinletManager.extendIdleTimeout(spinletId, seconds);
+
+          const newIdleInfo = await this.spinletManager.getIdleInfo(spinletId);
+          res.json({
+            success: true,
+            spinletId,
+            newTimeout: newIdleInfo,
+          });
+        } catch (error) {
+          res.status(500).json({ error: "Failed to extend timeout" });
+        }
       }
-    });
+    );
 
     // Admin API routes (should be protected in production)
     this.setupAdminRoutes();
@@ -408,7 +420,7 @@ export class SpinHub {
       ...this.config.rateLimits.perCustomer,
       keyGenerator: (req) =>
         req.body?.customerId || req.params?.customerId || "unknown",
-      skip: () => !this.config.trustProxy
+      skip: () => !this.config.trustProxy,
     });
 
     adminRouter.use(customerLimiter);
@@ -1183,7 +1195,12 @@ export class SpinHub {
                     ok: endpointResponse.ok,
                   });
                 } catch (e) {
-                  // Endpoint doesn't exist
+                  healthChecks.endpoints.push({
+                    path: endpoint,
+                    status: "timeout",
+                    ok: false,
+                    error: (e as any).message,
+                  });
                 }
               }
             } catch (e) {
@@ -1589,6 +1606,11 @@ export class SpinHub {
       }
     });
 
+    // Add deployment management API routes if available
+    if (this.deploymentAPI) {
+      adminRouter.use(this.deploymentAPI.getRouter());
+    }
+
     this.app.use("/_admin", adminRouter);
   }
 
@@ -1635,21 +1657,30 @@ export class SpinHub {
 
     // Set keep-alive timeout
     this.server.keepAliveTimeout = this.config.keepAliveTimeout;
-    
+
     // Start hot deployment watcher if deployment path is configured
-    const deploymentPath = process.env.HOT_DEPLOYMENT_PATH || '/spinforge/deployments';
+    const deploymentPath =
+      process.env.HOT_DEPLOYMENT_PATH || "/spinforge/deployments";
     if (deploymentPath) {
       this.hotDeploymentWatcher = new HotDeploymentWatcher(
         deploymentPath,
         this.routeManager,
         this.spinletManager
       );
-      
+
+      // Initialize deployment API
+      this.deploymentAPI = new DeploymentAPI(
+        deploymentPath,
+        this.hotDeploymentWatcher,
+        this.routeManager,
+        this.spinletManager
+      );
+
       try {
         await this.hotDeploymentWatcher.start();
         this.logger.info(`Hot deployment watcher started on ${deploymentPath}`);
       } catch (error) {
-        this.logger.warn('Failed to start hot deployment watcher', { error });
+        this.logger.warn("Failed to start hot deployment watcher", { error });
       }
     }
   }

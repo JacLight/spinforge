@@ -1,11 +1,11 @@
-import { SpinletState } from '@spinforge/spinlet-core';
+import { SpinletState } from "@spinforge/spinlet-core";
 
 export interface RouteConfig {
   domain: string;
   spinletId: string;
   customerId: string;
   buildPath: string;
-  framework: 'nextjs' | 'remix' | 'express' | 'static';
+  framework: "nextjs" | "remix" | "express" | "static" | "custom";
   ssl?: {
     cert: string;
     key: string;
