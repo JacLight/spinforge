@@ -340,14 +340,14 @@ export class SpinHub {
               .json({ error: "Spinlet not found or not active" });
           }
 
-          res.json({
+          return res.json({
             spinletId,
             ...idleInfo,
             timeRemaining: idleInfo.ttl,
             timeRemainingFormatted: this.formatTime(idleInfo.ttl),
           });
         } catch (error) {
-          res.status(500).json({ error: "Failed to fetch idle info" });
+          return res.status(500).json({ error: "Failed to fetch idle info" });
         }
       }
     );

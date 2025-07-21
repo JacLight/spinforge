@@ -387,3 +387,17 @@
 {"level":"info","message":"Shutting down SpinHub...","service":"SpinHub","timestamp":"2025-07-20T05:31:04.939Z"}
 {"level":"info","message":"Hot deployment watcher stopped","service":"HotDeploymentWatcher","timestamp":"2025-07-20T05:31:04.939Z"}
 {"level":"info","message":"SpinHub shutdown complete","service":"SpinHub","timestamp":"2025-07-20T05:31:04.941Z"}
+{"level":"info","message":"Connected to Redis","service":"spinforge","timestamp":"2025-07-21T19:44:29.495Z"}
+{"level":"info","message":"SpinHub listening on 0.0.0.0:8080","service":"SpinHub","timestamp":"2025-07-21T19:44:29.498Z"}
+{"level":"info","message":"Starting hot deployment watcher on /spinforge/deployments","service":"HotDeploymentWatcher","timestamp":"2025-07-21T19:44:29.500Z"}
+{"level":"info","message":"Processing deployment: test-app","service":"HotDeploymentWatcher","timestamp":"2025-07-21T19:44:29.501Z"}
+{"buildPath":"/spinforge/deployments/test-app","customerId":"demo-customer","framework":"static","level":"info","message":"Starting spinlet test-app-1753127069505","service":"SpinletManager","timestamp":"2025-07-21T19:44:29.505Z"}
+{"error":{},"level":"error","message":"Failed to process deployment test-app","service":"HotDeploymentWatcher","timestamp":"2025-07-21T19:44:29.506Z"}
+{"level":"info","message":"Hot deployment watcher started on /spinforge/deployments","service":"SpinHub","timestamp":"2025-07-21T19:44:29.508Z"}
+{"level":"info","message":"SpinHub started successfully","service":"SpinHub:Server","timestamp":"2025-07-21T19:44:29.508Z"}
+{"lastAccess":"2025-07-20T15:36:25.849Z","level":"warn","message":"Found orphaned spinlet without idle timeout: demo-test-app","service":"SpinletManager","timeSinceLastAccess":"101288s","timestamp":"2025-07-21T19:44:34.484Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet demo-test-app","service":"SpinletManager","timestamp":"2025-07-21T19:44:34.485Z"}
+{"lastAccess":"2025-07-20T15:36:29.887Z","level":"warn","message":"Found orphaned spinlet without idle timeout: example-app","service":"SpinletManager","timeSinceLastAccess":"101284s","timestamp":"2025-07-21T19:44:34.488Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet example-app","service":"SpinletManager","timestamp":"2025-07-21T19:44:34.488Z"}
+{"lastAccess":"2025-07-20T15:36:34.304Z","level":"warn","message":"Found orphaned spinlet without idle timeout: spin-test-example","service":"SpinletManager","timeSinceLastAccess":"101280s","timestamp":"2025-07-21T19:44:34.490Z"}
+{"level":"info","message":"Stopping orphaned idle spinlet spin-test-example","service":"SpinletManager","timestamp":"2025-07-21T19:44:34.490Z"}

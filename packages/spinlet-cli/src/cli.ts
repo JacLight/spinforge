@@ -10,23 +10,45 @@ import { logsCommand } from './commands/logs';
 import { deployFolderCommand } from './commands/deploy-folder';
 import { deploymentListCommand } from './commands/deployment-list';
 import { deploymentScanCommand } from './commands/deployment-scan';
+import { loginCommand } from './commands/auth/login';
+import { logoutCommand } from './commands/auth/logout';
+import { whoamiCommand } from './commands/auth/whoami';
 
 const program = new Command();
 
 program
   .name('spinforge')
   .description('CLI tool for managing SpinForge applications')
-  .version('0.1.0');
+  .version('1.0.0');
+
+// Auth commands
+program
+  .command('login')
+  .description('Login to SpinForge')
+  .action(loginCommand);
+
+program
+  .command('logout')
+  .description('Logout from SpinForge')
+  .action(logoutCommand);
+
+program
+  .command('whoami')
+  .description('Display current user information')
+  .action(whoamiCommand);
 
 // Deploy command
 program
-  .command('deploy <path>')
+  .command('deploy')
   .description('Deploy an application to SpinForge')
+  .option('-p, --path <path>', 'Path to deploy (defaults to current directory)')
   .option('-d, --domain <domain>', 'Domain for the application')
-  .option('-c, --customer <id>', 'Customer ID')
-  .option('-f, --framework <type>', 'Framework type (remix, nextjs, express)', 'remix')
+  .option('-f, --framework <type>', 'Framework type (auto-detected if not specified)')
+  .option('-n, --name <name>', 'Application name (defaults to package.json name)')
   .option('-m, --memory <size>', 'Memory limit (e.g., 512MB)', '512MB')
   .option('--cpu <limit>', 'CPU limit (e.g., 0.5)', '0.5')
+  .option('--no-build', 'Skip build step')
+  .option('-e, --env <vars...>', 'Environment variables (KEY=value)')
   .action(deployCommand);
 
 // Status command
@@ -69,7 +91,6 @@ program
   .option('-n, --name <name>', 'Application name')
   .option('-m, --memory <size>', 'Memory limit (e.g., 512MB)', '512MB')
   .option('--cpu <limit>', 'CPU limit (e.g., 0.5)', '0.5')
-  .option('--skip-build', 'Skip build step (for pre-built apps)')
   .option('-e, --env <vars...>', 'Environment variables (KEY=value)')
   .action(deployFolderCommand);
 

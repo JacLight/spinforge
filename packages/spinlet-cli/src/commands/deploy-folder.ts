@@ -5,19 +5,21 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { nanoid } from 'nanoid';
 import inquirer from 'inquirer';
+import { getAuthConfig } from '../lib/auth';
 
 interface DeployFolderOptions {
   domain?: string;
-  customer?: string;
   framework?: string;
   memory?: string;
   cpu?: string;
   name?: string;
-  skipBuild?: boolean;
   env?: string[];
 }
 
 export async function deployFolderCommand(path: string, options: DeployFolderOptions) {
+  // Get auth config - this will exit if not logged in
+  const auth = getAuthConfig();
+  
   const spinner = ora('Preparing deployment...').start();
 
   try {
@@ -56,10 +58,10 @@ export async function deployFolderCommand(path: string, options: DeployFolderOpt
       spinner.info(`Detected framework: ${chalk.cyan(framework)}`);
     }
 
-    // Generate defaults
+    // Generate defaults - use authenticated customer ID
     const name = options.name || basename(absolutePath);
-    const customerId = options.customer || `customer-${nanoid(8)}`;
-    const domain = options.domain || `${name}.localhost`;
+    const customerId = auth.customerId; // Always use authenticated customer ID
+    const domain = options.domain || `${name}.spinforge.app`;
     const memory = options.memory || '512MB';
     const cpu = options.cpu || '0.5';
 
@@ -85,12 +87,6 @@ export async function deployFolderCommand(path: string, options: DeployFolderOpt
       framework,
       runtime: 'node',
       nodeVersion: '20',
-      ...(options.skipBuild ? {} : {
-        build: {
-          command: getBuildCommand(framework),
-          outputDir: getOutputDir(framework)
-        }
-      }),
       resources: {
         memory,
         cpu: parseFloat(cpu)
@@ -117,7 +113,6 @@ export async function deployFolderCommand(path: string, options: DeployFolderOpt
     console.log(`${chalk.bold('Domain:')}     ${chalk.cyan(domain)}`);
     console.log(`${chalk.bold('Customer:')}   ${chalk.yellow(customerId)}`);
     console.log(`${chalk.bold('Framework:')}  ${framework}`);
-    console.log(`${chalk.bold('Build:')}      ${options.skipBuild ? chalk.gray('Skipped (pre-built)') : chalk.green('Enabled')}`);
     console.log(`${chalk.bold('Resources:')}  ${memory} memory, ${cpu} CPU`);
     console.log(chalk.gray('─'.repeat(50)));
 
@@ -172,30 +167,6 @@ async function detectFramework(path: string): Promise<string> {
   return 'custom';
 }
 
-function getBuildCommand(framework: string): string {
-  switch (framework) {
-    case 'nextjs':
-      return 'npm install && npm run build';
-    case 'remix':
-      return 'npm install && npm run build';
-    case 'express':
-    case 'custom':
-      return 'npm install';
-    default:
-      return 'npm install';
-  }
-}
-
-function getOutputDir(framework: string): string {
-  switch (framework) {
-    case 'nextjs':
-      return '.next';
-    case 'remix':
-      return 'build';
-    default:
-      return '.';
-  }
-}
 
 function generateYaml(config: any): string {
   let yaml = `name: ${config.name}
@@ -207,14 +178,6 @@ framework: ${config.framework}
 runtime: ${config.runtime}
 nodeVersion: "${config.nodeVersion}"
 `;
-
-  if (config.build) {
-    yaml += `
-build:
-  command: ${config.build.command}
-  outputDir: ${config.build.outputDir}
-`;
-  }
 
   yaml += `
 resources:
