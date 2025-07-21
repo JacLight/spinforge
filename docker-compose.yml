@@ -163,12 +163,12 @@ services:
       - keydb-data:/data/keydb:ro
       - builds-data:/data/builds:ro
       - ./backups:/backups
-      - ./scripts/backup.sh:/backup.sh:ro
+      - ./scripts/backup.sh:/tmp/backup.sh:ro
     environment:
       - BACKUP_DIR=/backups
       - DATA_DIR=/data
       - RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
-    entrypoint: /bin/sh -c "apk add --no-cache bash tar gzip && chmod +x /backup.sh && crond -f -d 8"
+    entrypoint: /bin/sh -c "apk add --no-cache bash tar gzip && cp /tmp/backup.sh /backup.sh && chmod +x /backup.sh && crond -f -d 8"
     command: |
       sh -c 'echo "0 2 * * * /backup.sh" | crontab - && crond -f -d 8'
     networks:

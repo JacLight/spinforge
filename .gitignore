@@ -169,3 +169,4 @@ packages/spinlet-telemetry/dist*
 packages/spinlet-ui/dist*
 
 deployments*
+packages/spinlet-hub/error.log
