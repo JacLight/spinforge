@@ -1184,33 +1184,50 @@ export class SpinHub {
               });
               healthChecks.responsive = response.ok || response.status < 500;
 
-              // Check common health endpoints
-              const healthEndpoints = [
-                "/health",
-                "/api/health",
-                "/_health",
-                "/status",
-              ];
-              for (const endpoint of healthEndpoints) {
-                try {
-                  const endpointResponse = await fetch(
-                    `http://${state.servicePath}${endpoint}`,
-                    {
-                      signal: AbortSignal.timeout(2000),
-                    }
-                  );
-                  healthChecks.endpoints.push({
-                    path: endpoint,
-                    status: endpointResponse.status,
-                    ok: endpointResponse.ok,
-                  });
-                } catch (e) {
-                  healthChecks.endpoints.push({
-                    path: endpoint,
-                    status: "timeout",
-                    ok: false,
-                    error: (e as any).message,
-                  });
+              // Get the route to check framework type
+              const allDomains = await this.redis.hkeys("spinforge:routes");
+              let framework = 'node'; // default
+              for (const domain of allDomains) {
+                const routeData = await this.redis.hget("spinforge:routes", domain);
+                if (routeData) {
+                  const route = JSON.parse(routeData);
+                  if (route.spinletId === spinletId && route.framework) {
+                    framework = route.framework;
+                    break;
+                  }
+                }
+              }
+              
+              // Only check health endpoints for non-static frameworks
+              if (framework !== 'static') {
+                // Check common health endpoints
+                const healthEndpoints = [
+                  "/health",
+                  "/api/health",
+                  "/_health",
+                  "/status",
+                ];
+                for (const endpoint of healthEndpoints) {
+                  try {
+                    const endpointResponse = await fetch(
+                      `http://${state.servicePath}${endpoint}`,
+                      {
+                        signal: AbortSignal.timeout(2000),
+                      }
+                    );
+                    healthChecks.endpoints.push({
+                      path: endpoint,
+                      status: endpointResponse.status,
+                      ok: endpointResponse.ok,
+                    });
+                  } catch (e) {
+                    healthChecks.endpoints.push({
+                      path: endpoint,
+                      status: "timeout",
+                      ok: false,
+                      error: (e as any).message,
+                    });
+                  }
                 }
               }
             } catch (e) {
@@ -1618,6 +1635,36 @@ export class SpinHub {
 
     // Note: Deployment API routes will be added later after deploymentAPI is initialized
     // in the start() method when hot deployment watcher is configured
+
+    // Force cleanup endpoint
+    adminRouter.post("/cleanup", async (req: Request, res: Response) => {
+      try {
+        // Clean up orphaned routes
+        const allDomains = await this.redis.hkeys("spinforge:routes");
+        let cleaned = 0;
+        
+        for (const domain of allDomains) {
+          const routeData = await this.redis.hget("spinforge:routes", domain);
+          if (!routeData) continue;
+          
+          const route = JSON.parse(routeData);
+          
+          // Check if spinlet exists
+          const spinletState = await this.spinletManager.getState(route.spinletId);
+          if (!spinletState) {
+            // No spinlet, remove route
+            await this.routeManager.removeRoute(domain);
+            cleaned++;
+            this.logger.info(`Cleaned orphaned route: ${domain}`);
+          }
+        }
+        
+        res.json({ success: true, cleaned });
+      } catch (error) {
+        this.logger.error("Failed to cleanup", { error });
+        res.status(500).json({ error: "Failed to cleanup" });
+      }
+    });
 
     this.app.use("/_admin", adminRouter);
   }

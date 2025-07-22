@@ -44,6 +44,9 @@ export class HotDeploymentWatcher {
       `Starting hot deployment watcher on ${this.deploymentPath}`
     );
 
+    // Clean up orphaned routes first
+    await this.cleanupOrphanedRoutes();
+
     // Initial scan of existing deployments
     await this.scanDeployments();
 
@@ -370,5 +373,78 @@ export class HotDeploymentWatcher {
   ): Promise<void> {
     const markerPath = join(path, filename);
     await writeFile(markerPath, JSON.stringify(content, null, 2));
+  }
+
+  private async cleanupOrphanedRoutes(): Promise<void> {
+    try {
+      this.logger.info("Cleaning up orphaned routes...");
+      
+      // Get all registered routes
+      const Redis = require('ioredis');
+      const redis = new Redis({
+        host: process.env.REDIS_HOST || 'keydb',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD
+      });
+      
+      const allDomains = await redis.hkeys("spinforge:routes");
+      
+      for (const domain of allDomains) {
+        const routeData = await redis.hget("spinforge:routes", domain);
+        if (!routeData) continue;
+        
+        const route = JSON.parse(routeData);
+        
+        // Check if the deployment still exists
+        const deploymentPath = route.buildPath;
+        
+        // Skip if not a deployment from our watched folder
+        if (!deploymentPath || !deploymentPath.startsWith(this.deploymentPath)) {
+          continue;
+        }
+        
+        try {
+          await access(deploymentPath);
+          // Deployment exists, check if config exists
+          try {
+            await access(join(deploymentPath, 'deploy.json'));
+          } catch {
+            try {
+              await access(join(deploymentPath, 'deploy.yaml'));
+            } catch {
+              // No deployment config, remove route
+              this.logger.info(`Removing orphaned route for ${domain} - no config found`);
+              await this.removeDeployment(domain, route);
+            }
+          }
+        } catch {
+          // Deployment folder doesn't exist, remove route
+          this.logger.info(`Removing orphaned route for ${domain} - folder not found`);
+          await this.removeDeployment(domain, route);
+        }
+      }
+      
+      await redis.quit();
+    } catch (error) {
+      this.logger.error("Error cleaning up orphaned routes", { error });
+    }
+  }
+
+  private async removeDeployment(domain: string, route: any): Promise<void> {
+    try {
+      // Remove route
+      await this.routeManager.removeRoute(domain);
+      
+      // Stop spinlet if running
+      if (route.spinletId) {
+        try {
+          await this.spinletManager.stop(route.spinletId, "deployment_removed");
+        } catch (error) {
+          this.logger.warn(`Failed to stop spinlet ${route.spinletId}`, { error });
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to remove deployment for ${domain}`, { error });
+    }
   }
 }

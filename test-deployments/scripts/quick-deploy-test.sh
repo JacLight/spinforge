@@ -50,7 +50,7 @@ EOF
 cat > "$DEPLOY_DIR/deploy.json" <<EOF
 {
     "name": "$TEST_APP",
-    "domain": "$TEST_APP.local",
+    "domain": "$TEST_APP.localhost",
     "framework": "static",
     "customerId": "test-customer",
     "buildPath": "/spinforge/deployments/$TEST_APP"
@@ -80,12 +80,12 @@ echo "🧪 Testing deployment..."
 sleep 2
 
 response=$(curl -s -w "\n%{http_code}" \
-    -H "Host: $TEST_APP.local" \
+    -H "Host: $TEST_APP.localhost" \
     http://localhost:9004/ 2>/dev/null || echo "Failed")
 
 if [[ "$response" == *"200"* ]] || [[ "$response" == *"SpinForge Deployment Test"* ]]; then
     echo "✅ Deployment test PASSED!"
-    echo "   App is accessible at: http://$TEST_APP.local:9004/"
+    echo "   App is accessible at: http://$TEST_APP.localhost:9004/"
 else
     echo "❌ Deployment test FAILED"
     echo "   Response: $response"

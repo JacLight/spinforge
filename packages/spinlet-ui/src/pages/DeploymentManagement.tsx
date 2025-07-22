@@ -304,18 +304,19 @@ export default function DeploymentManagement() {
                               >
                                 <Square className="h-4 w-4" />
                               </button>
-                            ) : deployment.status === "failed" ? (
+                            ) : (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   retryMutation.mutate(deployment.name);
                                 }}
-                                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                                title="Retry"
+                                className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title={deployment.status === "failed" ? "Retry failed deployment" : "Force redeploy"}
+                                disabled={retryMutation.isPending}
                               >
-                                <Play className="h-4 w-4" />
+                                <RefreshCw className={`h-4 w-4 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
                               </button>
-                            ) : null}
+                            )}
 
                             <button
                               onClick={(e) => {
