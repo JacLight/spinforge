@@ -9,7 +9,7 @@ echo "============================"
 
 # Configuration
 TEST_APP="test-static-$(date +%s)"
-DOMAIN="${TEST_APP}.local"
+DOMAIN="${TEST_APP}.localhost"
 CUSTOMER_ID="test-customer"
 
 # Check if SpinHub is running

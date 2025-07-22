@@ -83,12 +83,14 @@ spinforge deploy /path/to/your/nextjs-app \
 ## 5. Manage Your Apps
 
 ### View All Routes
+
 ```bash
 # List routes for a customer
 spinforge routes -c demo
 ```
 
 ### Check Spinlet Status
+
 ```bash
 # Get specific spinlet status
 spinforge status spin-abc123
@@ -98,6 +100,7 @@ spinforge status
 ```
 
 ### View Logs
+
 ```bash
 # View recent logs
 spinforge logs spin-abc123
@@ -107,6 +110,7 @@ spinforge logs spin-abc123 -f
 ```
 
 ### Stop a Spinlet
+
 ```bash
 # Stop a specific spinlet
 spinforge stop spin-abc123
@@ -115,24 +119,27 @@ spinforge stop spin-abc123
 ## 6. Test Your Deployment
 
 ### Basic HTTP Request
+
 ```bash
 # Test your app
-curl -H "Host: myapp.local" http://localhost:8080
+curl -H "Host: myapp.localhost" http://localhost:8080
 ```
 
 ### Performance Test
+
 ```bash
 # Install apache bench if needed
 apt-get install apache2-utils  # Ubuntu/Debian
 brew install ab                 # macOS
 
 # Run performance test
-ab -n 1000 -c 10 -H "Host: myapp.local" http://localhost:8080/
+ab -n 1000 -c 10 -H "Host: myapp.localhost" http://localhost:8080/
 ```
 
 ## 7. Admin API Examples
 
 ### Add a Route Programmatically
+
 ```bash
 curl -X POST http://localhost:8080/_admin/routes \
   -H "Content-Type: application/json" \
@@ -146,6 +153,7 @@ curl -X POST http://localhost:8080/_admin/routes \
 ```
 
 ### Get Metrics
+
 ```bash
 curl http://localhost:8080/_metrics
 ```
@@ -153,6 +161,7 @@ curl http://localhost:8080/_metrics
 ## 8. Development Workflow
 
 ### Local Development Mode
+
 ```bash
 # Set environment for local development
 export SPINHUB_URL=http://localhost:8080
@@ -163,6 +172,7 @@ spinforge deploy ./my-app --framework remix
 ```
 
 ### Production Deployment
+
 ```bash
 # Use production settings
 export NODE_ENV=production
@@ -180,6 +190,7 @@ spinforge deploy ./my-app \
 ## 9. Troubleshooting
 
 ### Check Service Logs
+
 ```bash
 # SpinHub logs
 docker-compose logs -f spinhub
@@ -189,6 +200,7 @@ docker-compose logs -f keydb
 ```
 
 ### Reset Everything
+
 ```bash
 # Stop all services
 docker-compose down
@@ -203,16 +215,18 @@ docker-compose up -d
 ### Common Issues
 
 1. **Port already in use**
+
    ```bash
    # Change the port in docker-compose.yml or use:
    PORT=8081 docker-compose up -d
    ```
 
 2. **Spinlet won't start**
+
    ```bash
    # Check spinlet logs
    spinforge logs <spinlet-id> -n 50
-   
+
    # Verify build path exists
    ls -la /path/to/your/app
    ```
@@ -220,7 +234,7 @@ docker-compose up -d
 3. **Domain not resolving**
    ```bash
    # Add to /etc/hosts
-   echo "127.0.0.1 myapp.local" | sudo tee -a /etc/hosts
+   echo "127.0.0.1 myapp.localhost" | sudo tee -a /etc/hosts
    ```
 
 ## 10. Next Steps
@@ -233,6 +247,7 @@ docker-compose up -d
 ## Example Apps
 
 Check out these example applications in the `examples/` directory:
+
 - `remix-app` - Basic Remix application
 - `nextjs-app` - Next.js with SSR (coming soon)
 - `express-api` - REST API example (coming soon)

@@ -114,7 +114,7 @@ for framework in "${frameworks[@]}"; do
     APP_DIR="$TEST_DIR/frameworks/$framework"
     BUILD_OUTPUT="$RESULTS_DIR/${framework}-build"
     APP_NAME="test-${framework}-utility"
-    DOMAIN="${APP_NAME}.local"
+    DOMAIN="${APP_NAME}.localhost"
     
     build_status="❌"
     deploy_status="❌"

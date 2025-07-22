@@ -18,6 +18,8 @@ export class HotDeploymentWatcher {
   private routeManager: RouteManager;
   private spinletManager: SpinletManager;
   private processingDeployments = new Set<string>();
+  private deploymentAPI?: any; // Will be set later
+  private healthCheckInterval?: NodeJS.Timeout;
 
   constructor(
     deploymentPath: string,
@@ -27,6 +29,10 @@ export class HotDeploymentWatcher {
     this.deploymentPath = deploymentPath;
     this.routeManager = routeManager;
     this.spinletManager = spinletManager;
+  }
+
+  setDeploymentAPI(deploymentAPI: any): void {
+    this.deploymentAPI = deploymentAPI;
   }
 
   async start(): Promise<void> {
@@ -67,12 +73,25 @@ export class HotDeploymentWatcher {
         }
       }
     );
+
+    // Start health check interval (every 1 minute)
+    this.healthCheckInterval = setInterval(() => {
+      this.performHealthCheck().catch(error => {
+        this.logger.error("Health check failed", { error });
+      });
+    }, 60000); // 60 seconds
+
+    // Perform initial health check
+    await this.performHealthCheck();
   }
 
   async stop(): Promise<void> {
     if (this.watcher) {
       this.watcher.close();
       this.logger.info("Hot deployment watcher stopped");
+    }
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
     }
   }
 
@@ -123,6 +142,11 @@ export class HotDeploymentWatcher {
 
     try {
       this.logger.info(`Processing deployment: ${deploymentId}`);
+      
+      // Update deployment API status if available
+      if (this.deploymentAPI) {
+        this.deploymentAPI.markDeploymentAsProcessing(deploymentId);
+      }
 
       let actualPath = deploymentPath;
 
@@ -135,6 +159,22 @@ export class HotDeploymentWatcher {
       const config = await this.loadDeploymentConfig(actualPath);
       if (!config) {
         this.logger.warn(`No deployment config found in ${deploymentId}`);
+        
+        // Create failed marker
+        await this.createMarker(actualPath, ".failed", {
+          timestamp: new Date().toISOString(),
+          error: "No deploy.json or deploy.yaml found",
+        });
+        
+        // Update deployment API status
+        if (this.deploymentAPI) {
+          this.deploymentAPI.markDeploymentAsComplete(
+            deploymentId,
+            false,
+            "No deploy.json or deploy.yaml found"
+          );
+        }
+        
         return;
       }
 
@@ -144,6 +184,23 @@ export class HotDeploymentWatcher {
         this.logger.error(`Invalid deployment config for ${deploymentId}`, {
           errors: validation.errors,
         });
+        
+        // Create failed marker with validation errors
+        await this.createMarker(actualPath, ".failed", {
+          timestamp: new Date().toISOString(),
+          error: `Validation failed: ${validation.errors?.join(", ")}`,
+          errors: validation.errors,
+        });
+        
+        // Update deployment API status if available
+        if (this.deploymentAPI) {
+          this.deploymentAPI.markDeploymentAsComplete(
+            deploymentId,
+            false,
+            `Validation failed: ${validation.errors?.join(", ")}`
+          );
+        }
+        
         return;
       }
 
@@ -165,6 +222,15 @@ export class HotDeploymentWatcher {
         timestamp: new Date().toISOString(),
         error: (error as Error).message,
       });
+      
+      // Update deployment API status
+      if (this.deploymentAPI) {
+        this.deploymentAPI.markDeploymentAsComplete(
+          deploymentId,
+          false,
+          (error as Error).message
+        );
+      }
     } finally {
       this.processingDeployments.delete(deploymentId);
     }
@@ -308,6 +374,11 @@ export class HotDeploymentWatcher {
       domains,
       customerId: config.customerId,
     });
+    
+    // Update deployment API status
+    if (this.deploymentAPI) {
+      this.deploymentAPI.markDeploymentAsComplete(config.name, true);
+    }
   }
 
   private async runBuildCommand(
@@ -445,6 +516,102 @@ export class HotDeploymentWatcher {
       }
     } catch (error) {
       this.logger.error(`Failed to remove deployment for ${domain}`, { error });
+    }
+  }
+
+  private async performHealthCheck(): Promise<void> {
+    this.logger.debug("Performing deployment health check");
+    
+    try {
+      // Get all registered routes
+      const Redis = require('ioredis');
+      const redis = new Redis({
+        host: process.env.REDIS_HOST || 'keydb',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD
+      });
+      
+      const allDomains = await redis.hkeys("spinforge:routes");
+      let missingCount = 0;
+      let checkedCount = 0;
+      
+      for (const domain of allDomains) {
+        const routeData = await redis.hget("spinforge:routes", domain);
+        if (!routeData) continue;
+        
+        const route = JSON.parse(routeData);
+        
+        // Skip if not a deployment from our watched folder
+        if (!route.buildPath || !route.buildPath.startsWith(this.deploymentPath)) {
+          continue;
+        }
+        
+        checkedCount++;
+        
+        try {
+          // Check if the deployment folder still exists
+          await access(route.buildPath);
+          
+          // Also check if deploy.json or deploy.yaml exists
+          let configExists = false;
+          try {
+            await access(join(route.buildPath, 'deploy.json'));
+            configExists = true;
+          } catch {
+            try {
+              await access(join(route.buildPath, 'deploy.yaml'));
+              configExists = true;
+            } catch {
+              // No config file
+            }
+          }
+          
+          if (!configExists) {
+            this.logger.warn(`Deployment folder exists but no config found for ${domain}`, {
+              buildPath: route.buildPath
+            });
+            missingCount++;
+            
+            // Mark deployment as unhealthy
+            if (this.deploymentAPI) {
+              this.deploymentAPI.markDeploymentAsUnhealthy(
+                route.customerId,
+                domain,
+                "Deployment config missing"
+              );
+            }
+          }
+        } catch {
+          // Deployment folder doesn't exist
+          this.logger.error(`Deployment folder missing for ${domain}`, {
+            buildPath: route.buildPath,
+            spinletId: route.spinletId
+          });
+          missingCount++;
+          
+          // Mark deployment as failed and remove it
+          if (this.deploymentAPI) {
+            this.deploymentAPI.markDeploymentAsComplete(
+              domain,
+              false,
+              "Deployment folder no longer exists"
+            );
+          }
+          
+          // Remove the orphaned deployment
+          await this.removeDeployment(domain, route);
+        }
+      }
+      
+      await redis.quit();
+      
+      if (missingCount > 0) {
+        this.logger.warn(`Health check completed: ${missingCount} missing deployments out of ${checkedCount} checked`);
+      } else {
+        this.logger.debug(`Health check completed: All ${checkedCount} deployments healthy`);
+      }
+    } catch (error) {
+      this.logger.error("Error during health check", { error });
     }
   }
 }

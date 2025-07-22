@@ -60,7 +60,7 @@ echo ""
 
 echo -e "${YELLOW}Method 3: Add to /etc/hosts${NC}"
 echo "Add this line to /etc/hosts:"
-echo "127.0.0.1   testapp.local"
+echo "127.0.0.1   testapp.localhost"
 echo "Then access: http://testapp.local:9006"
 echo ""
 

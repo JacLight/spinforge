@@ -70,7 +70,7 @@ test_app_endpoints() {
 # If specific app is provided as argument
 if [ $# -gt 0 ]; then
     APP_NAME=$1
-    DOMAIN="${APP_NAME}.local"
+    DOMAIN="${APP_NAME}.localhost"
     FRAMEWORK=${2:-unknown}
     
     test_app_endpoints "$APP_NAME" "$DOMAIN" "$FRAMEWORK"
@@ -79,11 +79,11 @@ else
     echo "Testing all deployed applications..."
     
     # Add your deployed apps here
-    test_app_endpoints "test-nextjs" "test-nextjs.local" "nextjs"
-    test_app_endpoints "test-node" "test-node.local" "node"
-    test_app_endpoints "test-deno" "test-deno.local" "deno"
-    test_app_endpoints "test-react" "test-react.local" "react"
-    test_app_endpoints "test-static" "test-static.local" "static"
+    test_app_endpoints "test-nextjs" "test-nextjs.localhost" "nextjs"
+    test_app_endpoints "test-node" "test-node.localhost" "node"
+    test_app_endpoints "test-deno" "test-deno.localhost" "deno"
+    test_app_endpoints "test-react" "test-react.localhost" "react"
+    test_app_endpoints "test-static" "test-static.localhost" "static"
 fi
 
 echo ""

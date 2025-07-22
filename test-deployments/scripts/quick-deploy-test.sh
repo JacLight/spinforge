@@ -79,6 +79,21 @@ sleep 2
 echo "🧪 Testing deployment..."
 sleep 2
 
+# Check for deployment markers first
+echo ""
+echo "🔍 Checking deployment status..."
+if [ -f "$DEPLOY_DIR/.failed" ]; then
+    echo "❌ Deployment FAILED"
+    echo "   Error details:"
+    cat "$DEPLOY_DIR/.failed" | jq '.' 2>/dev/null || cat "$DEPLOY_DIR/.failed"
+    echo ""
+    echo "📁 Deployment directory: $DEPLOY_DIR"
+    echo "To clean up: rm -rf $DEPLOY_DIR"
+    exit 1
+elif [ -f "$DEPLOY_DIR/.deployed" ]; then
+    echo "✅ Deployment marked as successful"
+fi
+
 response=$(curl -s -w "\n%{http_code}" \
     -H "Host: $TEST_APP.localhost" \
     http://localhost:9004/ 2>/dev/null || echo "Failed")

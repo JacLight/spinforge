@@ -67,17 +67,65 @@ export class SpinletManager extends EventEmitter {
     let child: ChildProcess;
 
     if (config.framework === "nextjs") {
-      // For Next.js, use spawn with npx/npm
-      const { spawn } = require("child_process");
-      child = spawn("npm", ["run", "start"], {
-        cwd,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      // For Next.js, check if standalone server exists
+      const fs = require("fs");
+      const path = require("path");
+      const standaloneServerPath = path.join(config.buildPath, ".next", "standalone", "server.js");
+      
+      if (fs.existsSync(standaloneServerPath)) {
+        // Use standalone server if available
+        child = fork(standaloneServerPath, [], {
+          cwd: path.join(config.buildPath, ".next", "standalone"),
+          env: {
+            ...env,
+            HOSTNAME: "0.0.0.0",
+            PORT: port.toString(),
+          },
+          silent: true,
+          execArgv: this.getExecArgv(config),
+        });
+      } else {
+        // Fallback to node server.js if package.json has start script
+        const { spawn } = require("child_process");
+        const startScript = path.join(cwd, "node_modules", ".bin", "next");
+        
+        if (fs.existsSync(startScript)) {
+          child = spawn("node", [startScript, "start", "-p", port.toString()], {
+            cwd,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        } else {
+          // Last resort - try to use global next
+          child = spawn("npx", ["next", "start", "-p", port.toString()], {
+            cwd,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        }
+      }
     } else if (config.framework === "node" || config.framework === "custom") {
       // For Express/custom, use fork with the entry point
-      child = fork(config.buildPath, [], {
-        cwd: config.buildPath.substring(0, config.buildPath.lastIndexOf("/")),
+      const fs = require("fs");
+      const path = require("path");
+      
+      // Determine the entry point
+      let entryPoint = config.buildPath;
+      
+      // If buildPath is a directory, look for common entry points
+      if (fs.statSync(config.buildPath).isDirectory()) {
+        const possibleEntries = ['server.js', 'index.js', 'app.js', 'main.js'];
+        for (const entry of possibleEntries) {
+          const entryPath = path.join(config.buildPath, entry);
+          if (fs.existsSync(entryPath)) {
+            entryPoint = entryPath;
+            break;
+          }
+        }
+      }
+      
+      child = fork(entryPoint, [], {
+        cwd: path.dirname(entryPoint),
         env,
         silent: true,
         execArgv: this.getExecArgv(config),

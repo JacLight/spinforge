@@ -5,13 +5,17 @@ SpinForge now supports bidirectional mapping between public domains and local se
 ## Key Concepts
 
 ### Service Path
+
 The local URL where a spinlet is accessible within the system.
+
 - Format: `localhost:port` (e.g., `localhost:40000`)
 - Automatically assigned when a spinlet starts
 - Remains constant for the spinlet's lifetime
 
 ### Domains
+
 The public URLs that route to the spinlet.
+
 - Format: Standard domain names (e.g., `mynext.com`, `app.example.com`)
 - Multiple domains can point to one spinlet
 - Dynamically managed through the route system
@@ -25,8 +29,8 @@ interface SpinletState {
   spinletId: string;
   customerId: string;
   port: number;
-  servicePath: string;    // e.g., "localhost:40000"
-  domains: string[];      // e.g., ["mynext.com", "www.mynext.com"]
+  servicePath: string; // e.g., "localhost:40000"
+  domains: string[]; // e.g., ["mynext.com", "www.mynext.com"]
   // ... other fields
 }
 ```
@@ -40,6 +44,7 @@ GET /_admin/spinlets/find/:pathOrDomain
 ```
 
 Examples:
+
 ```bash
 # Find by service path
 curl http://localhost:9004/_admin/spinlets/find/localhost:40000
@@ -76,10 +81,12 @@ DELETE /_admin/routes/mynext.com
 The system maintains several Redis keys for efficient lookups:
 
 ### Primary Storage
+
 - `spinforge:spinlets:{spinletId}` - Complete spinlet state
 - `routes:{domain}` - Route configuration
 
 ### Reverse Mappings
+
 - `spinforge:servicepath:{servicePath}` → `spinletId`
 - `spinforge:domain:{domain}` → `spinletId`
 
@@ -92,7 +99,7 @@ The system maintains several Redis keys for efficient lookups:
 curl -X POST http://localhost:9004/_admin/routes \
   -H "Content-Type: application/json" \
   -d '{
-    "domain": "myapp.local",
+    "domain": "myapp.localhost",
     "spinletId": "spin-myapp",
     "customerId": "customer-123",
     "buildPath": "/path/to/myapp",
@@ -106,7 +113,7 @@ curl http://localhost:9004/_admin/spinlets/find/myapp.local
 {
   "spinletId": "spin-myapp",
   "servicePath": "localhost:30001",
-  "domains": ["myapp.local"],
+  "domains": ["myapp.localhost"],
   ...
 }
 
@@ -121,7 +128,7 @@ curl http://localhost:30001
 curl -X POST http://localhost:9004/_admin/routes \
   -H "Content-Type: application/json" \
   -d '{
-    "domain": "www.myapp.local",
+    "domain": "www.myapp.localhost",
     "spinletId": "spin-myapp",
     ...
   }'
@@ -133,7 +140,7 @@ curl http://localhost:9004/_admin/spinlets/find/localhost:30001
 {
   "spinletId": "spin-myapp",
   "servicePath": "localhost:30001",
-  "domains": ["myapp.local", "www.myapp.local"],
+  "domains": ["myapp.localhost", "www.myapp.localhost"],
   ...
 }
 ```
@@ -161,22 +168,25 @@ curl http://localhost:9004/_admin/spinlets/find/www.myapp.local
 
 ```typescript
 // Update domains for a spinlet
-await spinletManager.updateDomains(spinletId, ['domain1.com', 'domain2.com']);
+await spinletManager.updateDomains(spinletId, ["domain1.com", "domain2.com"]);
 
 // Find spinlet by service path
-const spinletId = await spinletManager.findByServicePath('localhost:40000');
+const spinletId = await spinletManager.findByServicePath("localhost:40000");
 
 // Find spinlet by domain
-const spinletId = await spinletManager.findByDomain('mynext.com');
+const spinletId = await spinletManager.findByDomain("mynext.com");
 
 // Get state by either identifier
-const state = await spinletManager.getStateByServicePathOrDomain('localhost:40000');
-const state = await spinletManager.getStateByServicePathOrDomain('mynext.com');
+const state = await spinletManager.getStateByServicePathOrDomain(
+  "localhost:40000"
+);
+const state = await spinletManager.getStateByServicePathOrDomain("mynext.com");
 ```
 
 ### Automatic Cleanup
 
 When a spinlet is stopped, all reverse mappings are automatically cleaned up:
+
 - Service path mapping is removed
 - All domain mappings are removed
 - Redis keys are deleted
@@ -191,6 +201,7 @@ When a spinlet is stopped, all reverse mappings are automatically cleaned up:
 ## Troubleshooting
 
 ### Domain Not Found
+
 ```bash
 # Check if domain is registered
 curl http://localhost:9004/_admin/routes
@@ -200,6 +211,7 @@ curl http://localhost:9004/_admin/spinlets/find/yourdomain.com
 ```
 
 ### Service Path Not Accessible
+
 ```bash
 # Verify spinlet is running
 curl http://localhost:9004/_admin/spinlets/{spinletId}
@@ -209,6 +221,7 @@ nc -zv localhost {port}
 ```
 
 ### Multiple Domains Issue
+
 ```bash
 # List all domains for a spinlet
 curl http://localhost:9004/_admin/spinlets/{spinletId} | jq '.domains'

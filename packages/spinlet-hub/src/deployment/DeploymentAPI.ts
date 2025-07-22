@@ -8,7 +8,7 @@ import { SpinletManager } from "@spinforge/spinlet-core";
 
 interface DeploymentStatus {
   name: string;
-  status: "pending" | "building" | "success" | "failed" | "processing";
+  status: "pending" | "building" | "success" | "failed" | "processing" | "unhealthy";
   timestamp: string;
   error?: string;
   buildTime?: number;
@@ -70,6 +70,9 @@ export class DeploymentAPI {
       "/deployments/:name/logs",
       this.getDeploymentLogs.bind(this)
     );
+
+    // Trigger health check
+    this.router.post("/deployments/health-check", this.triggerHealthCheck.bind(this));
   }
 
   private async getDeployments(req: Request, res: Response): Promise<void> {
@@ -101,6 +104,16 @@ export class DeploymentAPI {
     } catch (error) {
       this.logger.error("Error triggering scan", { error });
       res.status(500).json({ error: "Failed to trigger scan" });
+    }
+  }
+
+  private async triggerHealthCheck(req: Request, res: Response): Promise<void> {
+    try {
+      await (this.hotDeploymentWatcher as any).performHealthCheck();
+      res.json({ success: true, message: "Health check triggered successfully" });
+    } catch (error) {
+      this.logger.error("Error triggering health check", { error });
+      res.status(500).json({ error: "Failed to trigger health check" });
     }
   }
 
@@ -414,6 +427,32 @@ ${status.error || "Unknown error"}
       timestamp: new Date().toISOString(),
       error: error,
     });
+  }
+
+  public markDeploymentAsUnhealthy(
+    customerId: string,
+    domain: string,
+    reason: string
+  ): void {
+    // Log the unhealthy status
+    this.logger.warn("Deployment marked as unhealthy", {
+      customerId,
+      domain,
+      reason,
+    });
+    
+    // Find deployment by domain
+    for (const [name, status] of this.deploymentStatuses.entries()) {
+      if (status.domains?.includes(domain)) {
+        this.updateDeploymentStatus(name, {
+          ...status,
+          status: "unhealthy",
+          error: reason,
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+    }
   }
 
   getRouter(): Router {

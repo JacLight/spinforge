@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../services/api';
-import { 
-  Save, 
-  Key, 
-  AlertCircle, 
-  Shield, 
-  Server, 
-  Globe, 
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../services/api";
+import {
+  Save,
+  Key,
+  AlertCircle,
+  Shield,
+  Server,
+  Globe,
   Database,
   Bell,
   Mail,
@@ -19,9 +19,9 @@ import {
   Clock,
   CheckCircle,
   Settings as SettingsIcon,
-  RefreshCw
-} from 'lucide-react';
-import { toast } from 'sonner';
+  RefreshCw,
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface SettingSection {
   id: string;
@@ -31,56 +31,92 @@ interface SettingSection {
 }
 
 const settingSections: SettingSection[] = [
-  { id: 'authentication', title: 'Authentication', description: 'API tokens and access control', icon: Key },
-  { id: 'resources', title: 'Resource Limits', description: 'Default resource allocations', icon: Server },
-  { id: 'networking', title: 'Networking', description: 'Port ranges and domain settings', icon: Network },
-  { id: 'security', title: 'Security', description: 'Security policies and restrictions', icon: Shield },
-  { id: 'notifications', title: 'Notifications', description: 'Alert and notification settings', icon: Bell },
-  { id: 'maintenance', title: 'Maintenance', description: 'Backup and cleanup settings', icon: Clock },
+  {
+    id: "authentication",
+    title: "Authentication",
+    description: "API tokens and access control",
+    icon: Key,
+  },
+  {
+    id: "resources",
+    title: "Resource Limits",
+    description: "Default resource allocations",
+    icon: Server,
+  },
+  {
+    id: "networking",
+    title: "Networking",
+    description: "Port ranges and domain settings",
+    icon: Network,
+  },
+  {
+    id: "security",
+    title: "Security",
+    description: "Security policies and restrictions",
+    icon: Shield,
+  },
+  {
+    id: "notifications",
+    title: "Notifications",
+    description: "Alert and notification settings",
+    icon: Bell,
+  },
+  {
+    id: "maintenance",
+    title: "Maintenance",
+    description: "Backup and cleanup settings",
+    icon: Clock,
+  },
 ];
 
 export default function Settings() {
-  const [activeSection, setActiveSection] = useState('authentication');
-  const [adminToken, setAdminToken] = useState('');
+  const [activeSection, setActiveSection] = useState("authentication");
+  const [adminToken, setAdminToken] = useState("");
   const [saved, setSaved] = useState(false);
-  
+
   // Fetch real metrics data
   const { data: allMetrics } = useQuery({
-    queryKey: ['allMetrics'],
+    queryKey: ["allMetrics"],
     queryFn: () => api.allMetrics(),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
-  
+
   // Resource settings
-  const [defaultMemory, setDefaultMemory] = useState('512MB');
-  const [defaultCpu, setDefaultCpu] = useState('0.5');
-  const [maxMemory, setMaxMemory] = useState('4GB');
-  const [maxCpu, setMaxCpu] = useState('2');
-  
+  const [defaultMemory, setDefaultMemory] = useState("512MB");
+  const [defaultCpu, setDefaultCpu] = useState("0.5");
+  const [maxMemory, setMaxMemory] = useState("4GB");
+  const [maxCpu, setMaxCpu] = useState("2");
+
   // Network settings
-  const [portRangeStart, setPortRangeStart] = useState('10000');
-  const [portRangeEnd, setPortRangeEnd] = useState('20000');
-  const [defaultDomainSuffix, setDefaultDomainSuffix] = useState('.spinforge.local');
-  
+  const [portRangeStart, setPortRangeStart] = useState("10000");
+  const [portRangeEnd, setPortRangeEnd] = useState("20000");
+  const [defaultDomainSuffix, setDefaultDomainSuffix] =
+    useState(".spinforge.local");
+
   // Security settings
   const [enableRateLimit, setEnableRateLimit] = useState(true);
-  const [rateLimit, setRateLimit] = useState('100');
+  const [rateLimit, setRateLimit] = useState("100");
   const [enableSSL, setEnableSSL] = useState(true);
-  const [allowedFrameworks, setAllowedFrameworks] = useState(['remix', 'nextjs', 'express', 'static']);
-  
+  const [allowedFrameworks, setAllowedFrameworks] = useState([
+    "remix",
+    "nextjs",
+    "express",
+    "static",
+  ]);
+
   // Notification settings
   const [emailNotifications, setEmailNotifications] = useState(false);
-  const [notificationEmail, setNotificationEmail] = useState('');
-  const [slackWebhook, setSlackWebhook] = useState('');
-  
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [slackWebhook, setSlackWebhook] = useState("");
+
   // Maintenance settings
   const [autoBackup, setAutoBackup] = useState(true);
-  const [backupInterval, setBackupInterval] = useState('daily');
+  const [backupInterval, setBackupInterval] = useState("daily");
   const [autoCleanup, setAutoCleanup] = useState(true);
-  const [cleanupAge, setCleanupAge] = useState('30');
+  const [cleanupAge, setCleanupAge] = useState("30");
 
   useEffect(() => {
-    const token = localStorage.getItem('adminToken') || '';
+    const token = localStorage.getItem("adminToken") || "";
     setAdminToken(token);
     // Load other settings from localStorage or API
   }, []);
@@ -88,26 +124,32 @@ export default function Settings() {
   const handleSave = () => {
     // Save all settings
     api.setAdminToken(adminToken);
-    localStorage.setItem('settings', JSON.stringify({
-      resources: { defaultMemory, defaultCpu, maxMemory, maxCpu },
-      networking: { portRangeStart, portRangeEnd, defaultDomainSuffix },
-      security: { enableRateLimit, rateLimit, enableSSL, allowedFrameworks },
-      notifications: { emailNotifications, notificationEmail, slackWebhook },
-      maintenance: { autoBackup, backupInterval, autoCleanup, cleanupAge }
-    }));
-    
-    toast.success('Settings saved successfully!');
+    localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        resources: { defaultMemory, defaultCpu, maxMemory, maxCpu },
+        networking: { portRangeStart, portRangeEnd, defaultDomainSuffix },
+        security: { enableRateLimit, rateLimit, enableSSL, allowedFrameworks },
+        notifications: { emailNotifications, notificationEmail, slackWebhook },
+        maintenance: { autoBackup, backupInterval, autoCleanup, cleanupAge },
+      })
+    );
+
+    toast.success("Settings saved successfully!");
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
   const renderSectionContent = () => {
     switch (activeSection) {
-      case 'authentication':
+      case "authentication":
         return (
           <div className="space-y-6">
             <div>
-              <label htmlFor="adminToken" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="adminToken"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 Admin API Token
               </label>
               <div className="flex rounded-lg shadow-sm">
@@ -124,7 +166,8 @@ export default function Settings() {
                 />
               </div>
               <p className="mt-2 text-sm text-gray-500">
-                Required for API access. Find it in your .env file or Docker logs.
+                Required for API access. Find it in your .env file or Docker
+                logs.
               </p>
             </div>
 
@@ -148,7 +191,9 @@ export default function Settings() {
             )}
 
             <div className="border-t pt-6">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">API Key Management</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                API Key Management
+              </h3>
               <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Generate New API Key
@@ -157,11 +202,13 @@ export default function Settings() {
           </div>
         );
 
-      case 'resources':
+      case "resources":
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Default Resource Allocation</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Default Resource Allocation
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -191,7 +238,9 @@ export default function Settings() {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Maximum Resource Limits</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Maximum Resource Limits
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -224,13 +273,33 @@ export default function Settings() {
               <div className="flex">
                 <Zap className="h-5 w-5 text-blue-400 mt-0.5" />
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">Resource Usage</h3>
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Resource Usage
+                  </h3>
                   <p className="mt-1 text-sm text-blue-700">
-                    Current cluster usage: {allMetrics?.system?.memory?.used 
-                      ? `${(allMetrics.system.memory.used / 1024 / 1024 / 1024).toFixed(1)}GB / ${(allMetrics.system.memory.total / 1024 / 1024 / 1024).toFixed(1)}GB`
-                      : 'Loading...'} RAM, {allMetrics?.system?.cpu?.usage 
-                      ? `${(allMetrics.system.cpu.usage * allMetrics.system.cpu.cores / 100).toFixed(1)} / ${allMetrics.system.cpu.cores}`
-                      : 'Loading...'} CPUs
+                    Current cluster usage:{" "}
+                    {allMetrics?.system?.memory?.used
+                      ? `${(
+                          allMetrics.system.memory.used /
+                          1024 /
+                          1024 /
+                          1024
+                        ).toFixed(1)}GB / ${(
+                          allMetrics.system.memory.total /
+                          1024 /
+                          1024 /
+                          1024
+                        ).toFixed(1)}GB`
+                      : "Loading..."}{" "}
+                    RAM,{" "}
+                    {allMetrics?.system?.cpu?.usage
+                      ? `${(
+                          (allMetrics.system.cpu.usage *
+                            allMetrics.system.cpu.cores) /
+                          100
+                        ).toFixed(1)} / ${allMetrics.system.cpu.cores}`
+                      : "Loading..."}{" "}
+                    CPUs
                   </p>
                 </div>
               </div>
@@ -238,11 +307,13 @@ export default function Settings() {
           </div>
         );
 
-      case 'networking':
+      case "networking":
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Port Configuration</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Port Configuration
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -268,7 +339,8 @@ export default function Settings() {
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-500">
-                Available ports: {parseInt(portRangeEnd) - parseInt(portRangeStart)} 
+                Available ports:{" "}
+                {parseInt(portRangeEnd) - parseInt(portRangeStart)}
                 (Currently allocated: {allMetrics?.docker?.running || 0})
               </p>
             </div>
@@ -282,7 +354,7 @@ export default function Settings() {
                 value={defaultDomainSuffix}
                 onChange={(e) => setDefaultDomainSuffix(e.target.value)}
                 className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder=".spinforge.local"
+                placeholder=".spinforge.localhost"
               />
               <p className="mt-2 text-sm text-gray-500">
                 Used when auto-generating domain names
@@ -290,7 +362,9 @@ export default function Settings() {
             </div>
 
             <div className="border-t pt-6">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">DNS Configuration</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                DNS Configuration
+              </h3>
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
@@ -298,18 +372,22 @@ export default function Settings() {
                 </div>
                 <div className="flex items-center">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                  <span>SSL certificates auto-provisioned via Let's Encrypt</span>
+                  <span>
+                    SSL certificates auto-provisioned via Let's Encrypt
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         );
 
-      case 'security':
+      case "security":
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Rate Limiting</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Rate Limiting
+              </h3>
               <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
@@ -318,7 +396,10 @@ export default function Settings() {
                   onChange={(e) => setEnableRateLimit(e.target.checked)}
                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                 />
-                <label htmlFor="enableRateLimit" className="ml-2 block text-sm text-gray-900">
+                <label
+                  htmlFor="enableRateLimit"
+                  className="ml-2 block text-sm text-gray-900"
+                >
                   Enable rate limiting
                 </label>
               </div>
@@ -338,7 +419,9 @@ export default function Settings() {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">SSL/TLS</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                SSL/TLS
+              </h3>
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -347,45 +430,62 @@ export default function Settings() {
                   onChange={(e) => setEnableSSL(e.target.checked)}
                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                 />
-                <label htmlFor="enableSSL" className="ml-2 block text-sm text-gray-900">
+                <label
+                  htmlFor="enableSSL"
+                  className="ml-2 block text-sm text-gray-900"
+                >
                   Force HTTPS for all applications
                 </label>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Allowed Frameworks</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Allowed Frameworks
+              </h3>
               <div className="space-y-2">
-                {['remix', 'nextjs', 'express', 'static', 'custom'].map((framework) => (
-                  <div key={framework} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={framework}
-                      checked={allowedFrameworks.includes(framework)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setAllowedFrameworks([...allowedFrameworks, framework]);
-                        } else {
-                          setAllowedFrameworks(allowedFrameworks.filter(f => f !== framework));
-                        }
-                      }}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor={framework} className="ml-2 block text-sm text-gray-900 capitalize">
-                      {framework}
-                    </label>
-                  </div>
-                ))}
+                {["remix", "nextjs", "express", "static", "custom"].map(
+                  (framework) => (
+                    <div key={framework} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={framework}
+                        checked={allowedFrameworks.includes(framework)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAllowedFrameworks([
+                              ...allowedFrameworks,
+                              framework,
+                            ]);
+                          } else {
+                            setAllowedFrameworks(
+                              allowedFrameworks.filter((f) => f !== framework)
+                            );
+                          }
+                        }}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor={framework}
+                        className="ml-2 block text-sm text-gray-900 capitalize"
+                      >
+                        {framework}
+                      </label>
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </div>
         );
 
-      case 'notifications':
+      case "notifications":
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Email Notifications</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Email Notifications
+              </h3>
               <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
@@ -394,7 +494,10 @@ export default function Settings() {
                   onChange={(e) => setEmailNotifications(e.target.checked)}
                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                 />
-                <label htmlFor="emailNotifications" className="ml-2 block text-sm text-gray-900">
+                <label
+                  htmlFor="emailNotifications"
+                  className="ml-2 block text-sm text-gray-900"
+                >
                   Enable email notifications
                 </label>
               </div>
@@ -415,7 +518,9 @@ export default function Settings() {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Slack Integration</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Slack Integration
+              </h3>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Slack Webhook URL
               </label>
@@ -429,9 +534,16 @@ export default function Settings() {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Notification Events</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Notification Events
+              </h3>
               <div className="space-y-2">
-                {['Deployment success', 'Deployment failure', 'High resource usage', 'Service down'].map((event) => (
+                {[
+                  "Deployment success",
+                  "Deployment failure",
+                  "High resource usage",
+                  "Service down",
+                ].map((event) => (
                   <div key={event} className="flex items-center">
                     <input
                       type="checkbox"
@@ -439,7 +551,10 @@ export default function Settings() {
                       defaultChecked
                       className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                     />
-                    <label htmlFor={event} className="ml-2 block text-sm text-gray-900">
+                    <label
+                      htmlFor={event}
+                      className="ml-2 block text-sm text-gray-900"
+                    >
                       {event}
                     </label>
                   </div>
@@ -449,11 +564,13 @@ export default function Settings() {
           </div>
         );
 
-      case 'maintenance':
+      case "maintenance":
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Automatic Backups</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Automatic Backups
+              </h3>
               <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
@@ -462,7 +579,10 @@ export default function Settings() {
                   onChange={(e) => setAutoBackup(e.target.checked)}
                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                 />
-                <label htmlFor="autoBackup" className="ml-2 block text-sm text-gray-900">
+                <label
+                  htmlFor="autoBackup"
+                  className="ml-2 block text-sm text-gray-900"
+                >
                   Enable automatic backups
                 </label>
               </div>
@@ -485,7 +605,9 @@ export default function Settings() {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Automatic Cleanup</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Automatic Cleanup
+              </h3>
               <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
@@ -494,7 +616,10 @@ export default function Settings() {
                   onChange={(e) => setAutoCleanup(e.target.checked)}
                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                 />
-                <label htmlFor="autoCleanup" className="ml-2 block text-sm text-gray-900">
+                <label
+                  htmlFor="autoCleanup"
+                  className="ml-2 block text-sm text-gray-900"
+                >
                   Enable automatic cleanup
                 </label>
               </div>
@@ -514,7 +639,9 @@ export default function Settings() {
             </div>
 
             <div className="border-t pt-6">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Maintenance Actions</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Maintenance Actions
+              </h3>
               <div className="space-y-2">
                 <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50">
                   <Database className="h-4 w-4 mr-2" />
@@ -542,16 +669,20 @@ export default function Settings() {
           <div className="flex items-center">
             <SettingsIcon className="h-8 w-8 text-gray-700 mr-3" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">System Settings</h1>
-              <p className="text-sm text-gray-600 mt-1">Configure SpinForge platform settings</p>
+              <h1 className="text-2xl font-bold text-gray-900">
+                System Settings
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Configure SpinForge platform settings
+              </p>
             </div>
           </div>
           <button
             onClick={handleSave}
             className={`inline-flex items-center px-4 py-2 rounded-lg shadow-sm text-sm font-medium text-white transition-all ${
-              saved 
-                ? 'bg-green-600 hover:bg-green-700' 
-                : 'bg-indigo-600 hover:bg-indigo-700'
+              saved
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-indigo-600 hover:bg-indigo-700"
             }`}
           >
             {saved ? (
@@ -576,25 +707,29 @@ export default function Settings() {
             {settingSections.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection === section.id;
-              
+
               return (
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-start px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700 border-l-4'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent border-l-4'
+                      ? "bg-indigo-50 border-indigo-500 text-indigo-700 border-l-4"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent border-l-4"
                   }`}
                 >
-                  <Icon className={`flex-shrink-0 h-5 w-5 mr-3 ${
-                    isActive ? 'text-indigo-600' : 'text-gray-400'
-                  }`} />
+                  <Icon
+                    className={`flex-shrink-0 h-5 w-5 mr-3 ${
+                      isActive ? "text-indigo-600" : "text-gray-400"
+                    }`}
+                  />
                   <div className="text-left">
                     <div>{section.title}</div>
-                    <div className={`text-xs ${
-                      isActive ? 'text-indigo-600' : 'text-gray-500'
-                    }`}>
+                    <div
+                      className={`text-xs ${
+                        isActive ? "text-indigo-600" : "text-gray-500"
+                      }`}
+                    >
                       {section.description}
                     </div>
                   </div>

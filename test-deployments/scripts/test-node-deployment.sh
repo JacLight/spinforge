@@ -9,7 +9,7 @@ echo "===================================="
 
 # Configuration
 TEST_APP="test-express-$(date +%s)"
-DOMAIN="${TEST_APP}.local"
+DOMAIN="${TEST_APP}.localhost"
 CUSTOMER_ID="test-customer"
 
 # Check if SpinHub is running
@@ -127,7 +127,21 @@ sleep 5
 # Check logs
 echo ""
 echo "📋 Recent deployment logs:"
-docker logs spinforge-hub --tail 30 2>&1 | grep -E "(deployment|$TEST_APP|express)" | tail -20 || echo "No logs yet"
+docker logs spinforge-hub --tail 30 2>&1 | grep -E "(deployment|$TEST_APP|express|validation|error)" | tail -20 || echo "No logs yet"
+
+# Check for deployment markers
+echo ""
+echo "🔍 Checking deployment status..."
+if [ -f "$DEPLOY_DIR/.failed" ]; then
+    echo "❌ Deployment FAILED"
+    echo "   Error details:"
+    cat "$DEPLOY_DIR/.failed" | jq '.' || cat "$DEPLOY_DIR/.failed"
+    exit 1
+elif [ -f "$DEPLOY_DIR/.deployed" ]; then
+    echo "✅ Deployment marked as successful"
+else
+    echo "⚠️  No deployment marker found yet"
+fi
 
 # Test the deployment
 echo ""

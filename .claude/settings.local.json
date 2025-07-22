@@ -42,7 +42,9 @@
       "Bash(./scripts/test-static-deployment.sh:*)",
       "Bash(./scripts/quick-deploy-test.sh:*)",
       "Bash(touch:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm run:*)",
+      "Bash(bash:*)"
     ],
     "deny": []
   }

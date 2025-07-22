@@ -15,12 +15,13 @@ Add entries to your `/etc/hosts` file to map domains to localhost:
 ```
 
 Then deploy your apps with these domains:
+
 ```bash
 curl -X POST http://localhost:9004/_admin/routes \
   -H "Content-Type: application/json" \
   -H "X-Admin-Token: your-token" \
   -d '{
-    "domain": "app1.local",
+    "domain": "app1.localhost",
     "customerId": "customer-123",
     "spinletId": "spin-001",
     "buildPath": "/path/to/app1",
@@ -36,10 +37,10 @@ Test without modifying /etc/hosts:
 
 ```bash
 # Direct to SpinHub (port 9004)
-curl -H "Host: app1.local" http://localhost:9004
+curl -H "Host: app1.localhost" http://localhost:9004
 
 # Through Nginx (port 9006)
-curl -H "Host: app1.local" http://localhost:9006
+curl -H "Host: app1.localhost" http://localhost:9006
 ```
 
 ## Method 3: Use .localhost Domain (No Config Needed)
@@ -65,6 +66,7 @@ Access at: http://myapp.localhost:9006
 ## Method 4: Use a Local DNS Tool
 
 ### dnsmasq (macOS/Linux)
+
 ```bash
 # Install dnsmasq
 brew install dnsmasq  # macOS
@@ -78,6 +80,7 @@ sudo brew services start dnsmasq  # macOS
 ```
 
 ### Caddy Server (Alternative)
+
 Use Caddy as a local reverse proxy with automatic local domains:
 
 ```caddyfile
@@ -98,6 +101,7 @@ app2.local:80 {
 ## Method 5: Browser Extensions
 
 Use browser extensions like "ModHeader" to modify the Host header:
+
 1. Install ModHeader extension
 2. Add Request header: `Host: app1.local`
 3. Visit http://localhost:9006
@@ -181,11 +185,13 @@ curl http://localhost:9004/_admin/routes/myapp.localhost/logs
 ## Troubleshooting
 
 1. **"No application configured for this domain"**
+
    - Ensure the domain is registered in routes
    - Check exact domain spelling (case-sensitive)
    - Verify with: `curl http://localhost:9004/_admin/routes`
 
 2. **Connection refused**
+
    - Check if SpinHub is running: `docker ps | grep spinhub`
    - Verify Nginx is running: `docker ps | grep nginx`
    - Check logs: `docker logs spinforge-hub-1`

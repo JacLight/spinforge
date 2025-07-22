@@ -92,7 +92,7 @@ for framework in "${frameworks[@]}"; do
     
     APP_DIR="$TEST_DIR/frameworks/$framework"
     APP_NAME="test-${framework}-api"
-    DOMAIN="${APP_NAME}.local"
+    DOMAIN="${APP_NAME}.localhost"
     
     # Compile via API
     compile_via_api "$framework" "$APP_DIR" "$APP_NAME"

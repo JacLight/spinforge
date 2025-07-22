@@ -135,7 +135,7 @@ for framework in "${frameworks[@]}"; do
     APP_DIR="$TEST_DIR/frameworks/$framework"
     REPO_DIR="$RESULTS_DIR/repos/${framework}-repo"
     APP_NAME="test-${framework}-git"
-    DOMAIN="${APP_NAME}.local"
+    DOMAIN="${APP_NAME}.localhost"
     
     repo_status="❌"
     deploy_status="❌"

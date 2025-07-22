@@ -122,7 +122,7 @@ for framework in "${frameworks[@]}"; do
     APP_DIR="$TEST_DIR/frameworks/$framework"
     ZIP_FILE="$RESULTS_DIR/${framework}-app.zip"
     APP_NAME="test-${framework}-zip"
-    DOMAIN="${APP_NAME}.local"
+    DOMAIN="${APP_NAME}.localhost"
     
     # Create ZIP
     if create_zip "$framework" "$APP_DIR" "$ZIP_FILE"; then

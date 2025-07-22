@@ -1731,6 +1731,9 @@ export class SpinHub {
         this.spinletManager
       );
 
+      // Set deployment API reference in hot deployment watcher
+      this.hotDeploymentWatcher.setDeploymentAPI(this.deploymentAPI);
+
       // Now add deployment routes to admin router
       if (this.adminRouter) {
         this.adminRouter.use(this.deploymentAPI.getRouter());
