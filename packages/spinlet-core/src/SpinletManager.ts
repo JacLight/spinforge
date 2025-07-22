@@ -2,6 +2,7 @@ import { ChildProcess, fork } from "child_process";
 import { EventEmitter } from "events";
 import Redis from "ioredis";
 import pidusage from "pidusage";
+import * as path from "path";
 import { SpinletConfig, SpinletState } from "./types";
 import { PortAllocator } from "./PortAllocator";
 import { SpinletMonitor } from "./SpinletMonitor";
@@ -58,12 +59,13 @@ export class SpinletManager extends EventEmitter {
     };
 
     // Determine the working directory
-    const cwd = config.framework === "nextjs" && config.buildPath.endsWith("/.next")
-      ? config.buildPath.substring(0, config.buildPath.length - 6) // Remove /.next
-      : config.buildPath;
+    const cwd =
+      config.framework === "nextjs" && config.buildPath.endsWith("/.next")
+        ? config.buildPath.substring(0, config.buildPath.length - 6) // Remove /.next
+        : config.buildPath;
 
     let child: ChildProcess;
-    
+
     if (config.framework === "nextjs") {
       // For Next.js, use spawn with npx/npm
       const { spawn } = require("child_process");
@@ -72,13 +74,62 @@ export class SpinletManager extends EventEmitter {
         env,
         stdio: ["ignore", "pipe", "pipe"],
       });
-    } else if (config.framework === "express" || config.framework === "custom") {
+    } else if (config.framework === "node" || config.framework === "custom") {
       // For Express/custom, use fork with the entry point
       child = fork(config.buildPath, [], {
         cwd: config.buildPath.substring(0, config.buildPath.lastIndexOf("/")),
         env,
         silent: true,
         execArgv: this.getExecArgv(config),
+      });
+    } else if (
+      config.framework === "static" ||
+      config.framework === "react" ||
+      config.framework === "vue" ||
+      config.framework === "astro"
+    ) {
+      // For static sites and SPAs, use a simple HTTP server
+      const { spawn } = require("child_process");
+      // Use Python's built-in HTTP server for static files
+      child = spawn("python3", ["-m", "http.server", port.toString()], {
+        cwd: config.buildPath,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } else if (config.framework === "nestjs") {
+      // For NestJS, use node with the main file
+      child = fork(path.join(config.buildPath, "main.js"), [], {
+        cwd: config.buildPath,
+        env,
+        silent: true,
+        execArgv: this.getExecArgv(config),
+      });
+    } else if (config.framework === "remix") {
+      // For Remix, use npm start
+      const { spawn } = require("child_process");
+      child = spawn("npm", ["run", "start"], {
+        cwd: config.buildPath,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } else if (config.framework === "flutter") {
+      const { spawn } = require("child_process");
+      child = spawn(
+        "flutter",
+        ["run", "-d", "web-server", "--web-port", port.toString()],
+        {
+          cwd: config.buildPath,
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+        }
+      );
+    } else if (config.framework === "docker") {
+      //if in kubernetes, use docker run
+      //run deployment template
+      const { spawn } = require("child_process");
+      child = spawn("docker", ["run", "-p", `${port}:80`, config.buildPath], {
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
       });
     } else {
       throw new Error(`Unsupported framework: ${config.framework}`);
@@ -112,7 +163,7 @@ export class SpinletManager extends EventEmitter {
     this.setupProcessHandlers(config.spinletId, child);
 
     // Wait for process to be ready
-    await this.waitForReady(config.spinletId, port);
+    await this.waitForReady(config.spinletId, port, config.framework);
 
     // Update state in Redis
     await this.persistState(state);
@@ -357,6 +408,7 @@ export class SpinletManager extends EventEmitter {
   private async waitForReady(
     spinletId: string,
     port: number,
+    framework?: string,
     timeout: number = 30000
   ): Promise<void> {
     const startTime = Date.now();
@@ -372,8 +424,11 @@ export class SpinletManager extends EventEmitter {
         // Try to connect to the port
         const http = await import("http");
         await new Promise<void>((resolve, reject) => {
-          const req = http.get(`http://localhost:${port}/health`, (res) => {
-            if (res.statusCode === 200) {
+          // For static sites, just check if the root responds
+          const path = framework === "static" ? "/" : "/health";
+          const req = http.get(`http://localhost:${port}${path}`, (res) => {
+            // For static sites, any response is good (even 404 means server is up)
+            if (framework === "static" || res.statusCode === 200) {
               resolve();
             } else {
               reject(new Error(`Health check returned ${res.statusCode}`));

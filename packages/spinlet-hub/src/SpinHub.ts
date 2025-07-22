@@ -37,6 +37,7 @@ export class SpinHub {
   private metricsCollector: MetricsCollector;
   private hotDeploymentWatcher?: HotDeploymentWatcher;
   private deploymentAPI?: DeploymentAPI;
+  private adminRouter?: express.Router;
   private logger = createLogger("SpinHub");
   private requestMetrics = {
     total: 0,
@@ -377,10 +378,11 @@ export class SpinHub {
     // Admin API routes (should be protected in production)
     this.setupAdminRoutes();
 
-    // Proxy all other requests
-    this.app.use(async (req: Request, res: Response) => {
-      await this.proxyHandler.handleRequest(req, res);
-    });
+    // IMPORTANT: Proxy handler must be registered LAST, after all other routes
+    // Otherwise it will catch all requests before they reach specific route handlers
+    
+    // Delay registering the proxy catch-all handler
+    // We'll do this at the end of setupRoutes()
 
     // Error handler
     this.app.use(
@@ -396,6 +398,13 @@ export class SpinHub {
         }
       }
     );
+
+    // Proxy all other requests - MUST be registered LAST
+    // This is a catch-all handler that will proxy any request that doesn't match
+    // the routes defined above (health, metrics, admin, etc.)
+    this.app.use(async (req: Request, res: Response) => {
+      await this.proxyHandler.handleRequest(req, res);
+    });
   }
 
   private formatTime(seconds: number): string {
@@ -414,6 +423,7 @@ export class SpinHub {
 
   private setupAdminRoutes(): void {
     const adminRouter = express.Router();
+    this.adminRouter = adminRouter;
 
     // Per-customer rate limiting for admin routes
     const customerLimiter = rateLimit({
@@ -1606,10 +1616,8 @@ export class SpinHub {
       }
     });
 
-    // Add deployment management API routes if available
-    if (this.deploymentAPI) {
-      adminRouter.use(this.deploymentAPI.getRouter());
-    }
+    // Note: Deployment API routes will be added later after deploymentAPI is initialized
+    // in the start() method when hot deployment watcher is configured
 
     this.app.use("/_admin", adminRouter);
   }
@@ -1675,6 +1683,12 @@ export class SpinHub {
         this.routeManager,
         this.spinletManager
       );
+
+      // Now add deployment routes to admin router
+      if (this.adminRouter) {
+        this.adminRouter.use(this.deploymentAPI.getRouter());
+        this.logger.info("Deployment API routes added to admin router");
+      }
 
       try {
         await this.hotDeploymentWatcher.start();

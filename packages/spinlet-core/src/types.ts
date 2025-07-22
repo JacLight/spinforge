@@ -2,7 +2,18 @@ export interface SpinletConfig {
   spinletId: string;
   customerId: string;
   buildPath: string;
-  framework: "nextjs" | "remix" | "express" | "static" | "custom";
+  framework:
+    | "nextjs"
+    | "remix"
+    | "static"
+    | "custom"
+    | "flutter"
+    | "react"
+    | "vue"
+    | "astro"
+    | "docker"
+    | "node"
+    | "nestjs";
   port?: number;
   env?: Record<string, string>;
   resources?: {

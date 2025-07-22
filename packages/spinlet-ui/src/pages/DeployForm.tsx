@@ -64,12 +64,33 @@ const deploySchema = {
       "x-control": "selectMany",
       required: true,
       options: [
+        { value: "static", label: "Static Files" },
+        { value: "flutter", label: "Flutter" },
+        { value: "react", label: "React" },
         { value: "remix", label: "Remix" },
         { value: "nextjs", label: "Next.js" },
-        { value: "express", label: "Express" },
-        { value: "static", label: "Static Files" },
+        { value: "nestjs", label: "NestJS" },
+        { value: "node", label: "Node.js" },
+        { value: "vue", label: "Vue.js" },
+        { value: "astro", label: "Astro" },
+        { value: "docker", label: "Docker" },
+        { value: "custom", label: "Custom" },
       ],
-      default: "express",
+      default: "nextjs",
+    },
+    cmd: {
+      name: "cmd",
+      label: "Command",
+      type: "string",
+      "x-control": "selectMany",
+      rules: [
+        {
+          operation: "notEqual",
+          valueA: "{{framework}}",
+          valueB: "custom",
+          action: "hide",
+        },
+      ],
     },
     memory: {
       name: "memory",
@@ -135,7 +156,7 @@ export default function DeployForm() {
     // Generate build path if not provided
     const spinletId = `spin-${Date.now()}`;
     let buildPath = formData.buildPath;
-    
+
     // If no build path, generate one based on deployment method
     if (!buildPath) {
       if (formData.gitUrl) {
@@ -152,7 +173,7 @@ export default function DeployForm() {
 
     // TODO: In production, handle file upload and git clone here
     // For now, we'll just use the provided or generated path
-    
+
     deployMutation.mutate({
       domain: formData.domain,
       customerId: formData.customerEmail || formData.customerId,

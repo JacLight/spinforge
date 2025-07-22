@@ -5,7 +5,7 @@ export interface RouteConfig {
   spinletId: string;
   customerId: string;
   buildPath: string;
-  framework: "nextjs" | "remix" | "express" | "static" | "custom";
+  framework: "nextjs" | "remix" | "node" | "static" | "custom" | "flutter" | "react" | "vue" | "astro" | "docker" | "nestjs";
   ssl?: {
     cert: string;
     key: string;

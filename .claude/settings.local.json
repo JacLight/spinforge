@@ -37,7 +37,12 @@
       "Bash(mv:*)",
       "Bash(HOT_DEPLOYMENT_PATH=/Users/imzee/projects/spinforge/deployments npm start)",
       "Bash(npm run start:*)",
-      "Bash(PORT=3333 npm run start)"
+      "Bash(PORT=3333 npm run start)",
+      "Bash(./test-deployments/scripts/test-spinforge-deployment.sh:*)",
+      "Bash(./scripts/test-static-deployment.sh:*)",
+      "Bash(./scripts/quick-deploy-test.sh:*)",
+      "Bash(touch:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }
