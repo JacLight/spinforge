@@ -99,7 +99,7 @@ export async function deploymentListCommand(options: ListOptions) {
     if (axios.isAxiosError(error)) {
       console.error(chalk.red('\nError:'), error.response?.data?.error || error.message);
       if (error.code === 'ECONNREFUSED') {
-        console.error(chalk.yellow('Make sure SpinHub is running on'), hubUrl);
+        console.error(chalk.yellow('Make sure SpinHub is running on'), process.env.SPINHUB_URL || 'http://localhost:8080');
       }
     } else {
       console.error(chalk.red('\nError:'), error.message);

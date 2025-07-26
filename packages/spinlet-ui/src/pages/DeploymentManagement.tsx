@@ -76,23 +76,10 @@ export default function DeploymentManagement() {
     isFetching,
   } = useQuery<DeploymentStatus[]>({
     queryKey: ["deployments"],
-    queryFn: async (): Promise<DeploymentStatus[]> => {
-      // This would be a new API endpoint to fetch deployment statuses
-      try {
-        const response = await fetch("/_admin/deployments");
-        if (!response.ok) {
-          throw new Error("Failed to fetch deployments");
-        }
-        return await response.json();
-      } catch (error) {
-        console.warn("Failed to fetch deployments, using mock data");
-        return mockDeployments;
-      }
-    },
+    queryFn: () => api.getDeployments(),
     refetchInterval: 10000, // Background refresh every 10 seconds
     refetchOnWindowFocus: false, // Don't refetch when window gains focus
     staleTime: 5000, // Consider data fresh for 5 seconds
-    placeholderData: mockDeployments, // Show mock data while loading
     retry: 1, // Only retry once on failure
   });
 

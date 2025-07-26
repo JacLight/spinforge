@@ -10,6 +10,7 @@ import { logsCommand } from './commands/logs';
 import { deployFolderCommand } from './commands/deploy-folder';
 import { deploymentListCommand } from './commands/deployment-list';
 import { deploymentScanCommand } from './commands/deployment-scan';
+import { watchCommand } from './commands/watch';
 import { loginCommand } from './commands/auth/login';
 import { logoutCommand } from './commands/auth/logout';
 import { whoamiCommand } from './commands/auth/whoami';
@@ -17,9 +18,9 @@ import { whoamiCommand } from './commands/auth/whoami';
 const program = new Command();
 
 program
-  .name('spinforge')
-  .description('CLI tool for managing SpinForge applications')
-  .version('1.0.0');
+  .name('spin')
+  .description('SpinForge CLI - AI and MicroSite hosting heaven')
+  .version('0.1.0');
 
 // Auth commands
 program
@@ -84,6 +85,7 @@ program
 // Deploy folder command (new)
 program
   .command('deploy-folder <path>')
+  .alias('df')
   .description('Prepare a folder for hot deployment')
   .option('-d, --domain <domain>', 'Domain for the application')
   .option('-c, --customer <id>', 'Customer ID')
@@ -97,16 +99,31 @@ program
 // Deployment list command
 program
   .command('deployments')
-  .alias('deployment-list')
+  .alias('list')
+  .alias('ls')
   .description('List all deployments')
   .option('--json', 'Output as JSON')
   .action(deploymentListCommand);
 
 // Deployment scan command
 program
-  .command('deployment-scan')
+  .command('scan')
+  .alias('deployment-scan')
   .description('Scan deployment folder for new deployments')
   .action(deploymentScanCommand);
+
+// Watch command
+program
+  .command('watch [path]')
+  .description('Watch a directory and auto-deploy changes')
+  .option('-d, --domain <domain>', 'Domain for the application')
+  .option('-f, --framework <type>', 'Framework type (auto-detected if not specified)')
+  .option('-n, --name <name>', 'Application name')
+  .option('-m, --memory <size>', 'Memory limit (e.g., 512MB)', '512MB')
+  .option('--cpu <limit>', 'CPU limit (e.g., 0.5)', '0.5')
+  .option('-e, --env <vars...>', 'Environment variables (KEY=value)')
+  .option('-i, --interval <ms>', 'Debounce interval in milliseconds', '1000')
+  .action(watchCommand);
 
 // Error handling
 program.exitOverride();

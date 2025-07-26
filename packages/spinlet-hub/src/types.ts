@@ -5,7 +5,19 @@ export interface RouteConfig {
   spinletId: string;
   customerId: string;
   buildPath: string;
-  framework: "nextjs" | "remix" | "node" | "static" | "custom" | "flutter" | "react" | "vue" | "astro" | "docker" | "nestjs";
+  framework:
+    | "reverse-proxy"
+    | "nextjs"
+    | "remix"
+    | "node"
+    | "static"
+    | "custom"
+    | "flutter"
+    | "react"
+    | "vue"
+    | "astro"
+    | "docker"
+    | "nestjs";
   ssl?: {
     cert: string;
     key: string;
@@ -14,6 +26,7 @@ export interface RouteConfig {
     memory?: string;
     cpu?: string;
     env?: Record<string, string>;
+    proxy?: any;
   };
 }
 

@@ -3,7 +3,7 @@ import { resolve, join, basename } from 'path';
 import { writeFileSync } from 'fs';
 import chalk from 'chalk';
 import ora from 'ora';
-import { nanoid } from 'nanoid';
+// import { nanoid } from 'nanoid';
 import inquirer from 'inquirer';
 import { getAuthConfig } from '../lib/auth';
 

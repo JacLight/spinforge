@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync, cpSync } from 'fs';
+import { existsSync, readFileSync, cpSync } from 'fs';
 import { resolve, join, basename } from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -8,7 +8,7 @@ import { getAuthConfig } from '../lib/auth';
 import { mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
-import axios from 'axios';
+// import axios from 'axios';
 
 interface DeployOptions {
   domain?: string;
@@ -152,7 +152,7 @@ export async function deployCommand(options: DeployOptions) {
     // Deploy to SpinHub
     spinner.start('Deploying to SpinForge...');
     
-    const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
+    // const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
     const deploymentPath = process.env.SPINFORGE_DEPLOYMENTS || '/spinforge/deployments';
     const targetPath = join(deploymentPath, projectName);
     

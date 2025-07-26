@@ -1,10 +1,12 @@
 import { Router, Request, Response } from "express";
 import { createLogger } from "@spinforge/shared";
 import { HotDeploymentWatcher } from "./HotDeploymentWatcher";
-import { readdir, stat, unlink, rmdir } from "fs/promises";
+import { readdir, stat, unlink, rmdir, mkdir, writeFile, readFile } from "fs/promises";
 import { join, basename } from "path";
 import { RouteManager } from "../RouteManager";
 import { SpinletManager } from "@spinforge/spinlet-core";
+import multer from "multer";
+import { nanoid } from "nanoid";
 
 interface DeploymentStatus {
   name: string;
@@ -27,6 +29,7 @@ export class DeploymentAPI {
   private spinletManager: SpinletManager;
   private deploymentStatuses = new Map<string, DeploymentStatus>();
   private processingDeployments = new Set<string>();
+  private upload: multer.Multer;
 
   constructor(
     deploymentPath: string,
@@ -39,12 +42,57 @@ export class DeploymentAPI {
     this.routeManager = routeManager;
     this.spinletManager = spinletManager;
     this.router = Router();
+    
+    // Configure multer for file uploads
+    const storage = multer.diskStorage({
+      destination: async (req, file, cb) => {
+        // Create a temporary upload directory
+        const uploadDir = join(this.deploymentPath, '.uploads');
+        await mkdir(uploadDir, { recursive: true });
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        // Keep original filename but add unique prefix
+        const uniquePrefix = nanoid(8);
+        cb(null, `${uniquePrefix}-${file.originalname}`);
+      }
+    });
+    
+    this.upload = multer({ 
+      storage,
+      limits: {
+        fileSize: 500 * 1024 * 1024, // 500MB max file size
+      },
+      fileFilter: (req, file, cb) => {
+        const allowedExtensions = [
+          '.zip', '.tar', '.tar.gz', '.tgz',
+          '.tar.bz2', '.tbz2', '.tar.xz', '.txz',
+          '.rar', '.7z', '.gz', '.bz2', '.xz'
+        ];
+        
+        const ext = file.originalname.toLowerCase();
+        const isAllowed = allowedExtensions.some(allowed => ext.endsWith(allowed));
+        
+        if (isAllowed) {
+          cb(null, true);
+        } else {
+          cb(new Error(`Unsupported file type. Allowed: ${allowedExtensions.join(', ')}`));
+        }
+      }
+    });
+    
     this.setupRoutes();
   }
 
   private setupRoutes(): void {
     // Get all deployment statuses
     this.router.get("/deployments", this.getDeployments.bind(this));
+
+    // Upload deployment archive
+    this.router.post("/deployments/upload", 
+      this.upload.single('archive'), 
+      this.uploadDeployment.bind(this)
+    );
 
     // Scan deployment folder
     this.router.get("/deployments/scan", this.scanDeployments.bind(this));
@@ -73,6 +121,77 @@ export class DeploymentAPI {
 
     // Trigger health check
     this.router.post("/deployments/health-check", this.triggerHealthCheck.bind(this));
+    
+    // Verify deployment accessibility
+    this.router.get("/deployments/:name/verify", this.verifyDeployment.bind(this));
+  }
+
+  private async uploadDeployment(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "No file uploaded" });
+        return;
+      }
+
+      const file = req.file;
+      const deploymentId = req.body.deploymentId || nanoid();
+      
+      // Validate required fields from request body
+      if (!req.body.config) {
+        res.status(400).json({ error: "Missing deployment configuration" });
+        return;
+      }
+
+      let config;
+      try {
+        config = JSON.parse(req.body.config);
+      } catch (e) {
+        res.status(400).json({ error: "Invalid deployment configuration JSON" });
+        return;
+      }
+
+      // Validate config has required fields
+      if (!config.name || !config.domain || !config.customerId || !config.framework) {
+        res.status(400).json({ 
+          error: "Missing required fields in config: name, domain, customerId, framework" 
+        });
+        return;
+      }
+
+      // Move uploaded file to deployment directory
+      const deploymentDir = join(this.deploymentPath, deploymentId);
+      await mkdir(deploymentDir, { recursive: true });
+      
+      const archivePath = join(deploymentDir, file.originalname);
+      const fs = require('fs').promises;
+      await fs.rename(file.path, archivePath);
+
+      // Create deploy.json in the deployment directory
+      const deployConfigPath = join(deploymentDir, 'deploy.json');
+      await writeFile(deployConfigPath, JSON.stringify(config, null, 2));
+
+      // Mark deployment as processing
+      this.markDeploymentAsProcessing(deploymentId);
+
+      // The hot deployment watcher will pick up the new deployment
+      this.logger.info(`Archive uploaded for deployment: ${deploymentId}`, {
+        filename: file.originalname,
+        size: file.size,
+        config: config
+      });
+
+      res.json({
+        success: true,
+        deploymentId,
+        message: "Deployment archive uploaded successfully",
+        filename: file.originalname,
+        size: file.size
+      });
+      
+    } catch (error) {
+      this.logger.error("Error uploading deployment", { error });
+      res.status(500).json({ error: "Failed to upload deployment" });
+    }
   }
 
   private async getDeployments(req: Request, res: Response): Promise<void> {
@@ -114,6 +233,100 @@ export class DeploymentAPI {
     } catch (error) {
       this.logger.error("Error triggering health check", { error });
       res.status(500).json({ error: "Failed to trigger health check" });
+    }
+  }
+
+  private async verifyDeployment(req: Request, res: Response): Promise<void> {
+    try {
+      const { name } = req.params;
+      const deploymentDir = join(this.deploymentPath, name);
+      
+      // Check if deployment directory exists
+      try {
+        await stat(deploymentDir);
+      } catch {
+        res.json({ 
+          accessible: false, 
+          error: "Deployment directory not found",
+          status: "missing"
+        });
+        return;
+      }
+      
+      // Get deployment config
+      const deployConfig = await this.loadDeploymentConfig(deploymentDir);
+      if (!deployConfig) {
+        res.json({ 
+          accessible: false, 
+          error: "No deployment configuration found",
+          status: "no-config"
+        });
+        return;
+      }
+      
+      // For static deployments, check if files exist
+      if (deployConfig.framework === 'static') {
+        const outputPath = deployConfig.build?.outputDir 
+          ? join(deploymentDir, deployConfig.build.outputDir)
+          : deploymentDir;
+          
+        try {
+          const files = await readdir(outputPath);
+          const hasIndex = files.some(f => 
+            f.toLowerCase() === 'index.html' || 
+            f.toLowerCase() === 'index.htm'
+          );
+          
+          if (!hasIndex) {
+            res.json({ 
+              accessible: false, 
+              error: "No index.html found",
+              status: "no-index"
+            });
+            return;
+          }
+          
+          res.json({ 
+            accessible: true, 
+            status: "healthy",
+            files: files.length,
+            path: outputPath
+          });
+        } catch (error) {
+          res.json({ 
+            accessible: false, 
+            error: `Cannot read output directory: ${(error as Error).message}`,
+            status: "read-error"
+          });
+        }
+      } else {
+        // For non-static deployments, just check if config exists
+        res.json({ 
+          accessible: true, 
+          status: "config-exists",
+          framework: deployConfig.framework
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Error verifying deployment ${req.params.name}`, { error });
+      res.status(500).json({ error: "Failed to verify deployment" });
+    }
+  }
+
+  private async loadDeploymentConfig(deploymentPath: string): Promise<any> {
+    try {
+      const yamlPath = join(deploymentPath, "deploy.yaml");
+      const yamlContent = await readFile(yamlPath, "utf-8");
+      const { parse } = require("yaml");
+      return parse(yamlContent);
+    } catch {
+      try {
+        const jsonPath = join(deploymentPath, "deploy.json");
+        const jsonContent = await readFile(jsonPath, "utf-8");
+        return JSON.parse(jsonContent);
+      } catch {
+        return null;
+      }
     }
   }
 

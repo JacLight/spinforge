@@ -13,7 +13,8 @@ export interface SpinletConfig {
     | "astro"
     | "docker"
     | "node"
-    | "nestjs";
+    | "nestjs"
+    | "reverse-proxy";
   port?: number;
   env?: Record<string, string>;
   resources?: {

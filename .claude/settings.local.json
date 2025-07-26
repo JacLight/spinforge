@@ -44,7 +44,9 @@
       "Bash(touch:*)",
       "Bash(cat:*)",
       "Bash(npm run:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(unzip:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

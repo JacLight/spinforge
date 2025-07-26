@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { table } from 'table';
 import axios from 'axios';
 
-export async function statusCommand(spinletId?: string, options: { customer?: string }) {
+export async function statusCommand(spinletId?: string, options?: { customer?: string }) {
   try {
     const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
 
@@ -39,7 +39,7 @@ export async function statusCommand(spinletId?: string, options: { customer?: st
       console.log(chalk.gray('─'.repeat(40)) + '\n');
 
       // If customer filter is provided, show customer routes
-      if (options.customer) {
+      if (options?.customer) {
         const routesResponse = await axios.get(`${hubUrl}/_admin/customers/${options.customer}/routes`);
         const routes = routesResponse.data;
 
@@ -58,10 +58,10 @@ export async function statusCommand(spinletId?: string, options: { customer?: st
             ]);
           });
 
-          console.log(chalk.bold(`Routes for customer ${options.customer}:`));
+          console.log(chalk.bold(`Routes for customer ${options?.customer}:`));
           console.log(table(tableData));
         } else {
-          console.log(chalk.yellow(`No routes found for customer ${options.customer}`));
+          console.log(chalk.yellow(`No routes found for customer ${options?.customer}`));
         }
       }
     }

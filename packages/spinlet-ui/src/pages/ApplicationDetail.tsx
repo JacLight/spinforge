@@ -98,13 +98,7 @@ export default function ApplicationDetail() {
 
   const addDomainMutation = useMutation({
     mutationFn: () =>
-      api.createRoute({
-        domain: newDomain,
-        spinletId: routeDetails?.spinlet?.spinletId || "",
-        customerId: routeDetails?.route?.customerId || "",
-        buildPath: routeDetails?.route?.buildPath || "",
-        framework: routeDetails?.route?.framework || "static",
-      }),
+      api.addDomainToRoute(domain!, newDomain),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["route-details"] });
       setNewDomain("");
@@ -156,6 +150,7 @@ export default function ApplicationDetail() {
   const { route, spinlet, metrics, health } = routeDetails;
   const spinletState = spinlet?.state;
   const isRunning = spinletState?.state === "running";
+  const isStaticOrProxy = route.framework === 'static' || route.framework === 'reverse-proxy';
 
   const formatUptime = (seconds: number) => {
     const days = Math.floor(seconds / 86400);
@@ -194,14 +189,20 @@ export default function ApplicationDetail() {
     setDiagLoading(false);
   };
 
-  const tabs = [
-    { id: "overview", label: "Overview", icon: Activity },
-    { id: "logs", label: "Logs", icon: FileCode },
-    { id: "metrics", label: "Metrics", icon: Activity },
-    { id: "config", label: "Configuration", icon: Edit },
-    { id: "console", label: "Console", icon: TerminalIcon },
-    { id: "troubleshoot", label: "Troubleshoot", icon: Wrench },
-  ];
+  const tabs = isStaticOrProxy 
+    ? [
+        { id: "overview", label: "Overview", icon: Activity },
+        { id: "config", label: "Configuration", icon: Edit },
+        { id: "troubleshoot", label: "Troubleshoot", icon: Wrench },
+      ]
+    : [
+        { id: "overview", label: "Overview", icon: Activity },
+        { id: "logs", label: "Logs", icon: FileCode },
+        { id: "metrics", label: "Metrics", icon: Activity },
+        { id: "config", label: "Configuration", icon: Edit },
+        { id: "console", label: "Console", icon: TerminalIcon },
+        { id: "troubleshoot", label: "Troubleshoot", icon: Wrench },
+      ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -220,42 +221,62 @@ export default function ApplicationDetail() {
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">{domain}</h1>
                   <p className="text-sm text-gray-500 mt-1">
-                    Customer: {route.customerId} • Spinlet: {spinlet?.spinletId}
+                    Customer: {route.customerId} • 
+                    {isStaticOrProxy 
+                      ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          route.framework === 'static' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {route.framework === 'static' ? 'Static Site' : 'Reverse Proxy'}
+                        </span>
+                      : `Spinlet: ${spinlet?.spinletId}`
+                    }
                   </p>
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="flex items-center space-x-3">
-                {!isRunning && (
-                  <button
-                    onClick={() => startMutation.mutate()}
-                    disabled={startMutation.isPending}
-                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Play className="h-4 w-4" />
-                    <span>Start</span>
-                  </button>
-                )}
-                {isRunning && (
+                {!isStaticOrProxy && (
                   <>
-                    <button
-                      onClick={() => restartMutation.mutate()}
-                      disabled={restartMutation.isPending}
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <RotateCw className="h-4 w-4" />
-                      <span>Restart</span>
-                    </button>
-                    <button
-                      onClick={() => stopMutation.mutate()}
-                      disabled={stopMutation.isPending}
-                      className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      <Square className="h-4 w-4" />
-                      <span>Stop</span>
-                    </button>
+                    {!isRunning && (
+                      <button
+                        onClick={() => startMutation.mutate()}
+                        disabled={startMutation.isPending}
+                        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        <Play className="h-4 w-4" />
+                        <span>Start</span>
+                      </button>
+                    )}
+                    {isRunning && (
+                      <>
+                        <button
+                          onClick={() => restartMutation.mutate()}
+                          disabled={restartMutation.isPending}
+                          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          <RotateCw className="h-4 w-4" />
+                          <span>Restart</span>
+                        </button>
+                        <button
+                          onClick={() => stopMutation.mutate()}
+                          disabled={stopMutation.isPending}
+                          className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                          <Square className="h-4 w-4" />
+                          <span>Stop</span>
+                        </button>
+                      </>
+                    )}
                   </>
+                )}
+                {isStaticOrProxy && (
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm font-medium">
+                      {route.framework === 'static' ? 'Static Site' : 'Reverse Proxy'} (Always Active)
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -295,25 +316,36 @@ export default function ApplicationDetail() {
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
                   <div className="flex items-center mt-1">
-                    {isRunning ? (
-                      <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                    {isStaticOrProxy ? (
+                      <>
+                        <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                        <span className="font-medium text-green-700">Active</span>
+                      </>
                     ) : (
-                      <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                      <>
+                        {isRunning ? (
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                        )}
+                        <span
+                          className={`font-medium ${
+                            isRunning ? "text-green-700" : "text-red-700"
+                          }`}
+                        >
+                          {spinletState?.state || "Unknown"}
+                        </span>
+                      </>
                     )}
-                    <span
-                      className={`font-medium ${
-                        isRunning ? "text-green-700" : "text-red-700"
-                      }`}
-                    >
-                      {spinletState?.state || "Unknown"}
-                    </span>
                   </div>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-500">Uptime</p>
                   <p className="font-medium mt-1">
-                    {spinletState?.startTime
+                    {isStaticOrProxy
+                      ? "N/A"
+                      : spinletState?.startTime
                       ? formatUptime(
                           (Date.now() - spinletState.startTime) / 1000
                         )
@@ -324,14 +356,14 @@ export default function ApplicationDetail() {
                 <div>
                   <p className="text-sm text-gray-500">Requests</p>
                   <p className="font-medium mt-1">
-                    {spinletState?.requests || 0}
+                    {isStaticOrProxy ? "N/A" : spinletState?.requests || 0}
                   </p>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-500">Errors</p>
                   <p className="font-medium mt-1 text-red-600">
-                    {spinletState?.errors || 0}
+                    {isStaticOrProxy ? "N/A" : spinletState?.errors || 0}
                   </p>
                 </div>
               </div>
@@ -413,21 +445,70 @@ export default function ApplicationDetail() {
                   </div>
                 </div>
 
+                {!isStaticOrProxy && (
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Internal Service Path
+                    </p>
+                    <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                      <Server className="h-5 w-5 text-gray-400" />
+                      <a
+                        href={`http://${spinletState?.servicePath}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                      >
+                        <span>{spinletState?.servicePath}</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {route.framework === 'reverse-proxy' && route.config?.proxy?.target && (
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Proxy Target
+                    </p>
+                    <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
+                      <Server className="h-5 w-5 text-purple-500" />
+                      <span className="text-purple-700 font-mono text-sm">
+                        {route.config.proxy.target}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <p className="text-sm text-gray-500 mb-2">
-                    Internal Service Path
+                    Internal Docker URLs
                   </p>
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <Server className="h-5 w-5 text-gray-400" />
-                    <a
-                      href={`http://${spinletState?.servicePath}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                    >
-                      <span>{spinletState?.servicePath}</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                  <div className="space-y-2">
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <p className="text-xs text-blue-600 mb-1">From other containers:</p>
+                      <div className="flex items-center space-x-3">
+                        <Server className="h-5 w-5 text-blue-500" />
+                        <code className="text-blue-700 font-mono text-sm">
+                          http://spinforge-hub:8080
+                        </code>
+                      </div>
+                      <p className="text-xs text-blue-500 mt-1">Use Host header: {domain}</p>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-xs text-gray-600 mb-1">From host machine:</p>
+                      <div className="flex items-center space-x-3">
+                        <Server className="h-5 w-5 text-gray-500" />
+                        <a
+                          href={`http://localhost:9004`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-700 hover:text-gray-900 font-mono text-sm flex items-center space-x-1"
+                        >
+                          <span>http://localhost:9004</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Use Host header: {domain}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -444,14 +525,16 @@ export default function ApplicationDetail() {
                       <span className="text-sm text-gray-600">CPU Usage</span>
                     </div>
                     <span className="text-sm font-medium">
-                      {spinletState?.cpu || 0}%
+                      {isStaticOrProxy ? "N/A" : `${spinletState?.cpu || 0}%`}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full"
-                      style={{ width: `${spinletState?.cpu || 0}%` }}
-                    />
+                    {!isStaticOrProxy && (
+                      <div
+                        className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full"
+                        style={{ width: `${spinletState?.cpu || 0}%` }}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -464,23 +547,25 @@ export default function ApplicationDetail() {
                       </span>
                     </div>
                     <span className="text-sm font-medium">
-                      {formatBytes(spinletState?.memory || 0)}
+                      {isStaticOrProxy ? "N/A" : formatBytes(spinletState?.memory || 0)}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(
-                            ((spinletState?.memory || 0) /
-                              (1024 * 1024 * 512)) *
-                              100
-                          )
-                        )}%`,
-                      }}
-                    />
+                    {!isStaticOrProxy && (
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round(
+                              ((spinletState?.memory || 0) /
+                                (1024 * 1024 * 512)) *
+                                100
+                            )
+                          )}%`,
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -502,30 +587,50 @@ export default function ApplicationDetail() {
                     {route.buildPath}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-sm text-gray-500">Server</dt>
-                  <dd className="font-medium mt-1">
-                    {spinletState?.host || "localhost"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-500">Service Path</dt>
-                  <dd className="font-medium mt-1 font-mono">
-                    {spinletState?.servicePath || "-"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-500">Process ID</dt>
-                  <dd className="font-medium mt-1">
-                    {spinletState?.pid || "-"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-500">Port</dt>
-                  <dd className="font-medium mt-1">
-                    {spinletState?.port || "-"}
-                  </dd>
-                </div>
+                {!isStaticOrProxy && (
+                  <>
+                    <div>
+                      <dt className="text-sm text-gray-500">Server</dt>
+                      <dd className="font-medium mt-1">
+                        {spinletState?.host || "localhost"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm text-gray-500">Service Path</dt>
+                      <dd className="font-medium mt-1 font-mono">
+                        {spinletState?.servicePath || "-"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm text-gray-500">Process ID</dt>
+                      <dd className="font-medium mt-1">
+                        {spinletState?.pid || "-"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm text-gray-500">Port</dt>
+                      <dd className="font-medium mt-1">
+                        {spinletState?.port || "-"}
+                      </dd>
+                    </div>
+                  </>
+                )}
+                {route.framework === 'reverse-proxy' && route.config?.proxy && (
+                  <>
+                    <div>
+                      <dt className="text-sm text-gray-500">Proxy Target</dt>
+                      <dd className="font-medium mt-1 font-mono text-purple-600">
+                        {route.config.proxy.target}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm text-gray-500">Change Origin</dt>
+                      <dd className="font-medium mt-1">
+                        {route.config.proxy.changeOrigin ? 'Yes' : 'No'}
+                      </dd>
+                    </div>
+                  </>
+                )}
                 <div>
                   <dt className="text-sm text-gray-500">Last Access</dt>
                   <dd className="font-medium mt-1">
@@ -545,150 +650,190 @@ export default function ApplicationDetail() {
 
         {activeTab === "logs" && (
           <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Application Logs</h3>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    if (xtermRef.current) {
-                      xtermRef.current.clear();
-                    }
-                  }}
-                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={() => {
-                    queryClient.invalidateQueries({
-                      queryKey: [
-                        "spinlet-logs",
-                        routeDetails?.spinlet?.spinletId,
-                      ],
-                    });
-                  }}
-                  className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                >
-                  Refresh
-                </button>
+            {isStaticOrProxy ? (
+              <div className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Application Logs</h3>
+                <div className="text-center py-12">
+                  <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <FileCode className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500">
+                    Logs are not available for {route.framework === 'static' ? 'static sites' : 'reverse proxy deployments'}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    {route.framework === 'static' 
+                      ? 'Static files are served directly without generating logs'
+                      : 'Proxy requests are handled at the infrastructure level'}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="p-6">
-              <LogTerminal spinletId={routeDetails?.spinlet?.spinletId || ""} />
-            </div>
+            ) : (
+              <>
+                <div className="p-6 border-b flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Application Logs</h3>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        if (xtermRef.current) {
+                          xtermRef.current.clear();
+                        }
+                      }}
+                      className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => {
+                        queryClient.invalidateQueries({
+                          queryKey: [
+                            "spinlet-logs",
+                            routeDetails?.spinlet?.spinletId,
+                          ],
+                        });
+                      }}
+                      className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <LogTerminal spinletId={routeDetails?.spinlet?.spinletId || ""} />
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {activeTab === "metrics" && (
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Performance Metrics
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">CPU Usage</span>
-                    <Cpu className="h-4 w-4 text-gray-400" />
+            {isStaticOrProxy ? (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Performance Metrics</h3>
+                <div className="text-center py-12">
+                  <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <Activity className="h-12 w-12 text-gray-400" />
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {spinletState?.cpu || 0}%
+                  <p className="text-gray-500">
+                    Metrics are not available for {route.framework === 'static' ? 'static sites' : 'reverse proxy deployments'}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    {route.framework === 'static' 
+                      ? 'Static files are served directly without a running process'
+                      : 'Requests are forwarded directly to the target URL'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                  Performance Metrics
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">CPU Usage</span>
+                      <Cpu className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {spinletState?.cpu || 0}%
+                    </div>
+                    <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                        style={{ width: `${spinletState?.cpu || 0}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                      style={{ width: `${spinletState?.cpu || 0}%` }}
-                    />
+
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Memory</span>
+                      <MemoryStick className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatBytes(spinletState?.memory || 0)}
+                    </div>
+                    <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round(
+                              ((spinletState?.memory || 0) /
+                                (1024 * 1024 * 512)) *
+                                100
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Requests</span>
+                      <Activity className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {spinletState?.requests || 0}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {spinletState?.errors || 0} errors
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Memory</span>
-                    <MemoryStick className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {formatBytes(spinletState?.memory || 0)}
-                  </div>
-                  <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(
-                            ((spinletState?.memory || 0) /
-                              (1024 * 1024 * 512)) *
-                              100
-                          )
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Requests</span>
-                    <Activity className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {spinletState?.requests || 0}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {spinletState?.errors || 0} errors
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-sm font-medium text-gray-700 mb-4">
+                    Application Health
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">
+                        Process Status
+                      </span>
+                      <span
+                        className={`text-sm font-medium ${
+                          health?.checks?.process === "pass"
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {health?.checks?.process === "pass"
+                          ? "Healthy"
+                          : "Unhealthy"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">
+                        Port Accessibility
+                      </span>
+                      <span
+                        className={`text-sm font-medium ${
+                          health?.checks?.port === "pass"
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {health?.checks?.port === "pass" ? "Open" : "Closed"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">
+                        Last Health Check
+                      </span>
+                      <span className="text-sm text-gray-900">
+                        {health?.lastCheck
+                          ? new Date(health.lastCheck).toLocaleTimeString()
+                          : "Never"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="mt-6 border-t pt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-4">
-                  Application Health
-                </h4>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      Process Status
-                    </span>
-                    <span
-                      className={`text-sm font-medium ${
-                        health?.checks?.process === "pass"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {health?.checks?.process === "pass"
-                        ? "Healthy"
-                        : "Unhealthy"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      Port Accessibility
-                    </span>
-                    <span
-                      className={`text-sm font-medium ${
-                        health?.checks?.port === "pass"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {health?.checks?.port === "pass" ? "Open" : "Closed"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      Last Health Check
-                    </span>
-                    <span className="text-sm text-gray-900">
-                      {health?.lastCheck
-                        ? new Date(health.lastCheck).toLocaleTimeString()
-                        : "Never"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -809,35 +954,310 @@ export default function ApplicationDetail() {
 
         {activeTab === "console" && (
           <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b">
-              <h3 className="text-lg font-semibold">Interactive Console</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Execute commands in the container
-              </p>
-            </div>
-            <div className="p-6">
-              <CommandTerminal
-                spinletId={routeDetails?.spinlet?.spinletId || ""}
-              />
-            </div>
+            {isStaticOrProxy ? (
+              <div className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Interactive Console</h3>
+                <div className="text-center py-12">
+                  <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <TerminalIcon className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500">
+                    Console is not available for {route.framework === 'static' ? 'static sites' : 'reverse proxy deployments'}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    {route.framework === 'static' 
+                      ? 'Static files have no running container to access'
+                      : 'Reverse proxy has no container environment'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="p-6 border-b">
+                  <h3 className="text-lg font-semibold">Interactive Console</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Execute commands in the container
+                  </p>
+                </div>
+                <div className="p-6">
+                  <CommandTerminal
+                    spinletId={routeDetails?.spinlet?.spinletId || ""}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {activeTab === "troubleshoot" && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">
-                Application Troubleshoot
-              </h3>
-              <button
-                onClick={runTroubleshoot}
-                disabled={diagLoading}
-                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Wrench className="h-4 w-4" />
-                <span>{diagLoading ? "Running..." : "Run Diagnostics"}</span>
-              </button>
-            </div>
+            {isStaticOrProxy ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">
+                    {route.framework === 'static' ? 'Static Site' : 'Reverse Proxy'} Diagnostics
+                  </h3>
+                  <button
+                    onClick={async () => {
+                      setDiagLoading(true);
+                      setDiag(null);
+                      try {
+                        // Check if the site is accessible
+                        const testUrl = `http://${domain}:9006`;
+                        const response = await fetch('/_admin/routes');
+                        const routes = await response.json();
+                        const thisRoute = routes.find((r: any) => r.domain === domain);
+                        
+                        const diagnostics: any = {
+                          status: 'active',
+                          healthy: true,
+                          framework: route.framework,
+                          checks: {}
+                        };
+
+                        // Check route registration
+                        diagnostics.checks.route_registered = thisRoute ? 'pass' : 'fail';
+                        
+                        // Check deployment status
+                        diagnostics.checks.deployment_status = thisRoute ? 'pass' : 'fail';
+                        
+                        if (route.framework === 'static') {
+                          // Check if deployment directory exists
+                          diagnostics.deployment_path = route.buildPath;
+                          
+                          // Check if the deployment path actually exists
+                          try {
+                            const checkResponse = await fetch(`/_admin/deployments/scan`);
+                            const scanData = await checkResponse.json();
+                            const deploymentName = route.buildPath.split('/').pop();
+                            const exists = scanData.items?.some((item: any) => 
+                              item.name === deploymentName && item.type === 'directory'
+                            );
+                            diagnostics.checks.deployment_exists = exists ? 'pass' : 'fail';
+                            diagnostics.checks.files_deployed = exists ? 'pass' : 'fail';
+                            
+                            if (!exists) {
+                              diagnostics.healthy = false;
+                              diagnostics.error = 'Deployment directory not found';
+                            } else {
+                              // Verify deployment to check for index.html
+                              try {
+                                const verifyResponse = await api.verifyDeployment(deploymentName);
+                                diagnostics.checks.index_html_exists = verifyResponse.accessible ? 'pass' : 'fail';
+                                
+                                if (!verifyResponse.accessible) {
+                                  diagnostics.healthy = false;
+                                  diagnostics.error = verifyResponse.error || 'Static files not accessible';
+                                  
+                                  // Add specific error details
+                                  if (verifyResponse.status === 'no-index') {
+                                    diagnostics.missing_files = ['index.html'];
+                                  }
+                                }
+                                
+                                diagnostics.verification_status = verifyResponse.status;
+                                diagnostics.file_count = verifyResponse.files;
+                              } catch (e) {
+                                diagnostics.checks.index_html_exists = 'fail';
+                                diagnostics.error = 'Failed to verify deployment';
+                              }
+                            }
+                          } catch (e) {
+                            diagnostics.checks.deployment_exists = 'fail';
+                            diagnostics.checks.files_deployed = 'fail';
+                            diagnostics.checks.index_html_exists = 'fail';
+                            diagnostics.healthy = false;
+                          }
+                        } else if (route.framework === 'reverse-proxy') {
+                          // Show proxy configuration
+                          diagnostics.proxy_config = route.config?.proxy;
+                          diagnostics.checks.proxy_configured = route.config?.proxy?.target ? 'pass' : 'fail';
+                        }
+                        
+                        diagnostics.healthy = Object.values(diagnostics.checks).every(c => c === 'pass');
+                        diagnostics.status = diagnostics.healthy ? 'healthy' : 'unhealthy';
+                        
+                        setDiag(diagnostics);
+                      } catch (error) {
+                        setDiag({
+                          error: 'Failed to run diagnostics',
+                          message: (error as any).message,
+                          healthy: false,
+                          status: 'error'
+                        });
+                      }
+                      setDiagLoading(false);
+                    }}
+                    disabled={diagLoading}
+                    className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    <span>{diagLoading ? "Running..." : "Run Diagnostics"}</span>
+                  </button>
+                </div>
+
+                {diagLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <span className="ml-3 text-gray-600">
+                      Running diagnostics...
+                    </span>
+                  </div>
+                )}
+
+                {diag && !diagLoading && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h4 className="font-medium text-gray-900 mb-2">
+                          Deployment Status
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                          {diag.healthy ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                          )}
+                          <span
+                            className={`font-medium ${
+                              diag.healthy ? "text-green-700" : "text-red-700"
+                            }`}
+                          >
+                            {diag.status === 'active' ? 'Active' : diag.status || 'Unknown'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h4 className="font-medium text-gray-900 mb-2">Framework</h4>
+                        <p className="text-sm text-gray-600">
+                          {route.framework === 'static' ? 'Static Site' : 'Reverse Proxy'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="font-medium text-gray-900 mb-3">
+                        Diagnostic Checks
+                      </h4>
+                      <div className="space-y-2">
+                        {Object.entries(diag.checks || {}).map(
+                          ([check, status]) => (
+                            <div
+                              key={check}
+                              className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded"
+                            >
+                              <span className="text-sm font-medium text-gray-700 capitalize">
+                                {check.replace(/_/g, ' ')}
+                              </span>
+                              <div className="flex items-center space-x-2">
+                                {status === "pass" ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <AlertCircle className="h-4 w-4 text-red-500" />
+                                )}
+                                <span
+                                  className={`text-xs font-medium ${
+                                    status === "pass"
+                                      ? "text-green-700"
+                                      : "text-red-700"
+                                  }`}
+                                >
+                                  {status?.toString().toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    {route.framework === 'static' && diag.deployment_path && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium text-gray-900 mb-2">Deployment Details</h4>
+                        <dl className="space-y-1">
+                          <div className="flex">
+                            <dt className="text-sm text-gray-600 w-32">Build Path:</dt>
+                            <dd className="text-sm font-mono text-gray-900">{diag.deployment_path}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    )}
+
+                    {route.framework === 'reverse-proxy' && diag.proxy_config && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium text-gray-900 mb-2">Proxy Configuration</h4>
+                        <dl className="space-y-1">
+                          <div className="flex">
+                            <dt className="text-sm text-gray-600 w-32">Target URL:</dt>
+                            <dd className="text-sm font-mono text-purple-600">{diag.proxy_config.target}</dd>
+                          </div>
+                          <div className="flex">
+                            <dt className="text-sm text-gray-600 w-32">Change Origin:</dt>
+                            <dd className="text-sm text-gray-900">{diag.proxy_config.changeOrigin ? 'Yes' : 'No'}</dd>
+                          </div>
+                          {diag.proxy_config.headers && (
+                            <div className="mt-2">
+                              <dt className="text-sm text-gray-600">Custom Headers:</dt>
+                              <dd className="mt-1">
+                                <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
+                                  {JSON.stringify(diag.proxy_config.headers, null, 2)}
+                                </pre>
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    )}
+
+                    {diag.error && (
+                      <div className="border-t pt-4">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <div className="flex items-center space-x-2">
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                            <h4 className="font-medium text-red-800">Error</h4>
+                          </div>
+                          <p className="text-sm text-red-700 mt-2">{diag.error}</p>
+                          {diag.message && (
+                            <p className="text-xs text-red-600 mt-1">
+                              {diag.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!diag && !diagLoading && (
+                  <div className="text-center py-12">
+                    <Wrench className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      Click "Run Diagnostics" to check {route.framework === 'static' ? 'static site' : 'reverse proxy'} health
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      {route.framework === 'static' 
+                        ? 'This will verify route registration and deployment status'
+                        : 'This will verify proxy configuration and route status'}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">
+                    Application Troubleshoot
+                  </h3>
+                  <button
+                    onClick={runTroubleshoot}
+                    disabled={diagLoading}
+                    className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    <span>{diagLoading ? "Running..." : "Run Diagnostics"}</span>
+                  </button>
+                </div>
 
             {diagLoading && (
               <div className="flex items-center justify-center py-12">
@@ -999,8 +1419,10 @@ export default function ApplicationDetail() {
                 </p>
               </div>
             )}
-          </div>
+          </>
         )}
+      </div>
+    )}
       </div>
     </div>
   );

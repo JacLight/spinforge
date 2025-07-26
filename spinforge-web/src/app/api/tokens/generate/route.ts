@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       user: {
         id: session.userId,
         customerId: session.customerId,
+        email: session.email
       }
     });
   } catch (error) {

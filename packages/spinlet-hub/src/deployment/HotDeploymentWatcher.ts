@@ -1,6 +1,6 @@
 import { watch, FSWatcher } from "fs";
-import { readdir, stat, readFile, access, writeFile } from "fs/promises";
-import { join, basename } from "path";
+import { readdir, stat, readFile, access, writeFile, rename, unlink, rmdir } from "fs/promises";
+import { join, basename, dirname } from "path";
 import { createLogger } from "@spinforge/shared";
 import { parse as parseYaml } from "yaml";
 import { DeploymentConfig } from "./deploy-schema";
@@ -10,6 +10,7 @@ import { extract } from "tar";
 import { createReadStream } from "fs";
 import { pipeline } from "stream/promises";
 import * as unzipper from "unzipper";
+import * as decompress from "decompress";
 
 export class HotDeploymentWatcher {
   private watcher?: FSWatcher;
@@ -122,12 +123,22 @@ export class HotDeploymentWatcher {
   }
 
   private isArchive(filename: string): boolean {
-    return (
-      filename.endsWith(".zip") ||
-      filename.endsWith(".tar") ||
-      filename.endsWith(".tar.gz") ||
-      filename.endsWith(".tgz")
-    );
+    const supportedExtensions = [
+      ".zip",
+      ".tar",
+      ".tar.gz",
+      ".tgz",
+      ".tar.bz2",
+      ".tbz2",
+      ".tar.xz",
+      ".txz",
+      ".rar",
+      ".7z",
+      ".gz",
+      ".bz2",
+      ".xz"
+    ];
+    return supportedExtensions.some(ext => filename.toLowerCase().endsWith(ext));
   }
 
   private async processDeployment(deploymentPath: string): Promise<void> {
@@ -143,6 +154,20 @@ export class HotDeploymentWatcher {
     try {
       this.logger.info(`Processing deployment: ${deploymentId}`);
       
+      // Archive previous .failed marker if it exists
+      try {
+        const failedMarkerPath = join(deploymentPath, ".failed");
+        const stats = await stat(failedMarkerPath);
+        if (stats.isFile()) {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const archivedPath = join(deploymentPath, `.failed-${timestamp}`);
+          await rename(failedMarkerPath, archivedPath);
+          this.logger.info(`Archived previous failure marker to ${basename(archivedPath)}`);
+        }
+      } catch (error) {
+        // No previous .failed marker, which is fine
+      }
+      
       // Update deployment API status if available
       if (this.deploymentAPI) {
         this.deploymentAPI.markDeploymentAsProcessing(deploymentId);
@@ -153,6 +178,22 @@ export class HotDeploymentWatcher {
       // Extract archive if needed
       if (this.isArchive(deploymentPath)) {
         actualPath = await this.extractArchive(deploymentPath);
+      } else {
+        // Check if there's an archive file inside the deployment directory
+        const files = await readdir(deploymentPath);
+        const archiveFile = files.find(file => this.isArchive(file));
+        
+        if (archiveFile) {
+          const archivePath = join(deploymentPath, archiveFile);
+          this.logger.info(`Found archive file in deployment directory: ${archiveFile}`);
+          
+          // Extract the archive in place
+          await this.extractArchive(archivePath);
+          
+          // Remove the archive file after extraction
+          await unlink(archivePath);
+          this.logger.info(`Removed archive file after extraction: ${archiveFile}`);
+        }
       }
 
       // Load deployment configuration
@@ -237,23 +278,76 @@ export class HotDeploymentWatcher {
   }
 
   private async extractArchive(archivePath: string): Promise<string> {
-    const extractPath = archivePath.replace(/\.(zip|tar|tar\.gz|tgz)$/, "");
+    const filename = basename(archivePath).toLowerCase();
+    const isFullPath = this.isArchive(archivePath);
+    
+    // Determine extract path based on whether it's a full archive path or archive inside directory
+    const extractPath = isFullPath 
+      ? archivePath.replace(/\.(zip|tar|tar\.gz|tgz|tar\.bz2|tbz2|tar\.xz|txz|rar|7z|gz|bz2|xz)$/i, "")
+      : join(dirname(archivePath), 'extracted');
 
-    if (archivePath.endsWith(".zip")) {
-      await pipeline(
-        createReadStream(archivePath),
-        unzipper.Extract({ path: extractPath })
-      );
-    } else {
-      // Handle tar files
-      await extract({
-        file: archivePath,
-        cwd: extractPath,
-        strip: 1, // Remove top-level directory
-      });
+    // If extracting in the same directory, use the parent directory
+    const finalExtractPath = isFullPath ? extractPath : dirname(archivePath);
+
+    try {
+      // Use decompress for most formats - it handles many formats automatically
+      if (filename.endsWith(".tar") || filename.endsWith(".tar.gz") || filename.endsWith(".tgz") ||
+          filename.endsWith(".tar.bz2") || filename.endsWith(".tbz2") || 
+          filename.endsWith(".tar.xz") || filename.endsWith(".txz")) {
+        // Use native tar for tar-based archives for better compatibility
+        await extract({
+          file: archivePath,
+          cwd: finalExtractPath,
+          strip: 1, // Remove top-level directory
+        });
+      } else if (filename.endsWith(".zip")) {
+        // Use unzipper for zip files for streaming support
+        // First extract to a temp directory to inspect structure
+        const tempPath = `${finalExtractPath}_temp`;
+        await pipeline(
+          createReadStream(archivePath),
+          unzipper.Extract({ path: tempPath })
+        );
+        
+        // Check if there's a single root directory
+        const tempFiles = await readdir(tempPath);
+        if (tempFiles.length === 1) {
+          const firstItem = join(tempPath, tempFiles[0]);
+          const stats = await stat(firstItem);
+          if (stats.isDirectory()) {
+            // Move contents of the single directory to final path
+            const contents = await readdir(firstItem);
+            for (const item of contents) {
+              await rename(join(firstItem, item), join(finalExtractPath, item));
+            }
+            // Clean up temp directory
+            await rmdir(firstItem);
+            await rmdir(tempPath);
+          } else {
+            // Single file or multiple items at root - move everything
+            await rename(tempPath, finalExtractPath);
+          }
+        } else {
+          // Multiple items at root - move everything
+          for (const item of tempFiles) {
+            await rename(join(tempPath, item), join(finalExtractPath, item));
+          }
+          await rmdir(tempPath);
+        }
+      } else {
+        // Use decompress for other formats (rar, 7z, gz, bz2, xz)
+        await decompress(archivePath, finalExtractPath, {
+          strip: 1 // Remove top-level directory
+        });
+      }
+
+      this.logger.info(`Successfully extracted archive: ${filename}`);
+    } catch (error) {
+      this.logger.error(`Failed to extract archive: ${filename}`, { error });
+      throw new Error(`Unsupported or corrupted archive format: ${filename}`);
     }
 
-    return extractPath;
+    return finalExtractPath;
   }
 
   private async loadDeploymentConfig(
@@ -286,6 +380,20 @@ export class HotDeploymentWatcher {
     if (!config.domain) errors.push("domain is required");
     if (!config.customerId) errors.push("customerId is required");
     if (!config.framework) errors.push("framework is required");
+    
+    // Validate reverse-proxy specific config
+    if (config.framework === 'reverse-proxy') {
+      if (!config.proxy?.target) {
+        errors.push("proxy.target is required for reverse-proxy framework");
+      } else {
+        // Validate target URL format
+        try {
+          new URL(config.proxy.target);
+        } catch {
+          errors.push(`Invalid proxy target URL: ${config.proxy.target}`);
+        }
+      }
+    }
 
     // Validate domain format
     const domains = Array.isArray(config.domain)
@@ -331,38 +439,117 @@ export class HotDeploymentWatcher {
       ? join(buildPath, config.build.outputDir)
       : buildPath;
 
-    // Create spinlet
-    await this.spinletManager.spawn({
-      spinletId,
-      customerId: config.customerId,
-      buildPath: outputPath,
-      framework: config.framework,
-      env: config.env,
-      resources: {
-        memory: config.resources?.memory,
-        cpu: config.resources?.cpu?.toString(),
-      },
-    });
-
-    // Register routes for all domains
-    for (const domain of domains) {
-      await this.routeManager.addRoute({
-        domain,
-        customerId: config.customerId,
+    // Handle static and reverse-proxy deployments differently
+    if (config.framework === 'static' || config.framework === 'reverse-proxy') {
+      // For static sites, validate that the output directory exists and has files
+      if (config.framework === 'static') {
+        try {
+          const outputStats = await stat(outputPath);
+          if (!outputStats.isDirectory()) {
+            throw new Error(`Output path is not a directory: ${outputPath}`);
+          }
+          
+          // Check if directory has any files
+          const files = await readdir(outputPath);
+          if (files.length === 0) {
+            throw new Error(`Output directory is empty: ${outputPath}`);
+          }
+          
+          // Check for common static files (including in subdirectories)
+          let hasIndexFile = false;
+          const checkForIndex = async (dir: string, depth: number = 0): Promise<boolean> => {
+            if (depth > 2) return false; // Don't go too deep
+            
+            const items = await readdir(dir);
+            for (const item of items) {
+              const itemPath = join(dir, item);
+              const itemStats = await stat(itemPath);
+              
+              if (itemStats.isFile() && (
+                item.toLowerCase() === 'index.html' || 
+                item.toLowerCase() === 'index.htm' ||
+                item.toLowerCase() === 'home.html'
+              )) {
+                return true;
+              } else if (itemStats.isDirectory() && depth < 2) {
+                if (await checkForIndex(itemPath, depth + 1)) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          };
+          
+          hasIndexFile = await checkForIndex(outputPath);
+          
+          if (!hasIndexFile) {
+            throw new Error(`No index.html found in ${outputPath} or its subdirectories. Static deployment requires an index.html file.`);
+          }
+          
+          this.logger.info(`Static deployment validation passed for ${outputPath}`);
+        } catch (error) {
+          throw new Error(`Static deployment validation failed: ${(error as Error).message}`);
+        }
+      }
+      
+      // For static sites and reverse proxies, we don't need to spawn a spinlet
+      // Just register the routes
+      for (const domain of domains) {
+        await this.routeManager.addRoute({
+          domain,
+          customerId: config.customerId,
+          spinletId: `${config.framework}-${config.name}`, // Framework prefix for identification
+          buildPath: outputPath,
+          framework: config.framework,
+          config: {
+            memory: config.resources?.memory || '128MB',
+            cpu: config.resources?.cpu?.toString() || '0.1',
+            env: config.env,
+            proxy: config.proxy, // Include proxy config for reverse-proxy
+            ...config,
+          },
+        });
+      }
+      
+      this.logger.info(`${config.framework} deployment registered for ${config.name}`, {
+        domains,
+        buildPath: outputPath,
+        ...(config.framework === 'reverse-proxy' && { proxyTarget: config.proxy?.target }),
+      });
+    } else {
+      // For other frameworks, spawn a spinlet
+      await this.spinletManager.spawn({
         spinletId,
+        customerId: config.customerId,
         buildPath: outputPath,
         framework: config.framework,
-        config: {
+        env: config.env,
+        resources: {
           memory: config.resources?.memory,
           cpu: config.resources?.cpu?.toString(),
-          env: config.env,
-          ...config,
         },
       });
-    }
 
-    // Update spinlet domains
-    await this.spinletManager.updateDomains(spinletId, domains);
+      // Register routes for all domains
+      for (const domain of domains) {
+        await this.routeManager.addRoute({
+          domain,
+          customerId: config.customerId,
+          spinletId,
+          buildPath: outputPath,
+          framework: config.framework,
+          config: {
+            memory: config.resources?.memory,
+            cpu: config.resources?.cpu?.toString(),
+            env: config.env,
+            ...config,
+          },
+        });
+      }
+
+      // Update spinlet domains
+      await this.spinletManager.updateDomains(spinletId, domains);
+    }
 
     // Run post-deploy hooks
     if (config.hooks?.postDeploy) {

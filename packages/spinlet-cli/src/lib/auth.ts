@@ -6,16 +6,28 @@ import chalk from 'chalk';
 const CONFIG_FILE = join(homedir(), '.spinforge', 'config.json');
 
 export interface AuthConfig {
-  email: string;
+  email?: string;
   token: string;
   customerId: string;
   apiUrl?: string;
+  authMethod?: 'token' | 'email';
 }
 
 export function getAuthConfig(): AuthConfig {
+  // Check environment variable first
+  const envToken = process.env.SPINFORGE_TOKEN;
+  if (envToken) {
+    return {
+      token: envToken,
+      customerId: process.env.SPINFORGE_CUSTOMER_ID || 'default',
+      apiUrl: process.env.SPINHUB_URL || 'http://localhost:8080',
+      authMethod: 'token'
+    };
+  }
+  
   if (!existsSync(CONFIG_FILE)) {
     console.error(chalk.red('Error:'), 'Not logged in');
-    console.log(chalk.gray('Run "spinforge login" to authenticate'));
+    console.log(chalk.gray('Run "spin login" to authenticate'));
     process.exit(1);
   }
 
@@ -37,5 +49,6 @@ export function getAuthHeaders(config?: AuthConfig) {
   return {
     'Authorization': `Bearer ${auth.token}`,
     'X-Customer-ID': auth.customerId,
+    'X-Admin-Token': auth.token, // For SpinHub admin endpoints
   };
 }

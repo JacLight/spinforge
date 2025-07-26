@@ -54,6 +54,13 @@ export interface Route {
     memory?: string;
     cpu?: string;
     env?: Record<string, string>;
+    proxy?: {
+      target: string;
+      changeOrigin?: boolean;
+      preserveHostHeader?: boolean;
+      headers?: Record<string, string>;
+    };
+    [key: string]: any; // Allow other config properties
   };
 }
 
@@ -80,6 +87,18 @@ export interface IdleInfo {
   willExpireAt: string;
   timeRemaining: number;
   timeRemainingFormatted: string;
+}
+
+export interface DeploymentStatus {
+  name: string;
+  status: "pending" | "building" | "success" | "failed" | "processing";
+  timestamp: string;
+  error?: string;
+  buildTime?: number;
+  domains?: string[];
+  framework?: string;
+  customerId?: string;
+  spinletId?: string;
 }
 
 export interface IdleMetrics {
@@ -301,6 +320,55 @@ class SpinForgeAPI {
   async deleteRoute(domain: string) {
     const response = await axios.delete(
       `${API_BASE}/_admin/routes/${domain}`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async getDeployments(): Promise<DeploymentStatus[]> {
+    const response = await axios.get(
+      `${API_BASE}/_admin/deployments`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async scanDeployments() {
+    const response = await axios.post(
+      `${API_BASE}/_admin/deployments/scan`,
+      {},
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async retryDeployment(name: string) {
+    const response = await axios.post(
+      `${API_BASE}/_admin/deployments/${name}/retry`,
+      {},
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async verifyDeployment(name: string): Promise<{
+    accessible: boolean;
+    error?: string;
+    status: string;
+    files?: number;
+    path?: string;
+  }> {
+    const response = await axios.get(
+      `${API_BASE}/_admin/deployments/${name}/verify`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async addDomainToRoute(currentDomain: string, newDomain: string) {
+    const response = await axios.post(
+      `${API_BASE}/_admin/routes/${currentDomain}/domains`,
+      { newDomain },
       { headers: this.getHeaders() }
     );
     return response.data;

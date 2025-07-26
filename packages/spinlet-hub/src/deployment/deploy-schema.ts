@@ -27,7 +27,8 @@ export interface DeploymentConfig {
     | "vue"
     | "astro"
     | "docker"
-    | "nestjs";
+    | "nestjs"
+    | "reverse-proxy";
   runtime?: "node" | "python" | "ruby" | "php" | "static";
   nodeVersion?: string; // e.g., "18", "20"
 
@@ -36,6 +37,13 @@ export interface DeploymentConfig {
     command?: string; // Build command (e.g., "npm run build")
     outputDir?: string; // Build output directory (e.g., "dist", "build")
     env?: Record<string, string>; // Build-time environment variables
+  };
+
+  // Archive Settings (for zip/tar deployments)
+  archive?: {
+    extractTo?: string; // Where to extract files (default: deployment root)
+    stripComponents?: number; // Number of leading path components to strip (default: auto-detect)
+    rootDir?: string; // Expected root directory in archive (e.g., "build", "dist")
   };
 
   // Runtime Configuration
@@ -77,6 +85,18 @@ export interface DeploymentConfig {
         };
     timeout?: number; // Request timeout in seconds
     maxBodySize?: string; // Max request body size (e.g., "10MB")
+  };
+
+  // Reverse Proxy Configuration (for reverse-proxy framework)
+  proxy?: {
+    target: string; // Target URL to proxy to (e.g., "http://localhost:4050")
+    changeOrigin?: boolean; // Change the origin header to match target
+    preserveHostHeader?: boolean; // Keep the original Host header
+    headers?: Record<string, string>; // Additional headers to add
+    rewrite?: {
+      // Path rewriting rules
+      [pattern: string]: string;
+    };
   };
 
   // Dependencies

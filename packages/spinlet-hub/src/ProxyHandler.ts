@@ -79,7 +79,120 @@ export class ProxyHandler {
 
       this.activeRequests.set(requestId, context);
 
-      // Ensure spinlet is running
+      // Handle static sites differently
+      if (route.framework === 'static') {
+        // For static sites, serve files directly
+        const staticPath = route.buildPath.startsWith('/') 
+          ? route.buildPath 
+          : `/deployments/${route.buildPath}`;
+        
+        this.logger.debug('Serving static content', {
+          requestId,
+          domain,
+          staticPath,
+          requestedPath: req.url
+        });
+
+        // Import required modules
+        const path = require('path');
+        const fs = require('fs');
+        const mime = require('mime-types');
+        
+        // Construct file path
+        const requestPath = req.url || '/';
+        const filePath = path.join(staticPath, requestPath === '/' ? 'index.html' : requestPath);
+        
+        // Security: prevent directory traversal
+        if (!filePath.startsWith(staticPath)) {
+          res.writeHead(403, { 'Content-Type': 'text/plain' });
+          res.end('Forbidden');
+          return;
+        }
+        
+        // Check if file exists
+        fs.stat(filePath, (err: any, stats: any) => {
+          if (err || !stats.isFile()) {
+            // Try index.html for directories
+            if (!err && stats.isDirectory()) {
+              const indexPath = path.join(filePath, 'index.html');
+              fs.stat(indexPath, (err2: any, stats2: any) => {
+                if (!err2 && stats2.isFile()) {
+                  this.serveStaticFile(indexPath, res);
+                } else {
+                  res.writeHead(404, { 'Content-Type': 'text/plain' });
+                  res.end('Not Found');
+                }
+              });
+            } else {
+              res.writeHead(404, { 'Content-Type': 'text/plain' });
+              res.end('Not Found');
+            }
+          } else {
+            this.serveStaticFile(filePath, res);
+          }
+        });
+        
+        // Record metrics
+        await this.recordMetrics(context, 200, 0, 0, false);
+        return;
+      }
+
+      // Handle reverse-proxy sites
+      if (route.framework === 'reverse-proxy') {
+        const proxyConfig = route.config?.proxy;
+        if (!proxyConfig?.target) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Reverse proxy target not configured');
+          return;
+        }
+
+        this.logger.debug('Proxying to target', {
+          requestId,
+          domain,
+          target: proxyConfig.target,
+          requestedPath: req.url
+        });
+
+        // Parse target URL
+        const targetUrl = new URL(proxyConfig.target);
+        
+        // Apply path rewriting if configured
+        let targetPath = req.url || '/';
+        if (proxyConfig.rewrite) {
+          for (const [pattern, replacement] of Object.entries(proxyConfig.rewrite)) {
+            targetPath = targetPath.replace(new RegExp(pattern), replacement as string);
+          }
+        }
+
+        // Set up proxy options
+        const proxyOptions: any = {
+          target: `${targetUrl.protocol}//${targetUrl.host}`,
+          changeOrigin: proxyConfig.changeOrigin !== false, // Default true
+          headers: {
+            'X-Forwarded-Host': domain,
+            'X-Forwarded-Proto': 'http', // Would be https in production
+            'X-Real-IP': this.getClientIp(req),
+            ...proxyConfig.headers
+          }
+        };
+
+        // Preserve host header if requested
+        if (proxyConfig.preserveHostHeader) {
+          proxyOptions.headers['Host'] = req.headers.host;
+        }
+
+        // Update the request URL to include the target path
+        req.url = targetPath;
+
+        // Proxy the request
+        this.proxy.web(req, res, proxyOptions);
+        
+        // Record metrics
+        await this.recordMetrics(context, 200, 0, 0, false);
+        return;
+      }
+
+      // For non-static, non-proxy sites, ensure spinlet is running
       const target = await this.ensureSpinletRunning(route);
       
       // Update request headers
@@ -319,6 +432,31 @@ export class ProxyHandler {
         }
       });
     }
+  }
+
+  private serveStaticFile(filePath: string, res: ServerResponse): void {
+    const fs = require('fs');
+    const path = require('path');
+    const mime = require('mime-types');
+    
+    // Get mime type
+    const mimeType = mime.lookup(filePath) || 'application/octet-stream';
+    
+    // Read and serve file
+    fs.readFile(filePath, (err: any, data: Buffer) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Internal Server Error');
+        return;
+      }
+      
+      res.writeHead(200, {
+        'Content-Type': mimeType,
+        'Content-Length': data.length,
+        'Cache-Control': 'public, max-age=3600'
+      });
+      res.end(data);
+    });
   }
 
   destroy(): void {
