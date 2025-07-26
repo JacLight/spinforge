@@ -50,6 +50,7 @@ export interface Route {
   spinletId: string;
   buildPath: string;
   framework: string;
+  allDomains?: string[]; // All domains associated with this spinlet
   config?: {
     memory?: string;
     cpu?: string;

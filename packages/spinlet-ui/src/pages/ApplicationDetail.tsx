@@ -101,7 +101,14 @@ export default function ApplicationDetail() {
       api.addDomainToRoute(domain!, newDomain),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["route-details"] });
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
       setNewDomain("");
+      setEditMode(false);
+    },
+    onError: (error: any) => {
+      // Show specific error message
+      const errorMessage = error.response?.data?.error || error.message || "Failed to add domain";
+      alert(errorMessage);
     },
   });
 

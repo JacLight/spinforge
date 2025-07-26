@@ -297,7 +297,7 @@ export default function Applications() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {routes.map((route: Route & { spinletState?: Spinlet; idleInfo?: IdleInfo; deploymentTime?: string; deploymentStatus?: string; deploymentError?: string; verificationStatus?: any }) => (
+                {routes.map((route: Route & { spinletState?: Spinlet; idleInfo?: IdleInfo; deploymentTime?: string; deploymentStatus?: string; deploymentError?: string; verificationStatus?: any; allDomains?: string[] }) => (
                   <tr key={route.domain} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -323,6 +323,21 @@ export default function Applications() {
                               )}
                             </div>
                           </button>
+                          {/* Show additional domains if any */}
+                          {route.allDomains && route.allDomains.length > 1 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {route.allDomains
+                                .filter(d => d !== route.domain)
+                                .map(domain => (
+                                  <span
+                                    key={domain}
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700"
+                                  >
+                                    {domain}
+                                  </span>
+                                ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

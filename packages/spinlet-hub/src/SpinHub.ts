@@ -564,7 +564,24 @@ export class SpinHub {
           allDomains.map((domain) => this.routeManager.getRoute(domain))
         );
 
-        res.json(routes.filter(Boolean));
+        // Group routes by spinletId to find all domains for each application
+        const spinletDomainsMap = new Map<string, string[]>();
+        const validRoutes = routes.filter(Boolean) as any[];
+        
+        for (const route of validRoutes) {
+          if (!spinletDomainsMap.has(route.spinletId)) {
+            spinletDomainsMap.set(route.spinletId, []);
+          }
+          spinletDomainsMap.get(route.spinletId)!.push(route.domain);
+        }
+
+        // Enhance each route with all associated domains
+        const enhancedRoutes = validRoutes.map(route => ({
+          ...route,
+          allDomains: spinletDomainsMap.get(route.spinletId) || [route.domain]
+        }));
+
+        res.json(enhancedRoutes);
       } catch (error) {
         this.logger.error("Failed to get all routes", { error });
         res.status(500).json({ error: "Failed to get routes" });
@@ -582,6 +599,17 @@ export class SpinHub {
           if (!route) {
             res.status(404).json({ error: "Route not found" });
             return;
+          }
+
+          // Get all domains for this spinlet
+          const allDomains = await this.redis.hkeys("spinforge:routes");
+          const spinletDomains: string[] = [];
+          
+          for (const d of allDomains) {
+            const r = await this.routeManager.getRoute(d);
+            if (r && r.spinletId === route.spinletId) {
+              spinletDomains.push(d);
+            }
           }
 
           // Get spinlet state
@@ -606,7 +634,7 @@ export class SpinHub {
               cpu: Math.floor(Math.random() * 50), // 0-50%
               host: "localhost",
               servicePath: `localhost:${port}`,
-              domains: [domain],
+              domains: spinletDomains.length > 0 ? spinletDomains : [domain],
             };
           } else {
             // Create enhanced state object
@@ -615,7 +643,7 @@ export class SpinHub {
               servicePath:
                 spinletState.servicePath ||
                 `localhost:${spinletState.port || 3000}`,
-              domains: spinletState.domains || [domain],
+              domains: spinletDomains.length > 0 ? spinletDomains : (spinletState.domains || [domain]),
               state:
                 spinletState.state === "stopped" && spinletState.memory > 0
                   ? "running"
@@ -837,7 +865,7 @@ export class SpinHub {
           // Update spinlet domains if it's not static/reverse-proxy
           if (route.framework !== 'static' && route.framework !== 'reverse-proxy') {
             const allDomains = await this.redis.hkeys("spinforge:routes");
-            const spinletDomains = [];
+            const spinletDomains: string[] = [];
             
             for (const d of allDomains) {
               const r = await this.routeManager.getRoute(d);

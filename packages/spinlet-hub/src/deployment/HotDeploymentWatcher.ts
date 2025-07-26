@@ -495,6 +495,12 @@ export class HotDeploymentWatcher {
       // For static sites and reverse proxies, we don't need to spawn a spinlet
       // Just register the routes
       for (const domain of domains) {
+        // Check if domain already exists
+        const existingRoute = await this.routeManager.getRoute(domain);
+        if (existingRoute) {
+          throw new Error(`Domain ${domain} is already in use by another application`);
+        }
+        
         await this.routeManager.addRoute({
           domain,
           customerId: config.customerId,
@@ -532,6 +538,14 @@ export class HotDeploymentWatcher {
 
       // Register routes for all domains
       for (const domain of domains) {
+        // Check if domain already exists
+        const existingRoute = await this.routeManager.getRoute(domain);
+        if (existingRoute) {
+          // If we already spawned the spinlet, we need to stop it
+          await this.spinletManager.stop(spinletId, "deployment_failed");
+          throw new Error(`Domain ${domain} is already in use by another application`);
+        }
+        
         await this.routeManager.addRoute({
           domain,
           customerId: config.customerId,
