@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Play,
@@ -104,18 +105,24 @@ export default function ApplicationDetail() {
       queryClient.invalidateQueries({ queryKey: ["routes"] });
       setNewDomain("");
       setEditMode(false);
+      toast.success("Domain added successfully");
     },
     onError: (error: any) => {
-      // Show specific error message
       const errorMessage = error.response?.data?.error || error.message || "Failed to add domain";
-      alert(errorMessage);
+      toast.error(errorMessage);
     },
   });
 
   const removeDomainMutation = useMutation({
-    mutationFn: (domainToRemove: string) => api.deleteRoute(domainToRemove),
+    mutationFn: (domainToRemove: string) => api.removeDomainFromRoute(domain!, domainToRemove),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["route-details"] });
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
+      toast.success("Domain removed successfully");
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || error.message || "Failed to remove domain";
+      toast.error(errorMessage);
     },
   });
 
@@ -432,11 +439,18 @@ export default function ApplicationDetail() {
                           className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                         <button
-                          onClick={() => addDomainMutation.mutate()}
+                          onClick={() => {
+                            // Basic domain validation
+                            if (!/^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,}$/.test(newDomain)) {
+                              toast.error("Invalid domain format");
+                              return;
+                            }
+                            addDomainMutation.mutate();
+                          }}
                           disabled={!newDomain || addDomainMutation.isPending}
-                          className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                          className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                         >
-                          Add
+                          {addDomainMutation.isPending ? "Adding..." : "Add"}
                         </button>
                         <button
                           onClick={() => {

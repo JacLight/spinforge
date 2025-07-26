@@ -46,7 +46,11 @@
       "Bash(npm run:*)",
       "Bash(bash:*)",
       "Bash(unzip:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(yarn install)",
+      "Bash(yarn build)",
+      "Bash(tar:*)",
+      "Bash(pm2 restart:*)"
     ],
     "deny": []
   }

@@ -24,6 +24,8 @@ import { HubConfig, RouteConfig } from "./types";
 import { HotDeploymentWatcher } from "./deployment/HotDeploymentWatcher";
 import { DeploymentAPI } from "./deployment/DeploymentAPI";
 import { readFileSync } from "fs";
+import multer from "multer";
+import * as path from "path";
 
 export class SpinHub {
   private app: Application;
@@ -882,6 +884,62 @@ export class SpinHub {
         } catch (error) {
           this.logger.error("Failed to add domain", { error });
           res.status(500).json({ error: "Failed to add domain" });
+        }
+      }
+    );
+
+    // Remove domain from route (without deleting the entire route)
+    adminRouter.delete(
+      "/routes/:domain/domains/:domainToRemove",
+      async (req: Request, res: Response) => {
+        try {
+          const { domain, domainToRemove } = req.params;
+          
+          // Get the route to verify it exists
+          const route = await this.routeManager.getRoute(domain);
+          if (!route) {
+            res.status(404).json({ error: "Route not found" });
+            return;
+          }
+          
+          // Check if the domain to remove exists
+          const routeToRemove = await this.routeManager.getRoute(domainToRemove);
+          if (!routeToRemove || routeToRemove.spinletId !== route.spinletId) {
+            res.status(404).json({ error: "Domain not found or doesn't belong to this application" });
+            return;
+          }
+          
+          // Get all domains for this spinlet
+          const allDomains = await this.redis.hkeys("spinforge:routes");
+          const spinletDomains: string[] = [];
+          
+          for (const d of allDomains) {
+            const r = await this.routeManager.getRoute(d);
+            if (r && r.spinletId === route.spinletId) {
+              spinletDomains.push(d);
+            }
+          }
+          
+          // Don't allow removing the last domain
+          if (spinletDomains.length <= 1) {
+            res.status(400).json({ error: "Cannot remove the last domain. Delete the application instead." });
+            return;
+          }
+          
+          // Remove the route for this domain
+          await this.routeManager.removeRoute(domainToRemove);
+          
+          // Update spinlet domains if it's not static/reverse-proxy
+          if (route.framework !== 'static' && route.framework !== 'reverse-proxy') {
+            const updatedDomains = spinletDomains.filter(d => d !== domainToRemove);
+            await this.spinletManager.updateDomains(route.spinletId, updatedDomains);
+          }
+          
+          this.logger.info(`Removed domain ${domainToRemove} from application ${domain}`);
+          res.json({ success: true, message: `Domain ${domainToRemove} removed successfully` });
+        } catch (error) {
+          this.logger.error("Failed to remove domain", { error });
+          res.status(500).json({ error: "Failed to remove domain" });
         }
       }
     );
@@ -1813,6 +1871,76 @@ export class SpinHub {
         res.status(500).json({ error: "Failed to cleanup" });
       }
     });
+
+    // Setup multer for deployment uploads
+    const storage = multer.diskStorage({
+      destination: async (req, file, cb) => {
+        const deploymentPath = "/spinforge/deployments";
+        try {
+          await fs.mkdir(deploymentPath, { recursive: true });
+          cb(null, deploymentPath);
+        } catch (error) {
+          cb(error as Error, deploymentPath);
+        }
+      },
+      filename: (req, file, cb) => {
+        // Keep original filename
+        cb(null, file.originalname);
+      }
+    });
+
+    const upload = multer({ 
+      storage,
+      limits: {
+        fileSize: 500 * 1024 * 1024 // 500MB max
+      },
+      fileFilter: (req, file, cb) => {
+        // Accept archives (zip, tar, tar.gz, tgz)
+        const allowedExtensions = ['.zip', '.tar', '.tar.gz', '.tgz'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowedExtensions.includes(ext) || 
+            file.originalname.toLowerCase().endsWith('.tar.gz')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Only archive files (zip, tar, tar.gz, tgz) are allowed'));
+        }
+      }
+    });
+
+    // Deployment upload endpoint
+    adminRouter.post(
+      "/deployments/upload",
+      upload.single('deployment'),
+      async (req: Request, res: Response) => {
+        try {
+          if (!req.file) {
+            res.status(400).json({ error: "No file uploaded" });
+            return;
+          }
+
+          const filePath = req.file.path;
+          this.logger.info(`Deployment uploaded: ${filePath}`);
+
+          // Trigger hot deployment watcher to process the uploaded file
+          if (this.hotDeploymentWatcher) {
+            // Process asynchronously - don't wait for deployment to complete
+            this.hotDeploymentWatcher.processUploadedDeployment(filePath).catch(error => {
+              this.logger.error(`Background deployment processing failed for ${filePath}`, { error });
+            });
+          }
+
+          res.json({ 
+            success: true, 
+            filename: req.file.filename,
+            size: req.file.size,
+            message: "Deployment uploaded successfully. Processing will begin automatically."
+          });
+        } catch (error) {
+          this.logger.error("Failed to upload deployment", { error });
+          res.status(500).json({ error: "Failed to upload deployment" });
+        }
+      }
+    );
 
     this.app.use("/_admin", adminRouter);
   }

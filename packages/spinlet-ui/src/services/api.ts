@@ -375,6 +375,14 @@ class SpinForgeAPI {
     return response.data;
   }
 
+  async removeDomainFromRoute(currentDomain: string, domainToRemove: string) {
+    const response = await axios.delete(
+      `${API_BASE}/_admin/routes/${currentDomain}/domains/${domainToRemove}`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
   async getCustomerRoutes(customerId: string): Promise<Route[]> {
     const response = await axios.get(
       `${API_BASE}/_admin/customers/${customerId}/routes`,

@@ -1,5 +1,5 @@
 import { watch, FSWatcher } from "fs";
-import { readdir, stat, readFile, access, writeFile, rename, unlink, rmdir } from "fs/promises";
+import { readdir, stat, readFile, access, writeFile, rename, unlink, rmdir, mkdir } from "fs/promises";
 import { join, basename, dirname } from "path";
 import { createLogger } from "@spinforge/shared";
 import { parse as parseYaml } from "yaml";
@@ -93,6 +93,16 @@ export class HotDeploymentWatcher {
     }
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
+    }
+  }
+
+  async processUploadedDeployment(filePath: string): Promise<void> {
+    try {
+      this.logger.info(`Processing uploaded deployment: ${filePath}`);
+      await this.processDeployment(filePath);
+    } catch (error) {
+      this.logger.error(`Failed to process uploaded deployment: ${filePath}`, { error });
+      throw error;
     }
   }
 
@@ -290,6 +300,9 @@ export class HotDeploymentWatcher {
     const finalExtractPath = isFullPath ? extractPath : dirname(archivePath);
 
     try {
+      // Create extract directory if it doesn't exist
+      await mkdir(finalExtractPath, { recursive: true });
+      
       // Use decompress for most formats - it handles many formats automatically
       if (filename.endsWith(".tar") || filename.endsWith(".tar.gz") || filename.endsWith(".tgz") ||
           filename.endsWith(".tar.bz2") || filename.endsWith(".tbz2") || 
@@ -590,6 +603,8 @@ export class HotDeploymentWatcher {
     const { exec } = require("child_process");
     const { promisify } = require("util");
     const execAsync = promisify(exec);
+    
+    this.logger.info(`Running build command in directory: ${cwd}`, { command, cwd });
 
     // Clean environment for build - remove debug and VS Code specific variables
     const cleanEnv = { ...process.env };
