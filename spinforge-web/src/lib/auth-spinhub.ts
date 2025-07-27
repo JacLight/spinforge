@@ -2,7 +2,7 @@ import { Session, User } from "./auth-simple";
 import { nanoid } from "nanoid";
 import { setJson, getJson, KEYS, redis } from "./redis";
 
-const SPINHUB_API_URL = process.env.SPINFORGE_API_URL || "http://localhost:9006";
+const SPINHUB_API_URL = process.env.SPINHUB_API_URL;
 
 // Create user via SpinHub API
 export async function createUser(data: {
@@ -13,34 +13,34 @@ export async function createUser(data: {
 }): Promise<User> {
   try {
     const response = await fetch(`${SPINHUB_API_URL}/_auth/register`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         email: data.email,
         password: data.password,
-        name: data.name || data.email.split('@')[0],
-        company: data.company
-      })
+        name: data.name || data.email.split("@")[0],
+        company: data.company,
+      }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Registration failed');
+      throw new Error(error.error || "Registration failed");
     }
 
     const result = await response.json();
-    
+
     // Create user object compatible with existing code
     const user: User = {
       id: result.userId,
       email: result.customer.email,
-      password: '', // Don't store password locally
+      password: "", // Don't store password locally
       name: result.customer.name,
       company: data.company,
       customerId: result.customer.id,
-      role: 'customer',
+      role: "customer",
       emailVerified: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -57,38 +57,41 @@ export async function createUser(data: {
 
     return user;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to create user');
+    throw new Error(error.message || "Failed to create user");
   }
 }
 
 // Login user via SpinHub API
-export async function loginUser(email: string, password: string): Promise<Session> {
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<Session> {
   try {
     const response = await fetch(`${SPINHUB_API_URL}/_auth/login`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         email,
-        password
-      })
+        password,
+      }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Login failed');
+      throw new Error(error.error || "Login failed");
     }
 
     const result = await response.json();
-    
+
     // Create session
     const sessionToken = nanoid(32);
     const session: Session = {
       userId: result.userId || result.customer.id,
       customerId: result.customer.id,
       email: result.customer.email,
-      role: 'customer',
+      role: "customer",
       token: sessionToken,
     };
 
@@ -106,7 +109,7 @@ export async function loginUser(email: string, password: string): Promise<Sessio
 
     return session;
   } catch (error: any) {
-    throw new Error(error.message || 'Login failed');
+    throw new Error(error.message || "Login failed");
   }
 }
 
@@ -130,11 +133,11 @@ export async function verifyApiToken(token: string): Promise<{
 } | null> {
   try {
     const response = await fetch(`${SPINHUB_API_URL}/_auth/verify`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ token })
+      body: JSON.stringify({ token }),
     });
 
     if (!response.ok) {
@@ -149,7 +152,7 @@ export async function verifyApiToken(token: string): Promise<{
     return {
       userId: result.customer.id,
       customerId: result.customer.id,
-      role: 'customer',
+      role: "customer",
     };
   } catch {
     return null;
@@ -159,11 +162,15 @@ export async function verifyApiToken(token: string): Promise<{
 // Magic link functions remain local for now
 export async function createMagicLink(email: string): Promise<string> {
   const token = nanoid(32);
-  
+
   // Store magic link token (expire in 1 hour)
-  await setJson(`magiclink:${token}`, {
-    email,
-  }, 3600);
+  await setJson(
+    `magiclink:${token}`,
+    {
+      email,
+    },
+    3600
+  );
 
   return token;
 }
@@ -178,15 +185,15 @@ export async function verifyMagicLink(token: string): Promise<Session | null> {
   try {
     const tempPassword = nanoid(32);
     const response = await fetch(`${SPINHUB_API_URL}/_auth/register`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         email: data.email,
         password: tempPassword,
-        name: data.email.split('@')[0],
-      })
+        name: data.email.split("@")[0],
+      }),
     });
 
     if (!response.ok) {
@@ -195,20 +202,20 @@ export async function verifyMagicLink(token: string): Promise<Session | null> {
     }
 
     const result = await response.json();
-    
+
     // Create session
     const sessionToken = nanoid(32);
     const session: Session = {
       userId: result.userId || result.customer.id,
       customerId: result.customer.id,
       email: result.customer.email,
-      role: 'customer',
+      role: "customer",
       token: sessionToken,
     };
 
     // Save session
     await setJson(KEYS.session(sessionToken), session, 7 * 24 * 60 * 60);
-    
+
     // Delete magic link token
     await redis.del(`magiclink:${token}`);
 
@@ -219,11 +226,14 @@ export async function verifyMagicLink(token: string): Promise<Session | null> {
 }
 
 // Generate API token
-export async function generateApiToken(userId: string, name: string): Promise<string> {
+export async function generateApiToken(
+  userId: string,
+  name: string
+): Promise<string> {
   // In production, this would call SpinHub to generate a proper API token
   // For now, generate a local token
   const token = nanoid(32);
-  
+
   await setJson(KEYS.apiToken(token), {
     userId,
     name,

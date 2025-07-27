@@ -22,7 +22,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  
+  const [error, setError] = useState<string>("");
+
   // Check if already logged in
   useEffect(() => {
     const authToken = localStorage.getItem("auth-token");
@@ -47,22 +48,23 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
+    setError(""); // Clear any previous errors
 
     try {
       const response = await axios.post("/api/auth/login", data);
-      
+
       if (response.data.success) {
         toast.success("Login successful!");
-        
+
         // Store auth data
         localStorage.setItem("auth-token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
-        
+
         // Always go to dashboard for regular login
         router.push("/dashboard");
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.error || "Invalid email or password");
+      setError(error.response?.data?.error || "Invalid email or password");
     } finally {
       setIsLoading(false);
     }
@@ -70,16 +72,17 @@ export default function LoginPage() {
 
   const handleMagicLink = async () => {
     if (!email) {
-      toast.error("Please enter your email first");
+      setError("Please enter your email first");
       return;
     }
 
     setIsLoading(true);
+    setError(""); // Clear any previous errors
     try {
       await axios.post("/api/auth/magic-link", { email });
       toast.success("Magic link sent! Check your email.");
     } catch (error) {
-      toast.error("Failed to send magic link");
+      setError("Failed to send magic link");
     } finally {
       setIsLoading(false);
     }
@@ -107,13 +110,22 @@ export default function LoginPage() {
           <div className="flex justify-center mb-8">
             <div className="flex items-center space-x-2">
               <Rocket className="h-10 w-10 text-indigo-600" />
-              <span className="text-2xl font-bold text-gray-900">SpinForge</span>
+              <span className="text-2xl font-bold text-gray-900">
+                SpinForge
+              </span>
             </div>
           </div>
 
           <h2 className="text-center text-2xl font-bold text-gray-900 mb-8">
             Welcome back
           </h2>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
@@ -126,9 +138,15 @@ export default function LoginPage() {
                 autoComplete="email"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="you@example.com"
+                onChange={(e) => {
+                  register("email").onChange(e);
+                  if (error) setError(""); // Clear error when user starts typing
+                }}
               />
               {errors.email && (
-                <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-xs text-red-600">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
@@ -143,21 +161,30 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="••••••••"
+                  onChange={(e) => {
+                    register("password").onChange(e);
+                    if (error) setError(""); // Clear error when user starts typing
+                  }}
                 />
                 {errors.password && (
-                  <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
+                  <p className="mt-1 text-xs text-red-600">
+                    {errors.password.message}
+                  </p>
                 )}
               </div>
             ) : (
               <div className="space-y-3">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(true)}
+                  onClick={() => {
+                    setShowPassword(true);
+                    setError(""); // Clear error when switching to password mode
+                  }}
                   className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center"
                 >
                   Continue with password
                 </button>
-                
+
                 <button
                   type="button"
                   onClick={handleMagicLink}
@@ -209,7 +236,9 @@ export default function LoginPage() {
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                <span className="px-2 bg-white text-gray-500">
+                  Or continue with
+                </span>
               </div>
             </div>
 
@@ -226,7 +255,10 @@ export default function LoginPage() {
 
           <p className="mt-8 text-center text-sm text-gray-600">
             Don't have an account?{" "}
-            <Link href="/signup" className="text-indigo-600 hover:text-indigo-500">
+            <Link
+              href="/signup"
+              className="text-indigo-600 hover:text-indigo-500"
+            >
               Sign up
             </Link>
           </p>

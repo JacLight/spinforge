@@ -5,31 +5,36 @@ import axios from "axios";
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = cookies();
-    const authToken = request.headers.get("authorization")?.replace("Bearer ", "") ||
-                     request.headers.get("x-auth-token") || 
-                     cookieStore.get("auth-token")?.value;
-    
+    const authToken =
+      request.headers.get("authorization")?.replace("Bearer ", "") ||
+      request.headers.get("x-auth-token") ||
+      cookieStore.get("auth-token")?.value;
+
     if (!authToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     // Get customer ID from localStorage (passed via header) or cookie
-    const customerId = request.headers.get("x-customer-id") || 
-                      cookieStore.get("customer-id")?.value;
-    
+    const customerId =
+      request.headers.get("x-customer-id") ||
+      cookieStore.get("customer-id")?.value;
+
     if (!customerId) {
       // Customer ID should be in localStorage/headers after login
-      return NextResponse.json({ error: "Customer ID not found. Please log in again." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Customer ID not found. Please log in again." },
+        { status: 401 }
+      );
     }
 
     // Get the SpinForge API URL from environment
-    const apiUrl = process.env.SPINFORGE_API_URL || "http://localhost:9006";
-    
+    const apiUrl = process.env.SPINHUB_API_URL;
+
     // Use customer API endpoint
     try {
       const response = await axios.get(`${apiUrl}/_api/customer/domains`, {
         headers: {
-          "Authorization": `Bearer ${authToken}`,
+          Authorization: `Bearer ${authToken}`,
           "X-Customer-ID": customerId,
         },
       });
@@ -41,11 +46,11 @@ export async function GET(request: NextRequest) {
     }
   } catch (error: any) {
     console.error("Error fetching routes:", error);
-    
+
     if (error.response?.status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     return NextResponse.json(
       { error: "Failed to fetch routes" },
       { status: 500 }

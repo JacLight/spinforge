@@ -14,6 +14,7 @@ export default function CLIAuthPage() {
   const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [error, setError] = useState<string>("");
 
   const returnUrl = searchParams.get("return_url");
   const cliCallback = searchParams.get("callback") === "true";
@@ -30,31 +31,42 @@ export default function CLIAuthPage() {
 
   const generateToken = async () => {
     setIsLoading(true);
+    setError(""); // Clear any previous errors
     try {
-      const response = await axios.post("/api/tokens/generate", {
-        name: `CLI Token - ${new Date().toLocaleString()}`
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("auth-token")}`
+      const response = await axios.post(
+        "/api/tokens/generate",
+        {
+          name: `CLI Token - ${new Date().toLocaleString()}`,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth-token")}`,
+          },
         }
-      });
+      );
 
       setToken(response.data.token);
-      
+
       // If callback URL provided, redirect with token
       if (cliCallback && returnUrl) {
         const callbackUrl = new URL(returnUrl);
-        callbackUrl.searchParams.set('token', response.data.token);
-        callbackUrl.searchParams.set('customerId', response.data.user.customerId);
+        callbackUrl.searchParams.set("token", response.data.token);
+        callbackUrl.searchParams.set(
+          "customerId",
+          response.data.user.customerId
+        );
         if (response.data.user.email) {
-          callbackUrl.searchParams.set('email', response.data.user.email);
+          callbackUrl.searchParams.set("email", response.data.user.email);
         }
-        
+
         // Redirect to CLI callback
         window.location.href = callbackUrl.toString();
       }
-    } catch (error) {
-      toast.error("Failed to generate token. Please try again.");
+    } catch (error: any) {
+      setError(
+        error.response?.data?.error ||
+          "Failed to generate token. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +94,7 @@ export default function CLIAuthPage() {
       generateToken();
     }
   }, [isAuthenticated]);
-  
+
   // Show loading state if callback mode
   if (cliCallback && isAuthenticated && !token) {
     return (
@@ -123,6 +135,13 @@ export default function CLIAuthPage() {
             </p>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            </div>
+          )}
+
           {!isAuthenticated ? (
             <div className="space-y-6">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -141,7 +160,10 @@ export default function CLIAuthPage() {
               <div className="text-center">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{" "}
-                  <Link href="/signup" className="text-indigo-600 hover:text-indigo-500">
+                  <Link
+                    href="/signup"
+                    className="text-indigo-600 hover:text-indigo-500"
+                  >
                     Sign up
                   </Link>
                 </p>
@@ -152,7 +174,9 @@ export default function CLIAuthPage() {
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-                  <span className="ml-3 text-gray-600">Generating token...</span>
+                  <span className="ml-3 text-gray-600">
+                    Generating token...
+                  </span>
                 </div>
               ) : token ? (
                 <div className="space-y-6">
@@ -164,7 +188,8 @@ export default function CLIAuthPage() {
                           Token generated successfully!
                         </p>
                         <p className="text-xs text-green-700 mt-1">
-                          This token will only be shown once. Make sure to copy it.
+                          This token will only be shown once. Make sure to copy
+                          it.
                         </p>
                       </div>
                     </div>
@@ -199,17 +224,21 @@ export default function CLIAuthPage() {
                       <Terminal className="h-5 w-5 mr-2" />
                       Use this token with SpinForge CLI:
                     </h3>
-                    
+
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Option 1: Interactive login</p>
+                        <p className="text-sm text-gray-600 mb-1">
+                          Option 1: Interactive login
+                        </p>
                         <code className="block bg-gray-900 text-green-400 p-3 rounded text-sm">
                           spin login --token {token.substring(0, 20)}...
                         </code>
                       </div>
-                      
+
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Option 2: Environment variable</p>
+                        <p className="text-sm text-gray-600 mb-1">
+                          Option 2: Environment variable
+                        </p>
                         <code className="block bg-gray-900 text-green-400 p-3 rounded text-sm">
                           export SPINFORGE_TOKEN="{token.substring(0, 20)}..."
                         </code>
@@ -225,7 +254,7 @@ export default function CLIAuthPage() {
                       <Key className="h-4 w-4 mr-1" />
                       Generate New Token
                     </button>
-                    
+
                     <Link
                       href="/dashboard/settings"
                       className="text-sm text-gray-600 hover:text-gray-900"
@@ -252,7 +281,10 @@ export default function CLIAuthPage() {
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
             Need help? Check out our{" "}
-            <Link href="/docs/cli/auth" className="text-indigo-600 hover:text-indigo-500">
+            <Link
+              href="/docs/cli/auth"
+              className="text-indigo-600 hover:text-indigo-500"
+            >
               CLI authentication docs
             </Link>
           </p>

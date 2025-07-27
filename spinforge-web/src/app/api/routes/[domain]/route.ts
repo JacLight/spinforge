@@ -8,22 +8,23 @@ export async function DELETE(
 ) {
   try {
     const cookieStore = cookies();
-    const authToken = request.headers.get("authorization")?.replace("Bearer ", "") ||
-                     request.headers.get("x-auth-token") || 
-                     cookieStore.get("auth-token")?.value;
-    
+    const authToken =
+      request.headers.get("authorization")?.replace("Bearer ", "") ||
+      request.headers.get("x-auth-token") ||
+      cookieStore.get("auth-token")?.value;
+
     if (!authToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const apiUrl = process.env.SPINFORGE_API_URL || "http://localhost:9006";
-    
+    const apiUrl = process.env.SPINHUB_API_URL;
+
     // Forward the request to the SpinForge API
     const response = await axios.delete(
       `${apiUrl}/_admin/routes/${params.domain}`,
       {
         headers: {
-          "Authorization": `Bearer ${authToken}`,
+          Authorization: `Bearer ${authToken}`,
           "X-Admin-Token": authToken,
         },
       }
@@ -32,15 +33,15 @@ export async function DELETE(
     return NextResponse.json(response.data);
   } catch (error: any) {
     console.error("Error deleting route:", error);
-    
+
     if (error.response?.status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     if (error.response?.status === 404) {
       return NextResponse.json({ error: "Route not found" }, { status: 404 });
     }
-    
+
     return NextResponse.json(
       { error: "Failed to delete route" },
       { status: 500 }

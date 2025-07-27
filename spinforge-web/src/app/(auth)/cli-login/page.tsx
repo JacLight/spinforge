@@ -21,8 +21,9 @@ export default function CLILoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>("");
   const returnUrl = searchParams.get("return");
-  
+
   // Check if already logged in
   useEffect(() => {
     const authToken = localStorage.getItem("auth-token");
@@ -42,6 +43,7 @@ export default function CLILoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
+    setError(""); // Clear any previous errors
 
     try {
       const response = await axios.post("/api/auth/login", data);
@@ -50,7 +52,7 @@ export default function CLILoginPage() {
         // Store auth data
         localStorage.setItem("auth-token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
-        
+
         // Redirect to CLI auth page
         if (returnUrl) {
           router.push(returnUrl);
@@ -59,7 +61,7 @@ export default function CLILoginPage() {
         }
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.error || "Invalid email or password");
+      setError(error.response?.data?.error || "Invalid email or password");
     } finally {
       setIsLoading(false);
     }
@@ -73,9 +75,20 @@ export default function CLILoginPage() {
             <div className="mx-auto h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
               <Terminal className="h-6 w-6 text-indigo-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">SpinForge CLI Login</h1>
-            <p className="text-gray-600 mt-2">Sign in to authenticate your CLI</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              SpinForge CLI Login
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Sign in to authenticate your CLI
+            </p>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
@@ -87,9 +100,15 @@ export default function CLILoginPage() {
                 type="email"
                 placeholder="you@example.com"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                onChange={(e) => {
+                  register("email").onChange(e);
+                  if (error) setError(""); // Clear error when user starts typing
+                }}
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
@@ -102,9 +121,15 @@ export default function CLILoginPage() {
                 type="password"
                 placeholder="••••••••"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                onChange={(e) => {
+                  register("password").onChange(e);
+                  if (error) setError(""); // Clear error when user starts typing
+                }}
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
@@ -126,7 +151,10 @@ export default function CLILoginPage() {
 
           <div className="mt-6 text-center text-sm text-gray-600">
             Don't have an account?{" "}
-            <Link href="/signup" className="text-indigo-600 hover:text-indigo-500">
+            <Link
+              href="/signup"
+              className="text-indigo-600 hover:text-indigo-500"
+            >
               Sign up
             </Link>
           </div>

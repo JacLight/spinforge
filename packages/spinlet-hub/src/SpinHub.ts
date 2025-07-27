@@ -82,7 +82,7 @@ export class SpinHub {
       this.routeManager,
       this.telemetry
     );
-    
+
     // Initialize admin and customer services
     this.adminService = new AdminService(
       this.redis,
@@ -192,7 +192,7 @@ export class SpinHub {
     this.app.post("/_admin/login", async (req: Request, res: Response) => {
       try {
         const { username, password } = req.body;
-        
+
         if (!username || !password) {
           res.status(400).json({ error: "Username and password required" });
           return;
@@ -218,29 +218,36 @@ export class SpinHub {
     this.app.post("/_auth/register", async (req: Request, res: Response) => {
       try {
         const { email, password, name, company } = req.body;
-        
+
         if (!email || !password || !name) {
-          res.status(400).json({ error: "Email, password, and name are required" });
+          res
+            .status(400)
+            .json({ error: "Email, password, and name are required" });
           return;
         }
 
         // Check if customer already exists
         const existing = await this.customerService.getCustomerByEmail(email);
         if (existing) {
-          res.status(409).json({ error: "Customer with this email already exists" });
+          res
+            .status(409)
+            .json({ error: "Customer with this email already exists" });
           return;
         }
 
         // Create customer in spinforge-web format
-        const { customer, userId } = await this.customerService.createWebCustomer({
-          email,
-          password,
-          name,
-          company
-        });
+        const { customer, userId } =
+          await this.customerService.createWebCustomer({
+            email,
+            password,
+            name,
+            company,
+          });
 
         // Generate auth token
-        const token = Buffer.from(`${customer.id}:${Date.now()}`).toString('base64');
+        const token = Buffer.from(`${customer.id}:${Date.now()}`).toString(
+          "base64"
+        );
         await this.redis.setex(
           `auth:token:${token}`,
           86400, // 24 hour expiry
@@ -253,10 +260,10 @@ export class SpinHub {
             id: customer.id,
             email: customer.email,
             name: customer.name,
-            customerId: customer.id
+            customerId: customer.id,
           },
           token,
-          userId
+          userId,
         });
       } catch (error) {
         this.logger.error("Customer registration error", { error });
@@ -267,25 +274,34 @@ export class SpinHub {
     this.app.post("/_auth/login", async (req: Request, res: Response) => {
       try {
         const { email, password } = req.body;
-        
+
         if (!email || !password) {
           res.status(400).json({ error: "Email and password are required" });
           return;
         }
 
         // Authenticate customer
-        const customer = await this.customerService.authenticateWebCustomer(email, password);
+        const customer = await this.customerService.authenticateWebCustomer(
+          email,
+          password
+        );
         if (!customer) {
           res.status(401).json({ error: "Invalid credentials" });
           return;
         }
 
         // Generate auth token
-        const token = Buffer.from(`${customer.id}:${Date.now()}`).toString('base64');
+        const token = Buffer.from(`${customer.id}:${Date.now()}`).toString(
+          "base64"
+        );
         await this.redis.setex(
           `auth:token:${token}`,
           86400, // 24 hour expiry
-          JSON.stringify({ customerId: customer.id, email, userId: customer.metadata?.userId })
+          JSON.stringify({
+            customerId: customer.id,
+            email,
+            userId: customer.metadata?.userId,
+          })
         );
 
         res.json({
@@ -294,10 +310,10 @@ export class SpinHub {
             id: customer.id,
             email: customer.email,
             name: customer.name,
-            customerId: customer.id
+            customerId: customer.id,
           },
           token,
-          userId: customer.metadata?.userId
+          userId: customer.metadata?.userId,
         });
       } catch (error) {
         this.logger.error("Customer login error", { error });
@@ -308,7 +324,7 @@ export class SpinHub {
     this.app.post("/_auth/verify", async (req: Request, res: Response) => {
       try {
         const { token } = req.body;
-        
+
         if (!token) {
           res.status(400).json({ error: "Token is required" });
           return;
@@ -323,7 +339,7 @@ export class SpinHub {
 
         const { customerId, email } = JSON.parse(tokenData);
         const customer = await this.customerService.getCustomer(customerId);
-        
+
         if (!customer) {
           res.status(401).json({ error: "Customer not found" });
           return;
@@ -334,8 +350,8 @@ export class SpinHub {
           customer: {
             id: customer.id,
             email: customer.email,
-            name: customer.name
-          }
+            name: customer.name,
+          },
         });
       } catch (error) {
         this.logger.error("Token verification error", { error });
@@ -525,15 +541,15 @@ export class SpinHub {
 
     // Admin API routes (should be protected in production)
     this.setupAdminRoutes();
-    
+
     // Mount admin router to the app
     if (this.adminRouter) {
-      this.app.use('/_admin', this.adminRouter);
+      this.app.use("/_admin", this.adminRouter);
     }
 
     // IMPORTANT: Proxy handler must be registered LAST, after all other routes
     // Otherwise it will catch all requests before they reach specific route handlers
-    
+
     // Delay registering the proxy catch-all handler
     // We'll do this at the end of setupRoutes()
 
@@ -585,33 +601,38 @@ export class SpinHub {
     this.adminRouter = adminRouter;
 
     // Admin authentication middleware - Validate admin token for all requests
-    adminRouter.use(async (req: Request, res: Response, next: express.NextFunction) => {
-      // Skip authentication for login endpoint
-      if (req.path === '/login') {
+    adminRouter.use(
+      async (req: Request, res: Response, next: express.NextFunction) => {
+        // Skip authentication for login endpoint
+        if (req.path === "/login") {
+          next();
+          return;
+        }
+
+        // Always require admin token
+        const adminToken = req.headers["x-admin-token"] as string;
+        const authToken =
+          req.headers["authorization"]?.replace("Bearer ", "") || adminToken;
+
+        if (!authToken) {
+          res
+            .status(401)
+            .json({ error: "Unauthorized - Admin token required" });
+          return;
+        }
+
+        // Validate token using AdminService
+        const admin = await this.adminService.validateToken(authToken);
+        if (!admin) {
+          res.status(401).json({ error: "Invalid or expired admin token" });
+          return;
+        }
+
+        // Attach admin info to request
+        (req as any).admin = admin;
         next();
-        return;
       }
-      
-      // Always require admin token
-      const adminToken = req.headers['x-admin-token'] as string;
-      const authToken = req.headers['authorization']?.replace('Bearer ', '') || adminToken;
-      
-      if (!authToken) {
-        res.status(401).json({ error: "Unauthorized - Admin token required" });
-        return;
-      }
-      
-      // Validate token using AdminService
-      const admin = await this.adminService.validateToken(authToken);
-      if (!admin) {
-        res.status(401).json({ error: "Invalid or expired admin token" });
-        return;
-      }
-      
-      // Attach admin info to request
-      (req as any).admin = admin;
-      next();
-    });
+    );
 
     // Per-customer rate limiting for admin routes
     const customerLimiter = rateLimit({
@@ -679,7 +700,7 @@ export class SpinHub {
         try {
           const domain = req.params.domain;
           this.logger.info(`Deleting route for domain: ${domain}`);
-          
+
           const route = await this.routeManager.getRoute(domain);
 
           if (!route) {
@@ -697,10 +718,12 @@ export class SpinHub {
               const updatedDomains = spinletState.domains.filter(
                 (d) => d !== domain
               );
-              
+
               if (updatedDomains.length === 0) {
                 // This was the last domain, stop the spinlet
-                this.logger.info(`Stopping spinlet ${route.spinletId} as it has no more domains`);
+                this.logger.info(
+                  `Stopping spinlet ${route.spinletId} as it has no more domains`
+                );
                 await this.spinletManager.stop(route.spinletId);
               } else {
                 // Update the domains list
@@ -713,13 +736,15 @@ export class SpinHub {
 
             // Remove deployment folder if it exists
             try {
-              const deploymentName = domain.replace(/\./g, '-');
+              const deploymentName = domain.replace(/\./g, "-");
               const deploymentPath = `/deployments/${deploymentName}`;
               await fs.rm(deploymentPath, { recursive: true, force: true });
               this.logger.info(`Removed deployment folder: ${deploymentPath}`);
             } catch (error) {
               // Deployment folder might not exist, which is fine
-              this.logger.debug(`Deployment folder removal failed (might not exist): ${error}`);
+              this.logger.debug(
+                `Deployment folder removal failed (might not exist): ${error}`
+              );
             }
           }
 
@@ -727,7 +752,10 @@ export class SpinHub {
           this.logger.info(`Successfully removed route for domain: ${domain}`);
           res.json({ success: true });
         } catch (error) {
-          this.logger.error("Failed to remove route", { error, domain: req.params.domain });
+          this.logger.error("Failed to remove route", {
+            error,
+            domain: req.params.domain,
+          });
           res.status(500).json({ error: "Failed to remove route" });
         }
       }
@@ -744,7 +772,7 @@ export class SpinHub {
         // Group routes by spinletId to find all domains for each application
         const spinletDomainsMap = new Map<string, string[]>();
         const validRoutes = routes.filter(Boolean) as any[];
-        
+
         for (const route of validRoutes) {
           if (!spinletDomainsMap.has(route.spinletId)) {
             spinletDomainsMap.set(route.spinletId, []);
@@ -753,9 +781,9 @@ export class SpinHub {
         }
 
         // Enhance each route with all associated domains
-        const enhancedRoutes = validRoutes.map(route => ({
+        const enhancedRoutes = validRoutes.map((route) => ({
           ...route,
-          allDomains: spinletDomainsMap.get(route.spinletId) || [route.domain]
+          allDomains: spinletDomainsMap.get(route.spinletId) || [route.domain],
         }));
 
         res.json(enhancedRoutes);
@@ -781,7 +809,7 @@ export class SpinHub {
           // Get all domains for this spinlet
           const allDomains = await this.redis.hkeys("spinforge:routes");
           const spinletDomains: string[] = [];
-          
+
           for (const d of allDomains) {
             const r = await this.routeManager.getRoute(d);
             if (r && r.spinletId === route.spinletId) {
@@ -820,7 +848,10 @@ export class SpinHub {
               servicePath:
                 spinletState.servicePath ||
                 `localhost:${spinletState.port || 3000}`,
-              domains: spinletDomains.length > 0 ? spinletDomains : (spinletState.domains || [domain]),
+              domains:
+                spinletDomains.length > 0
+                  ? spinletDomains
+                  : spinletState.domains || [domain],
               state:
                 spinletState.state === "stopped" && spinletState.memory > 0
                   ? "running"
@@ -1013,49 +1044,60 @@ export class SpinHub {
         try {
           const { domain } = req.params;
           const { newDomain } = req.body;
-          
+
           if (!newDomain) {
             res.status(400).json({ error: "New domain is required" });
             return;
           }
-          
+
           // Check if new domain already exists
           const existingRoute = await this.routeManager.getRoute(newDomain);
           if (existingRoute) {
             res.status(409).json({ error: "Domain already exists" });
             return;
           }
-          
+
           // Get the original route
           const route = await this.routeManager.getRoute(domain);
           if (!route) {
             res.status(404).json({ error: "Route not found" });
             return;
           }
-          
+
           // Create new route with same configuration
           await this.routeManager.addRoute({
             ...route,
-            domain: newDomain
+            domain: newDomain,
           });
-          
+
           // Update spinlet domains if it's not static/reverse-proxy
-          if (route.framework !== 'static' && route.framework !== 'reverse-proxy') {
+          if (
+            route.framework !== "static" &&
+            route.framework !== "reverse-proxy"
+          ) {
             const allDomains = await this.redis.hkeys("spinforge:routes");
             const spinletDomains: string[] = [];
-            
+
             for (const d of allDomains) {
               const r = await this.routeManager.getRoute(d);
               if (r && r.spinletId === route.spinletId) {
                 spinletDomains.push(d);
               }
             }
-            
-            await this.spinletManager.updateDomains(route.spinletId, spinletDomains);
+
+            await this.spinletManager.updateDomains(
+              route.spinletId,
+              spinletDomains
+            );
           }
-          
-          this.logger.info(`Added domain ${newDomain} to application ${domain}`);
-          res.json({ success: true, message: `Domain ${newDomain} added successfully` });
+
+          this.logger.info(
+            `Added domain ${newDomain} to application ${domain}`
+          );
+          res.json({
+            success: true,
+            message: `Domain ${newDomain} added successfully`,
+          });
         } catch (error) {
           this.logger.error("Failed to add domain", { error });
           res.status(500).json({ error: "Failed to add domain" });
@@ -1069,49 +1111,68 @@ export class SpinHub {
       async (req: Request, res: Response) => {
         try {
           const { domain, domainToRemove } = req.params;
-          
+
           // Get the route to verify it exists
           const route = await this.routeManager.getRoute(domain);
           if (!route) {
             res.status(404).json({ error: "Route not found" });
             return;
           }
-          
+
           // Check if the domain to remove exists
-          const routeToRemove = await this.routeManager.getRoute(domainToRemove);
+          const routeToRemove =
+            await this.routeManager.getRoute(domainToRemove);
           if (!routeToRemove || routeToRemove.spinletId !== route.spinletId) {
-            res.status(404).json({ error: "Domain not found or doesn't belong to this application" });
+            res.status(404).json({
+              error: "Domain not found or doesn't belong to this application",
+            });
             return;
           }
-          
+
           // Get all domains for this spinlet
           const allDomains = await this.redis.hkeys("spinforge:routes");
           const spinletDomains: string[] = [];
-          
+
           for (const d of allDomains) {
             const r = await this.routeManager.getRoute(d);
             if (r && r.spinletId === route.spinletId) {
               spinletDomains.push(d);
             }
           }
-          
+
           // Don't allow removing the last domain
           if (spinletDomains.length <= 1) {
-            res.status(400).json({ error: "Cannot remove the last domain. Delete the application instead." });
+            res.status(400).json({
+              error:
+                "Cannot remove the last domain. Delete the application instead.",
+            });
             return;
           }
-          
+
           // Remove the route for this domain
           await this.routeManager.removeRoute(domainToRemove);
-          
+
           // Update spinlet domains if it's not static/reverse-proxy
-          if (route.framework !== 'static' && route.framework !== 'reverse-proxy') {
-            const updatedDomains = spinletDomains.filter(d => d !== domainToRemove);
-            await this.spinletManager.updateDomains(route.spinletId, updatedDomains);
+          if (
+            route.framework !== "static" &&
+            route.framework !== "reverse-proxy"
+          ) {
+            const updatedDomains = spinletDomains.filter(
+              (d) => d !== domainToRemove
+            );
+            await this.spinletManager.updateDomains(
+              route.spinletId,
+              updatedDomains
+            );
           }
-          
-          this.logger.info(`Removed domain ${domainToRemove} from application ${domain}`);
-          res.json({ success: true, message: `Domain ${domainToRemove} removed successfully` });
+
+          this.logger.info(
+            `Removed domain ${domainToRemove} from application ${domain}`
+          );
+          res.json({
+            success: true,
+            message: `Domain ${domainToRemove} removed successfully`,
+          });
         } catch (error) {
           this.logger.error("Failed to remove domain", { error });
           res.status(500).json({ error: "Failed to remove domain" });
@@ -1169,10 +1230,13 @@ export class SpinHub {
           }
 
           // Static and reverse-proxy don't have spinlets to restart
-          if ((route.framework as string) === 'static' || (route.framework as string) === 'reverse-proxy') {
-            res.json({ 
-              success: false, 
-              message: `Cannot restart ${route.framework} deployment - no spinlet process` 
+          if (
+            (route.framework as string) === "static" ||
+            (route.framework as string) === "reverse-proxy"
+          ) {
+            res.json({
+              success: false,
+              message: `Cannot restart ${route.framework} deployment - no spinlet process`,
             });
             return;
           }
@@ -1181,7 +1245,10 @@ export class SpinHub {
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
           // Check if framework supports spinlets
-          if ((route.framework as string) !== 'static' && (route.framework as string) !== 'reverse-proxy') {
+          if (
+            (route.framework as string) !== "static" &&
+            (route.framework as string) !== "reverse-proxy"
+          ) {
             await this.spinletManager.spawn({
               spinletId: route.spinletId,
               customerId: route.customerId,
@@ -1314,9 +1381,10 @@ export class SpinHub {
       async (req: Request, res: Response) => {
         try {
           const pathOrDomain = req.params.pathOrDomain;
-          const state = await this.spinletManager.getStateByServicePathOrDomain(
-            pathOrDomain
-          );
+          const state =
+            await this.spinletManager.getStateByServicePathOrDomain(
+              pathOrDomain
+            );
           if (!state) {
             res.status(404).json({ error: "Spinlet not found" });
             return;
@@ -1341,7 +1409,10 @@ export class SpinHub {
           }
 
           // Check if framework supports spinlets
-          if ((route.framework as string) !== 'static' && (route.framework as string) !== 'reverse-proxy') {
+          if (
+            (route.framework as string) !== "static" &&
+            (route.framework as string) !== "reverse-proxy"
+          ) {
             await this.spinletManager.spawn({
               spinletId: route.spinletId,
               customerId: route.customerId,
@@ -1384,7 +1455,10 @@ export class SpinHub {
           await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief pause
 
           // Check if framework supports spinlets
-          if ((route.framework as string) !== 'static' && (route.framework as string) !== 'reverse-proxy') {
+          if (
+            (route.framework as string) !== "static" &&
+            (route.framework as string) !== "reverse-proxy"
+          ) {
             await this.spinletManager.spawn({
               spinletId: route.spinletId,
               customerId: route.customerId,
@@ -1480,7 +1554,10 @@ export class SpinHub {
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
           // Check if framework supports spinlets
-          if ((route.framework as string) !== 'static' && (route.framework as string) !== 'reverse-proxy') {
+          if (
+            (route.framework as string) !== "static" &&
+            (route.framework as string) !== "reverse-proxy"
+          ) {
             await this.spinletManager.spawn({
               spinletId: route.spinletId,
               customerId: route.customerId,
@@ -1567,9 +1644,12 @@ export class SpinHub {
 
               // Get the route to check framework type
               const allDomains = await this.redis.hkeys("spinforge:routes");
-              let framework = 'node'; // default
+              let framework = "node"; // default
               for (const domain of allDomains) {
-                const routeData = await this.redis.hget("spinforge:routes", domain);
+                const routeData = await this.redis.hget(
+                  "spinforge:routes",
+                  domain
+                );
                 if (routeData) {
                   const route = JSON.parse(routeData);
                   if (route.spinletId === spinletId && route.framework) {
@@ -1578,9 +1658,9 @@ export class SpinHub {
                   }
                 }
               }
-              
+
               // Only check health endpoints for non-static frameworks
-              if (framework !== 'static') {
+              if (framework !== "static") {
                 // Check common health endpoints
                 const healthEndpoints = [
                   "/health",
@@ -1876,12 +1956,14 @@ export class SpinHub {
       try {
         const currentAdmin = (req as any).admin;
         if (!currentAdmin.isSuperAdmin) {
-          res.status(403).json({ error: "Only super admins can create admin users" });
+          res
+            .status(403)
+            .json({ error: "Only super admins can create admin users" });
           return;
         }
 
         const { username, password, email, isSuperAdmin } = req.body;
-        
+
         if (!username || !password) {
           res.status(400).json({ error: "Username and password required" });
           return;
@@ -1905,11 +1987,16 @@ export class SpinHub {
       try {
         const currentAdmin = (req as any).admin;
         if (!currentAdmin.isSuperAdmin && currentAdmin.id !== req.params.id) {
-          res.status(403).json({ error: "Can only update own profile or be super admin" });
+          res
+            .status(403)
+            .json({ error: "Can only update own profile or be super admin" });
           return;
         }
 
-        const admin = await this.adminService.updateAdmin(req.params.id, req.body);
+        const admin = await this.adminService.updateAdmin(
+          req.params.id,
+          req.body
+        );
         if (!admin) {
           res.status(404).json({ error: "Admin not found" });
           return;
@@ -1926,7 +2013,9 @@ export class SpinHub {
       try {
         const currentAdmin = (req as any).admin;
         if (!currentAdmin.isSuperAdmin) {
-          res.status(403).json({ error: "Only super admins can delete admin users" });
+          res
+            .status(403)
+            .json({ error: "Only super admins can delete admin users" });
           return;
         }
 
@@ -1953,7 +2042,12 @@ export class SpinHub {
       try {
         const { isActive, limit, offset } = req.query;
         const result = await this.customerService.getAllCustomers({
-          isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+          isActive:
+            isActive === "true"
+              ? true
+              : isActive === "false"
+                ? false
+                : undefined,
           limit: limit ? parseInt(limit as string) : undefined,
           offset: offset ? parseInt(offset as string) : undefined,
         });
@@ -1972,7 +2066,9 @@ export class SpinHub {
           return;
         }
 
-        const stats = await this.customerService.getCustomerStats(req.params.id);
+        const stats = await this.customerService.getCustomerStats(
+          req.params.id
+        );
         res.json({ ...customer, stats });
       } catch (error) {
         this.logger.error("Failed to get customer", { error });
@@ -1983,7 +2079,7 @@ export class SpinHub {
     adminRouter.post("/customers", async (req: Request, res: Response) => {
       try {
         const { name, email, metadata, limits } = req.body;
-        
+
         if (!name || !email) {
           res.status(400).json({ error: "Name and email required" });
           return;
@@ -1992,7 +2088,9 @@ export class SpinHub {
         // Check if email already exists
         const existing = await this.customerService.getCustomerByEmail(email);
         if (existing) {
-          res.status(400).json({ error: "Customer with this email already exists" });
+          res
+            .status(400)
+            .json({ error: "Customer with this email already exists" });
           return;
         }
 
@@ -2012,7 +2110,10 @@ export class SpinHub {
 
     adminRouter.put("/customers/:id", async (req: Request, res: Response) => {
       try {
-        const customer = await this.customerService.updateCustomer(req.params.id, req.body);
+        const customer = await this.customerService.updateCustomer(
+          req.params.id,
+          req.body
+        );
         if (!customer) {
           res.status(404).json({ error: "Customer not found" });
           return;
@@ -2025,20 +2126,25 @@ export class SpinHub {
       }
     });
 
-    adminRouter.delete("/customers/:id", async (req: Request, res: Response) => {
-      try {
-        const deleted = await this.customerService.deleteCustomer(req.params.id);
-        if (!deleted) {
-          res.status(404).json({ error: "Customer not found" });
-          return;
-        }
+    adminRouter.delete(
+      "/customers/:id",
+      async (req: Request, res: Response) => {
+        try {
+          const deleted = await this.customerService.deleteCustomer(
+            req.params.id
+          );
+          if (!deleted) {
+            res.status(404).json({ error: "Customer not found" });
+            return;
+          }
 
-        res.json({ success: true });
-      } catch (error) {
-        this.logger.error("Failed to delete customer", { error });
-        res.status(500).json({ error: "Failed to delete customer" });
+          res.json({ success: true });
+        } catch (error) {
+          this.logger.error("Failed to delete customer", { error });
+          res.status(500).json({ error: "Failed to delete customer" });
+        }
       }
-    });
+    );
 
     // Platform configuration endpoints
     adminRouter.get("/config", async (req: Request, res: Response) => {
@@ -2202,15 +2308,17 @@ export class SpinHub {
         // Clean up orphaned routes
         const allDomains = await this.redis.hkeys("spinforge:routes");
         let cleaned = 0;
-        
+
         for (const domain of allDomains) {
           const routeData = await this.redis.hget("spinforge:routes", domain);
           if (!routeData) continue;
-          
+
           const route = JSON.parse(routeData);
-          
+
           // Check if spinlet exists
-          const spinletState = await this.spinletManager.getState(route.spinletId);
+          const spinletState = await this.spinletManager.getState(
+            route.spinletId
+          );
           if (!spinletState) {
             // No spinlet, remove route
             await this.routeManager.removeRoute(domain);
@@ -2218,7 +2326,7 @@ export class SpinHub {
             this.logger.info(`Cleaned orphaned route: ${domain}`);
           }
         }
-        
+
         res.json({ success: true, cleaned });
       } catch (error) {
         this.logger.error("Failed to cleanup", { error });
@@ -2240,31 +2348,35 @@ export class SpinHub {
       filename: (req, file, cb) => {
         // Keep original filename
         cb(null, file.originalname);
-      }
+      },
     });
 
-    const upload = multer({ 
+    const upload = multer({
       storage,
       limits: {
-        fileSize: 500 * 1024 * 1024 // 500MB max
+        fileSize: 500 * 1024 * 1024, // 500MB max
       },
       fileFilter: (req, file, cb) => {
         // Accept archives (zip, tar, tar.gz, tgz)
-        const allowedExtensions = ['.zip', '.tar', '.tar.gz', '.tgz'];
+        const allowedExtensions = [".zip", ".tar", ".tar.gz", ".tgz"];
         const ext = path.extname(file.originalname).toLowerCase();
-        if (allowedExtensions.includes(ext) || 
-            file.originalname.toLowerCase().endsWith('.tar.gz')) {
+        if (
+          allowedExtensions.includes(ext) ||
+          file.originalname.toLowerCase().endsWith(".tar.gz")
+        ) {
           cb(null, true);
         } else {
-          cb(new Error('Only archive files (zip, tar, tar.gz, tgz) are allowed'));
+          cb(
+            new Error("Only archive files (zip, tar, tar.gz, tgz) are allowed")
+          );
         }
-      }
+      },
     });
 
     // Deployment upload endpoint
     adminRouter.post(
       "/deployments/upload",
-      upload.single('deployment'),
+      upload.single("deployment"),
       async (req: Request, res: Response) => {
         try {
           if (!req.file) {
@@ -2278,16 +2390,22 @@ export class SpinHub {
           // Trigger hot deployment watcher to process the uploaded file
           if (this.hotDeploymentWatcher) {
             // Process asynchronously - don't wait for deployment to complete
-            this.hotDeploymentWatcher.processUploadedDeployment(filePath).catch(error => {
-              this.logger.error(`Background deployment processing failed for ${filePath}`, { error });
-            });
+            this.hotDeploymentWatcher
+              .processUploadedDeployment(filePath)
+              .catch((error) => {
+                this.logger.error(
+                  `Background deployment processing failed for ${filePath}`,
+                  { error }
+                );
+              });
           }
 
-          res.json({ 
-            success: true, 
+          res.json({
+            success: true,
             filename: req.file.filename,
             size: req.file.size,
-            message: "Deployment uploaded successfully. Processing will begin automatically."
+            message:
+              "Deployment uploaded successfully. Processing will begin automatically.",
           });
         } catch (error) {
           this.logger.error("Failed to upload deployment", { error });
@@ -2378,7 +2496,7 @@ export class SpinHub {
         this.adminRouter.use(this.deploymentAPI.getRouter());
         this.logger.info("Deployment API routes added to admin router");
       }
-      
+
       // Initialize Customer API
       try {
         this.customerAPI = new CustomerAPI(
@@ -2387,14 +2505,14 @@ export class SpinHub {
           this.redis,
           this.deploymentAPI
         );
-        
+
         // Mount customer API router AFTER it's created
-        this.app.use('/_api/customer', this.customerAPI.getRouter());
+        this.app.use("/_api/customer", this.customerAPI.getRouter());
         this.logger.info("Customer API mounted at /_api/customer");
       } catch (error) {
         this.logger.error("Failed to initialize Customer API", { error });
       }
-      
+
       // Register the proxy handler LAST, after all other routes
       this.registerProxyHandler();
 
@@ -2411,17 +2529,17 @@ export class SpinHub {
     try {
       // Get all existing routes
       const routes = await this.routeManager.getAllRoutes();
-      
+
       for (const route of routes) {
         if (route.customerId) {
           // Ensure customer exists for this route
           await this.customerService.ensureCustomerExists(route.customerId);
         }
       }
-      
+
       this.logger.info(`Migrated ${routes.length} routes to customer system`);
     } catch (error) {
-      this.logger.error('Failed to migrate existing data', { error });
+      this.logger.error("Failed to migrate existing data", { error });
     }
   }
 
@@ -2452,7 +2570,9 @@ export class SpinHub {
   }
 
   // Helper method to get route by spinlet ID
-  private async getRouteBySpinletId(spinletId: string): Promise<RouteConfig | null> {
+  private async getRouteBySpinletId(
+    spinletId: string
+  ): Promise<RouteConfig | null> {
     const allDomains = await this.redis.hkeys("spinforge:routes");
     for (const domain of allDomains) {
       const route = await this.routeManager.getRoute(domain);
