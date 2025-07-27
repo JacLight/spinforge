@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { createUser, getUserByEmail } from "@/lib/auth-simple";
+import { createUser, getUserByEmail } from "@/lib/auth-spinhub";
 import { redis, KEYS, setJson, getJson } from "@/lib/redis";
 import { nanoid } from "nanoid";
 

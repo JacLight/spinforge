@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../services/api";
+import { api, RouteDetails, SpinletLogs, CommandResult } from "../services/api";
+import { config } from "../config/environment";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -52,14 +53,14 @@ export default function ApplicationDetail() {
     data: routeDetails,
     isLoading,
     error,
-  } = useQuery({
+  } = useQuery<RouteDetails>({
     queryKey: ["route-details", domain],
     queryFn: () => api.getRouteDetails(domain!),
     refetchInterval: 5000,
     retry: 2,
   });
 
-  const { data: logs } = useQuery({
+  const { data: logs } = useQuery<SpinletLogs>({
     queryKey: ["spinlet-logs", routeDetails?.spinlet?.spinletId],
     queryFn: () => api.getSpinletLogs(routeDetails?.spinlet?.spinletId || ""),
     enabled: !!routeDetails?.spinlet?.spinletId && activeTab === "logs",
@@ -163,7 +164,7 @@ export default function ApplicationDetail() {
 
   const { route, spinlet, metrics, health } = routeDetails;
   const spinletState = spinlet?.state;
-  const isRunning = spinletState?.state === "running";
+  const isRunning = spinletState === "running";
   const isStaticOrProxy = route.framework === 'static' || route.framework === 'reverse-proxy';
 
   const formatUptime = (seconds: number) => {
@@ -189,10 +190,7 @@ export default function ApplicationDetail() {
     setDiagLoading(true);
     setDiag(null);
     try {
-      const response = await fetch(
-        `/_admin/spinlets/${routeDetails.spinlet.spinletId}/health`
-      );
-      const data = await response.json();
+      const data = await api.getSpinletHealth(routeDetails.spinlet.spinletId);
       setDiag(data);
     } catch (error) {
       setDiag({
@@ -347,7 +345,7 @@ export default function ApplicationDetail() {
                             isRunning ? "text-green-700" : "text-red-700"
                           }`}
                         >
-                          {spinletState?.state || "Unknown"}
+                          {spinletState || "Unknown"}
                         </span>
                       </>
                     )}
@@ -359,9 +357,9 @@ export default function ApplicationDetail() {
                   <p className="font-medium mt-1">
                     {isStaticOrProxy
                       ? "N/A"
-                      : spinletState?.startTime
+                      : spinlet?.startTime
                       ? formatUptime(
-                          (Date.now() - spinletState.startTime) / 1000
+                          (Date.now() - spinlet.startTime) / 1000
                         )
                       : "-"}
                   </p>
@@ -370,14 +368,14 @@ export default function ApplicationDetail() {
                 <div>
                   <p className="text-sm text-gray-500">Requests</p>
                   <p className="font-medium mt-1">
-                    {isStaticOrProxy ? "N/A" : spinletState?.requests || 0}
+                    {isStaticOrProxy ? "N/A" : spinlet?.requests || 0}
                   </p>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-500">Errors</p>
                   <p className="font-medium mt-1 text-red-600">
-                    {isStaticOrProxy ? "N/A" : spinletState?.errors || 0}
+                    {isStaticOrProxy ? "N/A" : spinlet?.errors || 0}
                   </p>
                 </div>
               </div>
@@ -391,7 +389,7 @@ export default function ApplicationDetail() {
                 <div>
                   <p className="text-sm text-gray-500 mb-2">Public Domains</p>
                   <div className="space-y-2">
-                    {spinletState?.domains?.map((d) => (
+                    {spinlet?.domains?.map((d) => (
                       <div
                         key={d}
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -408,7 +406,7 @@ export default function ApplicationDetail() {
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </div>
-                        {spinletState?.domains?.length > 1 && (
+                        {spinlet?.domains?.length > 1 && (
                           <button
                             onClick={() => removeDomainMutation.mutate(d)}
                             className="text-red-600 hover:text-red-800"
@@ -474,12 +472,12 @@ export default function ApplicationDetail() {
                     <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                       <Server className="h-5 w-5 text-gray-400" />
                       <a
-                        href={`http://${spinletState?.servicePath}`}
+                        href={`http://${spinlet?.servicePath}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                       >
-                        <span>{spinletState?.servicePath}</span>
+                        <span>{spinlet?.servicePath}</span>
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </div>
@@ -519,12 +517,12 @@ export default function ApplicationDetail() {
                       <div className="flex items-center space-x-3">
                         <Server className="h-5 w-5 text-gray-500" />
                         <a
-                          href={`http://localhost:9004`}
+                          href={config.SPINHUB_URL}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-gray-700 hover:text-gray-900 font-mono text-sm flex items-center space-x-1"
                         >
-                          <span>http://localhost:9004</span>
+                          <span>{config.SPINHUB_URL}</span>
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
@@ -546,14 +544,14 @@ export default function ApplicationDetail() {
                       <span className="text-sm text-gray-600">CPU Usage</span>
                     </div>
                     <span className="text-sm font-medium">
-                      {isStaticOrProxy ? "N/A" : `${spinletState?.cpu || 0}%`}
+                      {isStaticOrProxy ? "N/A" : `${spinlet?.cpu || 0}%`}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     {!isStaticOrProxy && (
                       <div
                         className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full"
-                        style={{ width: `${spinletState?.cpu || 0}%` }}
+                        style={{ width: `${spinlet?.cpu || 0}%` }}
                       />
                     )}
                   </div>
@@ -568,7 +566,7 @@ export default function ApplicationDetail() {
                       </span>
                     </div>
                     <span className="text-sm font-medium">
-                      {isStaticOrProxy ? "N/A" : formatBytes(spinletState?.memory || 0)}
+                      {isStaticOrProxy ? "N/A" : formatBytes(spinlet?.memory || 0)}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -579,7 +577,7 @@ export default function ApplicationDetail() {
                           width: `${Math.min(
                             100,
                             Math.round(
-                              ((spinletState?.memory || 0) /
+                              ((spinlet?.memory || 0) /
                                 (1024 * 1024 * 512)) *
                                 100
                             )
@@ -613,25 +611,25 @@ export default function ApplicationDetail() {
                     <div>
                       <dt className="text-sm text-gray-500">Server</dt>
                       <dd className="font-medium mt-1">
-                        {spinletState?.host || "localhost"}
+                        {spinlet?.host || "localhost"}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-sm text-gray-500">Service Path</dt>
                       <dd className="font-medium mt-1 font-mono">
-                        {spinletState?.servicePath || "-"}
+                        {spinlet?.servicePath || "-"}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-sm text-gray-500">Process ID</dt>
                       <dd className="font-medium mt-1">
-                        {spinletState?.pid || "-"}
+                        {spinlet?.pid || "-"}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-sm text-gray-500">Port</dt>
                       <dd className="font-medium mt-1">
-                        {spinletState?.port || "-"}
+                        {spinlet?.port || "-"}
                       </dd>
                     </div>
                   </>
@@ -655,8 +653,8 @@ export default function ApplicationDetail() {
                 <div>
                   <dt className="text-sm text-gray-500">Last Access</dt>
                   <dd className="font-medium mt-1">
-                    {spinletState?.lastAccess
-                      ? new Date(spinletState.lastAccess).toLocaleString()
+                    {spinlet?.lastAccess
+                      ? new Date(spinlet.lastAccess).toLocaleString()
                       : "Never"}
                   </dd>
                 </div>
@@ -757,12 +755,12 @@ export default function ApplicationDetail() {
                       <Cpu className="h-4 w-4 text-gray-400" />
                     </div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {spinletState?.cpu || 0}%
+                      {spinlet?.cpu || 0}%
                     </div>
                     <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                        style={{ width: `${spinletState?.cpu || 0}%` }}
+                        style={{ width: `${spinlet?.cpu || 0}%` }}
                       />
                     </div>
                   </div>
@@ -773,7 +771,7 @@ export default function ApplicationDetail() {
                       <MemoryStick className="h-4 w-4 text-gray-400" />
                     </div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {formatBytes(spinletState?.memory || 0)}
+                      {formatBytes(spinlet?.memory || 0)}
                     </div>
                     <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
@@ -782,7 +780,7 @@ export default function ApplicationDetail() {
                           width: `${Math.min(
                             100,
                             Math.round(
-                              ((spinletState?.memory || 0) /
+                              ((spinlet?.memory || 0) /
                                 (1024 * 1024 * 512)) *
                                 100
                             )
@@ -798,10 +796,10 @@ export default function ApplicationDetail() {
                       <Activity className="h-4 w-4 text-gray-400" />
                     </div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {spinletState?.requests || 0}
+                      {spinlet?.requests || 0}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {spinletState?.errors || 0} errors
+                      {spinlet?.errors || 0} errors
                     </div>
                   </div>
                 </div>
@@ -1024,9 +1022,8 @@ export default function ApplicationDetail() {
                       setDiag(null);
                       try {
                         // Check if the site is accessible
-                        const testUrl = `http://${domain}:9006`;
-                        const response = await fetch('/_admin/routes');
-                        const routes = await response.json();
+                        const testUrl = `${window.location.protocol}//${domain}`;
+                        const routes = await api.getAllRoutes();
                         const thisRoute = routes.find((r: any) => r.domain === domain);
                         
                         const diagnostics: any = {
@@ -1048,10 +1045,9 @@ export default function ApplicationDetail() {
                           
                           // Check if the deployment path actually exists
                           try {
-                            const checkResponse = await fetch(`/_admin/deployments/scan`);
-                            const scanData = await checkResponse.json();
+                            const scanData = await api.scanDeployments();
                             const deploymentName = route.buildPath.split('/').pop();
-                            const exists = scanData.items?.some((item: any) => 
+                            const exists = scanData.items?.some((item) => 
                               item.name === deploymentName && item.type === 'directory'
                             );
                             diagnostics.checks.deployment_exists = exists ? 'pass' : 'fail';

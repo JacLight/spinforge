@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("refresh-token");
     localStorage.removeItem("user");
     delete axios.defaults.headers.common["Authorization"];
+    delete axios.defaults.headers.common["X-Customer-ID"];
     setUser(null);
     router.push("/login");
   };

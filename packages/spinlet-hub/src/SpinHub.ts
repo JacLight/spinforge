@@ -20,7 +20,10 @@ import {
 import { RouteManager } from "./RouteManager";
 import { ProxyHandler } from "./ProxyHandler";
 import { MetricsCollector } from "./MetricsCollector";
-import { HubConfig, RouteConfig } from "./types";
+import { RouteConfig } from "./types";
+import { HubConfig, defaultConfig } from "./config";
+import { AdminService } from "./services/AdminService";
+import { CustomerService } from "./services/CustomerService";
 import { HotDeploymentWatcher } from "./deployment/HotDeploymentWatcher";
 import { DeploymentAPI } from "./deployment/DeploymentAPI";
 import { CustomerAPI } from "./api/CustomerAPI";
@@ -43,6 +46,8 @@ export class SpinHub {
   private deploymentAPI?: DeploymentAPI;
   private customerAPI?: CustomerAPI;
   private adminRouter?: express.Router;
+  private adminService: AdminService;
+  private customerService: CustomerService;
   private logger = createLogger("SpinHub");
   private requestMetrics = {
     total: 0,
@@ -64,7 +69,7 @@ export class SpinHub {
   };
 
   constructor(config: Partial<HubConfig> = {}) {
-    this.config = this.buildConfig(config);
+    this.config = { ...defaultConfig, ...config };
     this.app = express();
     this.redis = createRedisClient();
     this.redisHelper = new RedisHelper(this.redis);
@@ -77,6 +82,14 @@ export class SpinHub {
       this.routeManager,
       this.telemetry
     );
+    
+    // Initialize admin and customer services
+    this.adminService = new AdminService(
+      this.redis,
+      this.config.admin.tokenSecret,
+      this.config.admin.sessionTimeout
+    );
+    this.customerService = new CustomerService(this.redis);
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -85,33 +98,8 @@ export class SpinHub {
   }
 
   private buildConfig(partial: Partial<HubConfig>): HubConfig {
-    return {
-      port: partial.port || parseInt(process.env.PORT || "8080"),
-      host: partial.host || process.env.HOST || "0.0.0.0",
-      trustProxy: partial.trustProxy ?? true,
-      maxRequestSize: partial.maxRequestSize || "10mb",
-      requestTimeout: partial.requestTimeout || 30000,
-      keepAliveTimeout: partial.keepAliveTimeout || 65000,
-      rateLimits: partial.rateLimits || {
-        global: {
-          windowMs: 60 * 1000, // 1 minute
-          max: 1000, // 1000 requests per minute
-          standardHeaders: true,
-          legacyHeaders: false,
-        },
-        perCustomer: {
-          windowMs: 60 * 1000,
-          max: 100, // 100 requests per minute per customer
-          standardHeaders: true,
-          legacyHeaders: false,
-        },
-      },
-      ssl: partial.ssl,
-      cors: partial.cors || {
-        origin: true,
-        credentials: true,
-      },
-    };
+    // This method is now deprecated, keeping for compatibility
+    return { ...defaultConfig, ...partial };
   }
 
   private setupMiddleware(): void {
@@ -198,6 +186,161 @@ export class SpinHub {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
       });
+    });
+
+    // Admin login endpoint (not protected)
+    this.app.post("/_admin/login", async (req: Request, res: Response) => {
+      try {
+        const { username, password } = req.body;
+        
+        if (!username || !password) {
+          res.status(400).json({ error: "Username and password required" });
+          return;
+        }
+
+        const result = await this.adminService.login(username, password);
+        if (!result) {
+          res.status(401).json({ error: "Invalid credentials" });
+          return;
+        }
+
+        res.json({
+          token: result.token,
+          admin: result.admin,
+        });
+      } catch (error) {
+        this.logger.error("Admin login error", { error });
+        res.status(500).json({ error: "Login failed" });
+      }
+    });
+
+    // Public customer authentication endpoints
+    this.app.post("/_auth/register", async (req: Request, res: Response) => {
+      try {
+        const { email, password, name, company } = req.body;
+        
+        if (!email || !password || !name) {
+          res.status(400).json({ error: "Email, password, and name are required" });
+          return;
+        }
+
+        // Check if customer already exists
+        const existing = await this.customerService.getCustomerByEmail(email);
+        if (existing) {
+          res.status(409).json({ error: "Customer with this email already exists" });
+          return;
+        }
+
+        // Create customer in spinforge-web format
+        const { customer, userId } = await this.customerService.createWebCustomer({
+          email,
+          password,
+          name,
+          company
+        });
+
+        // Generate auth token
+        const token = Buffer.from(`${customer.id}:${Date.now()}`).toString('base64');
+        await this.redis.setex(
+          `auth:token:${token}`,
+          86400, // 24 hour expiry
+          JSON.stringify({ customerId: customer.id, email, userId })
+        );
+
+        res.json({
+          success: true,
+          customer: {
+            id: customer.id,
+            email: customer.email,
+            name: customer.name,
+            customerId: customer.id
+          },
+          token,
+          userId
+        });
+      } catch (error) {
+        this.logger.error("Customer registration error", { error });
+        res.status(500).json({ error: "Registration failed" });
+      }
+    });
+
+    this.app.post("/_auth/login", async (req: Request, res: Response) => {
+      try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+          res.status(400).json({ error: "Email and password are required" });
+          return;
+        }
+
+        // Authenticate customer
+        const customer = await this.customerService.authenticateWebCustomer(email, password);
+        if (!customer) {
+          res.status(401).json({ error: "Invalid credentials" });
+          return;
+        }
+
+        // Generate auth token
+        const token = Buffer.from(`${customer.id}:${Date.now()}`).toString('base64');
+        await this.redis.setex(
+          `auth:token:${token}`,
+          86400, // 24 hour expiry
+          JSON.stringify({ customerId: customer.id, email, userId: customer.metadata?.userId })
+        );
+
+        res.json({
+          success: true,
+          customer: {
+            id: customer.id,
+            email: customer.email,
+            name: customer.name,
+            customerId: customer.id
+          },
+          token,
+          userId: customer.metadata?.userId
+        });
+      } catch (error) {
+        this.logger.error("Customer login error", { error });
+        res.status(500).json({ error: "Login failed" });
+      }
+    });
+
+    this.app.post("/_auth/verify", async (req: Request, res: Response) => {
+      try {
+        const { token } = req.body;
+        
+        if (!token) {
+          res.status(400).json({ error: "Token is required" });
+          return;
+        }
+
+        // Verify token
+        const tokenData = await this.redis.get(`auth:token:${token}`);
+        if (!tokenData) {
+          res.status(401).json({ error: "Invalid or expired token" });
+          return;
+        }
+
+        const { customerId, email } = JSON.parse(tokenData);
+        const customer = await this.customerService.getCustomer(customerId);
+        
+        if (!customer) {
+          res.status(401).json({ error: "Customer not found" });
+          return;
+        }
+
+        res.json({
+          valid: true,
+          customer: {
+            id: customer.id,
+            email: customer.email,
+            name: customer.name
+          }
+        });
+      } catch (error) {
+        this.logger.error("Token verification error", { error });
+        res.status(500).json({ error: "Verification failed" });
+      }
     });
 
     // Basic metrics endpoint (for backward compatibility)
@@ -387,11 +530,6 @@ export class SpinHub {
     if (this.adminRouter) {
       this.app.use('/_admin', this.adminRouter);
     }
-    
-    // Mount customer API router
-    if (this.customerAPI) {
-      this.app.use('/_api/customer', this.customerAPI.getRouter());
-    }
 
     // IMPORTANT: Proxy handler must be registered LAST, after all other routes
     // Otherwise it will catch all requests before they reach specific route handlers
@@ -415,11 +553,17 @@ export class SpinHub {
     );
 
     // Proxy all other requests - MUST be registered LAST
+    // Proxy handler will be registered after all other routes are set up
+    // See registerProxyHandler() method
+  }
+
+  private registerProxyHandler(): void {
     // This is a catch-all handler that will proxy any request that doesn't match
-    // the routes defined above (health, metrics, admin, etc.)
+    // the routes defined above (health, metrics, admin, customer API, etc.)
     this.app.use(async (req: Request, res: Response) => {
       await this.proxyHandler.handleRequest(req, res);
     });
+    this.logger.info("Proxy handler registered as final catch-all route");
   }
 
   private formatTime(seconds: number): string {
@@ -440,49 +584,33 @@ export class SpinHub {
     const adminRouter = express.Router();
     this.adminRouter = adminRouter;
 
-    // Admin authentication middleware - Allow localhost OR validate admin role
-    adminRouter.use((req: Request, res: Response, next: express.NextFunction) => {
-      // Check if request is from localhost
-      const remoteAddress = req.socket.remoteAddress;
-      const isLocalhost = remoteAddress === '127.0.0.1' || 
-                         remoteAddress === '::1' || 
-                         remoteAddress === '::ffff:127.0.0.1';
-      
-      if (isLocalhost) {
-        // Allow localhost access without token
+    // Admin authentication middleware - Validate admin token for all requests
+    adminRouter.use(async (req: Request, res: Response, next: express.NextFunction) => {
+      // Skip authentication for login endpoint
+      if (req.path === '/login') {
         next();
         return;
       }
       
-      // For non-localhost, require admin token
+      // Always require admin token
       const adminToken = req.headers['x-admin-token'] as string;
       const authToken = req.headers['authorization']?.replace('Bearer ', '') || adminToken;
       
       if (!authToken) {
-        res.status(401).json({ error: "Unauthorized - Admin token required for remote access" });
+        res.status(401).json({ error: "Unauthorized - Admin token required" });
         return;
       }
       
-      try {
-        // Decode JWT token to check role
-        const tokenParts = authToken.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-          
-          // Check if user has admin role
-          if (payload.role !== 'admin') {
-            res.status(403).json({ error: "Forbidden - Admin access required" });
-            return;
-          }
-          
-          // Token is valid and user is admin
-          next();
-        } else {
-          res.status(401).json({ error: "Invalid token format" });
-        }
-      } catch (error) {
-        res.status(401).json({ error: "Invalid token" });
+      // Validate token using AdminService
+      const admin = await this.adminService.validateToken(authToken);
+      if (!admin) {
+        res.status(401).json({ error: "Invalid or expired admin token" });
+        return;
       }
+      
+      // Attach admin info to request
+      (req as any).admin = admin;
+      next();
     });
 
     // Per-customer rate limiting for admin routes
@@ -513,6 +641,9 @@ export class SpinHub {
           res.status(400).json({ error: validation.reason });
           return;
         }
+
+        // Ensure customer exists (for legacy customer IDs)
+        await this.customerService.ensureCustomerExists(customerId);
 
         // Add route
         await this.routeManager.addRoute({
@@ -1730,6 +1861,185 @@ export class SpinHub {
       }
     );
 
+    // Admin management endpoints
+    adminRouter.get("/admins", async (req: Request, res: Response) => {
+      try {
+        const admins = await this.adminService.getAllAdmins();
+        res.json(admins);
+      } catch (error) {
+        this.logger.error("Failed to get admins", { error });
+        res.status(500).json({ error: "Failed to get admins" });
+      }
+    });
+
+    adminRouter.post("/admins", async (req: Request, res: Response) => {
+      try {
+        const currentAdmin = (req as any).admin;
+        if (!currentAdmin.isSuperAdmin) {
+          res.status(403).json({ error: "Only super admins can create admin users" });
+          return;
+        }
+
+        const { username, password, email, isSuperAdmin } = req.body;
+        
+        if (!username || !password) {
+          res.status(400).json({ error: "Username and password required" });
+          return;
+        }
+
+        const admin = await this.adminService.createAdmin({
+          username,
+          password,
+          email,
+          isSuperAdmin,
+        });
+
+        res.json(admin);
+      } catch (error) {
+        this.logger.error("Failed to create admin", { error });
+        res.status(500).json({ error: "Failed to create admin" });
+      }
+    });
+
+    adminRouter.put("/admins/:id", async (req: Request, res: Response) => {
+      try {
+        const currentAdmin = (req as any).admin;
+        if (!currentAdmin.isSuperAdmin && currentAdmin.id !== req.params.id) {
+          res.status(403).json({ error: "Can only update own profile or be super admin" });
+          return;
+        }
+
+        const admin = await this.adminService.updateAdmin(req.params.id, req.body);
+        if (!admin) {
+          res.status(404).json({ error: "Admin not found" });
+          return;
+        }
+
+        res.json(admin);
+      } catch (error) {
+        this.logger.error("Failed to update admin", { error });
+        res.status(500).json({ error: "Failed to update admin" });
+      }
+    });
+
+    adminRouter.delete("/admins/:id", async (req: Request, res: Response) => {
+      try {
+        const currentAdmin = (req as any).admin;
+        if (!currentAdmin.isSuperAdmin) {
+          res.status(403).json({ error: "Only super admins can delete admin users" });
+          return;
+        }
+
+        if (currentAdmin.id === req.params.id) {
+          res.status(400).json({ error: "Cannot delete your own account" });
+          return;
+        }
+
+        const deleted = await this.adminService.deleteAdmin(req.params.id);
+        if (!deleted) {
+          res.status(404).json({ error: "Admin not found" });
+          return;
+        }
+
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Failed to delete admin", { error });
+        res.status(500).json({ error: "Failed to delete admin" });
+      }
+    });
+
+    // Customer management endpoints
+    adminRouter.get("/customers", async (req: Request, res: Response) => {
+      try {
+        const { isActive, limit, offset } = req.query;
+        const result = await this.customerService.getAllCustomers({
+          isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+          limit: limit ? parseInt(limit as string) : undefined,
+          offset: offset ? parseInt(offset as string) : undefined,
+        });
+        res.json(result);
+      } catch (error) {
+        this.logger.error("Failed to get customers", { error });
+        res.status(500).json({ error: "Failed to get customers" });
+      }
+    });
+
+    adminRouter.get("/customers/:id", async (req: Request, res: Response) => {
+      try {
+        const customer = await this.customerService.getCustomer(req.params.id);
+        if (!customer) {
+          res.status(404).json({ error: "Customer not found" });
+          return;
+        }
+
+        const stats = await this.customerService.getCustomerStats(req.params.id);
+        res.json({ ...customer, stats });
+      } catch (error) {
+        this.logger.error("Failed to get customer", { error });
+        res.status(500).json({ error: "Failed to get customer" });
+      }
+    });
+
+    adminRouter.post("/customers", async (req: Request, res: Response) => {
+      try {
+        const { name, email, metadata, limits } = req.body;
+        
+        if (!name || !email) {
+          res.status(400).json({ error: "Name and email required" });
+          return;
+        }
+
+        // Check if email already exists
+        const existing = await this.customerService.getCustomerByEmail(email);
+        if (existing) {
+          res.status(400).json({ error: "Customer with this email already exists" });
+          return;
+        }
+
+        const customer = await this.customerService.createCustomer({
+          name,
+          email,
+          metadata,
+          limits,
+        });
+
+        res.json(customer);
+      } catch (error) {
+        this.logger.error("Failed to create customer", { error });
+        res.status(500).json({ error: "Failed to create customer" });
+      }
+    });
+
+    adminRouter.put("/customers/:id", async (req: Request, res: Response) => {
+      try {
+        const customer = await this.customerService.updateCustomer(req.params.id, req.body);
+        if (!customer) {
+          res.status(404).json({ error: "Customer not found" });
+          return;
+        }
+
+        res.json(customer);
+      } catch (error) {
+        this.logger.error("Failed to update customer", { error });
+        res.status(500).json({ error: "Failed to update customer" });
+      }
+    });
+
+    adminRouter.delete("/customers/:id", async (req: Request, res: Response) => {
+      try {
+        const deleted = await this.customerService.deleteCustomer(req.params.id);
+        if (!deleted) {
+          res.status(404).json({ error: "Customer not found" });
+          return;
+        }
+
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Failed to delete customer", { error });
+        res.status(500).json({ error: "Failed to delete customer" });
+      }
+    });
+
     // Platform configuration endpoints
     adminRouter.get("/config", async (req: Request, res: Response) => {
       try {
@@ -2018,6 +2328,15 @@ export class SpinHub {
     const portAllocator = this.spinletManager["portAllocator"];
     await portAllocator.initialize();
 
+    // Initialize default admin user
+    await this.adminService.initializeDefaultAdmin(
+      this.config.admin.defaultUsername,
+      this.config.admin.defaultPassword
+    );
+
+    // Migrate existing routes to ensure customers exist
+    await this.migrateExistingData();
+
     // Start server
     await new Promise<void>((resolve, reject) => {
       this.server.listen(this.config.port, this.config.host, () => {
@@ -2061,12 +2380,23 @@ export class SpinHub {
       }
       
       // Initialize Customer API
-      this.customerAPI = new CustomerAPI(
-        this.spinletManager,
-        this.routeManager,
-        this.redis,
-        this.deploymentAPI
-      );
+      try {
+        this.customerAPI = new CustomerAPI(
+          this.spinletManager,
+          this.routeManager,
+          this.redis,
+          this.deploymentAPI
+        );
+        
+        // Mount customer API router AFTER it's created
+        this.app.use('/_api/customer', this.customerAPI.getRouter());
+        this.logger.info("Customer API mounted at /_api/customer");
+      } catch (error) {
+        this.logger.error("Failed to initialize Customer API", { error });
+      }
+      
+      // Register the proxy handler LAST, after all other routes
+      this.registerProxyHandler();
 
       try {
         await this.hotDeploymentWatcher.start();
@@ -2074,6 +2404,24 @@ export class SpinHub {
       } catch (error) {
         this.logger.warn("Failed to start hot deployment watcher", { error });
       }
+    }
+  }
+
+  private async migrateExistingData(): Promise<void> {
+    try {
+      // Get all existing routes
+      const routes = await this.routeManager.getAllRoutes();
+      
+      for (const route of routes) {
+        if (route.customerId) {
+          // Ensure customer exists for this route
+          await this.customerService.ensureCustomerExists(route.customerId);
+        }
+      }
+      
+      this.logger.info(`Migrated ${routes.length} routes to customer system`);
+    } catch (error) {
+      this.logger.error('Failed to migrate existing data', { error });
     }
   }
 

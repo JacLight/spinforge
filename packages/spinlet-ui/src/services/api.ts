@@ -1,48 +1,4 @@
-import axios, { AxiosError } from 'axios';
-
-const API_BASE = '';
-
-// Add request/response interceptors for better error handling
-axios.interceptors.request.use(
-  (config) => {
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  },
-  (error) => {
-    console.error('[API] Request error:', error);
-    return Promise.reject(error);
-  }
-);
-
-axios.interceptors.response.use(
-  (response) => {
-    console.log(`[API] Response ${response.status} from ${response.config.url}`);
-    return response;
-  },
-  (error: AxiosError) => {
-    console.error('[API] Response error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    });
-    
-    // Enhance error message
-    let enhancedMessage = error.message;
-    if (error.response?.status === 502) {
-      enhancedMessage = 'Cannot connect to SpinHub API (502 Bad Gateway). Please check if the service is running.';
-    } else if (error.response?.status === 404) {
-      enhancedMessage = `API endpoint not found: ${error.config?.url}`;
-    } else if (!error.response) {
-      enhancedMessage = 'Network error: Cannot reach the server';
-    }
-    
-    const enhancedError = new Error(enhancedMessage);
-    (enhancedError as any).originalError = error;
-    return Promise.reject(enhancedError);
-  }
-);
+import apiClient from './axios-config';
 
 export interface Route {
   domain: string;
@@ -217,6 +173,21 @@ export interface ServiceHealth {
   details: Record<string, any>;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isActive: boolean;
+  metadata?: Record<string, any>;
+  limits?: {
+    maxSpinlets?: number;
+    maxMemory?: string;
+    maxDomains?: number;
+  };
+}
+
 export interface AllMetrics {
   system: SystemMetrics;
   docker: DockerStats;
@@ -225,131 +196,124 @@ export interface AllMetrics {
   timestamp: string;
 }
 
+export interface RouteDetails {
+  route: Route;
+  spinlet?: Spinlet;
+  metrics?: any;
+  health?: any;
+}
+
+export interface SpinletLogs {
+  logs: string[];
+  timestamp: string;
+}
+
+export interface CommandResult {
+  output: string;
+  exitCode: number;
+  error?: string;
+}
+
+export interface DeploymentScanResult {
+  items: Array<{
+    name: string;
+    type: 'file' | 'directory';
+    size?: number;
+    modified?: string;
+  }>;
+  total: number;
+}
+
+export interface HealthStatus {
+  status: 'healthy' | 'unhealthy' | 'unknown';
+  version?: string;
+  uptime?: number;
+}
+
+export interface CustomersResponse {
+  customers: Customer[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 class SpinForgeAPI {
-  private adminToken: string;
-
-  constructor() {
-    this.adminToken = localStorage.getItem('adminToken') || '';
-  }
-
   setAdminToken(token: string) {
-    this.adminToken = token;
     localStorage.setItem('adminToken', token);
   }
 
-  private getHeaders() {
-    return {
-      'X-Admin-Token': this.adminToken,
-      'Content-Type': 'application/json',
-    };
+  private async request<T>(method: 'get' | 'post' | 'put' | 'delete', url: string, data?: any): Promise<T> {
+    const response = await apiClient[method](url, data);
+    return response.data;
   }
 
-  async health() {
-    const response = await axios.get(`${API_BASE}/_health`);
-    return response.data;
+  async health(): Promise<HealthStatus> {
+    return this.request<HealthStatus>('get', '/_health');
   }
 
   async metrics(): Promise<Metrics> {
-    const response = await axios.get(`${API_BASE}/_metrics`);
-    return response.data;
+    return this.request<Metrics>('get', '/_metrics');
   }
 
   // New comprehensive metrics endpoints
   async systemMetrics(): Promise<SystemMetrics> {
-    const response = await axios.get(`${API_BASE}/_metrics/system`);
-    return response.data;
+    return this.request<SystemMetrics>('get', '/_metrics/system');
   }
 
   async dockerStats(): Promise<DockerStats> {
-    const response = await axios.get(`${API_BASE}/_metrics/docker`);
-    return response.data;
+    return this.request<DockerStats>('get', '/_metrics/docker');
   }
 
   async keydbMetrics(): Promise<KeyDBMetrics> {
-    const response = await axios.get(`${API_BASE}/_metrics/keydb`);
-    return response.data;
+    return this.request<KeyDBMetrics>('get', '/_metrics/keydb');
   }
 
   async serviceHealth(): Promise<ServiceHealth[]> {
-    const response = await axios.get(`${API_BASE}/_metrics/services`);
-    return response.data;
+    return this.request<ServiceHealth[]>('get', '/_metrics/services');
   }
 
   async allMetrics(): Promise<AllMetrics> {
-    const response = await axios.get(`${API_BASE}/_metrics/all`);
-    return response.data;
+    return this.request<AllMetrics>('get', '/_metrics/all');
   }
 
   async requestMetrics(): Promise<any> {
-    const response = await axios.get(`${API_BASE}/_metrics/requests`);
-    return response.data;
+    return this.request('get', '/_metrics/requests');
   }
 
   async deploymentStats(): Promise<any> {
-    const response = await axios.get(`${API_BASE}/_metrics/deployments`);
-    return response.data;
+    return this.request('get', '/_metrics/deployments');
   }
 
   async getIdleMetrics(): Promise<IdleMetrics> {
-    const response = await axios.get(`${API_BASE}/_metrics/idle`);
-    return response.data;
+    return this.request<IdleMetrics>('get', '/_metrics/idle');
   }
 
   async getIdleInfo(spinletId: string): Promise<IdleInfo> {
-    const response = await axios.get(`${API_BASE}/_metrics/idle/${spinletId}`);
-    return response.data;
+    return this.request<IdleInfo>('get', `/_metrics/idle/${spinletId}`);
   }
 
   async extendIdleTimeout(spinletId: string, seconds: number = 300): Promise<any> {
-    const response = await axios.post(
-      `${API_BASE}/_admin/spinlets/${spinletId}/extend-timeout`,
-      { seconds },
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_admin/spinlets/${spinletId}/extend-timeout`, { seconds });
   }
 
   async createRoute(route: Route) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/routes`,
-      route,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', '/_admin/routes', route);
   }
 
   async deleteRoute(domain: string) {
-    const response = await axios.delete(
-      `${API_BASE}/_admin/routes/${domain}`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('delete', `/_admin/routes/${domain}`);
   }
 
   async getDeployments(): Promise<DeploymentStatus[]> {
-    const response = await axios.get(
-      `${API_BASE}/_admin/deployments`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request<DeploymentStatus[]>('get', '/_admin/deployments');
   }
 
-  async scanDeployments() {
-    const response = await axios.post(
-      `${API_BASE}/_admin/deployments/scan`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+  async scanDeployments(): Promise<DeploymentScanResult> {
+    return this.request<DeploymentScanResult>('post', '/_admin/deployments/scan', {});
   }
 
   async retryDeployment(name: string) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/deployments/${name}/retry`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_admin/deployments/${name}/retry`, {});
   }
 
   async verifyDeployment(name: string): Promise<{
@@ -359,44 +323,23 @@ class SpinForgeAPI {
     files?: number;
     path?: string;
   }> {
-    const response = await axios.get(
-      `${API_BASE}/_admin/deployments/${name}/verify`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('get', `/_admin/deployments/${name}/verify`);
   }
 
   async addDomainToRoute(currentDomain: string, newDomain: string) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/routes/${currentDomain}/domains`,
-      { newDomain },
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_admin/routes/${currentDomain}/domains`, { newDomain });
   }
 
   async removeDomainFromRoute(currentDomain: string, domainToRemove: string) {
-    const response = await axios.delete(
-      `${API_BASE}/_admin/routes/${currentDomain}/domains/${domainToRemove}`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('delete', `/_admin/routes/${currentDomain}/domains/${domainToRemove}`);
   }
 
   async getCustomerRoutes(customerId: string): Promise<Route[]> {
-    const response = await axios.get(
-      `${API_BASE}/_admin/customers/${customerId}/routes`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request<Route[]>('get', `/_admin/customers/${customerId}/routes`);
   }
 
   async getAllRoutes(): Promise<Route[]> {
-    const response = await axios.get(
-      `${API_BASE}/_admin/routes`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request<Route[]>('get', '/_admin/routes');
   }
 
   async getRoutesWithStates(): Promise<(Route & { spinletState?: Spinlet; idleInfo?: IdleInfo })[]> {
@@ -405,7 +348,7 @@ class SpinForgeAPI {
       routes.map(async (route) => {
         try {
           const spinlet = await this.getSpinlet(route.spinletId);
-          let idleInfo;
+          let idleInfo: IdleInfo | undefined;
           
           // Get idle info if spinlet is running
           if (spinlet && spinlet.state === 'running') {
@@ -426,165 +369,161 @@ class SpinForgeAPI {
   }
 
   async getSpinlet(spinletId: string): Promise<Spinlet> {
-    const response = await axios.get(
-      `${API_BASE}/_admin/spinlets/${spinletId}`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request<Spinlet>('get', `/_admin/spinlets/${spinletId}`);
   }
 
   async stopSpinlet(spinletId: string) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/spinlets/${spinletId}/stop`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_admin/spinlets/${spinletId}/stop`, {});
   }
 
-  async getSpinletLogs(spinletId: string, lines = 100) {
-    const response = await axios.get(
-      `${API_BASE}/_admin/spinlets/${spinletId}/logs?lines=${lines}`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+  async getSpinletLogs(spinletId: string, lines = 100): Promise<SpinletLogs> {
+    return this.request<SpinletLogs>('get', `/_admin/spinlets/${spinletId}/logs?lines=${lines}`);
   }
 
   async startSpinlet(spinletId: string) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/spinlets/${spinletId}/start`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_admin/spinlets/${spinletId}/start`, {});
   }
 
   async restartSpinlet(spinletId: string) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/spinlets/${spinletId}/restart`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_admin/spinlets/${spinletId}/restart`, {});
   }
 
   async updateSpinletEnv(spinletId: string, env: Record<string, string>) {
-    const response = await axios.put(
-      `${API_BASE}/_admin/spinlets/${spinletId}/env`,
-      { env },
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('put', `/_admin/spinlets/${spinletId}/env`, { env });
   }
 
-  async getRouteDetails(domain: string) {
-    const response = await axios.get(
-      `${API_BASE}/_admin/routes/${domain}/details`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+  async getSpinletHealth(spinletId: string) {
+    return this.request('get', `/_admin/spinlets/${spinletId}/health`);
+  }
+
+  async getRouteDetails(domain: string): Promise<RouteDetails> {
+    return this.request<RouteDetails>('get', `/_admin/routes/${domain}/details`);
   }
 
   async updateRouteConfig(domain: string, config: any) {
-    const response = await axios.put(
-      `${API_BASE}/_admin/routes/${domain}/config`,
-      config,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('put', `/_admin/routes/${domain}/config`, config);
   }
 
-  async executeCommand(spinletId: string, command: string) {
-    const response = await axios.post(
-      `${API_BASE}/_admin/spinlets/${spinletId}/exec`,
-      { command },
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+  async executeCommand(spinletId: string, command: string): Promise<CommandResult> {
+    return this.request<CommandResult>('post', `/_admin/spinlets/${spinletId}/exec`, { command });
+  }
+
+  // Admin management
+  async getAllAdmins(): Promise<Array<{
+    id: string;
+    username: string;
+    email?: string;
+    createdAt: Date;
+    lastLogin?: Date;
+    isActive: boolean;
+    isSuperAdmin: boolean;
+  }>> {
+    return this.request('get', '/_admin/admins');
+  }
+
+  async createAdmin(data: {
+    username: string;
+    password: string;
+    email?: string;
+    isSuperAdmin?: boolean;
+  }) {
+    return this.request('post', '/_admin/admins', data);
+  }
+
+  async updateAdmin(id: string, data: any) {
+    return this.request('put', `/_admin/admins/${id}`, data);
+  }
+
+  async deleteAdmin(id: string) {
+    return this.request('delete', `/_admin/admins/${id}`);
+  }
+
+  // Customer management
+  async getAllCustomers(filter?: {
+    isActive?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<CustomersResponse> {
+    const params = new URLSearchParams();
+    if (filter?.isActive !== undefined) params.append('isActive', String(filter.isActive));
+    if (filter?.limit !== undefined) params.append('limit', String(filter.limit));
+    if (filter?.offset !== undefined) params.append('offset', String(filter.offset));
+    
+    return this.request<CustomersResponse>('get', `/_admin/customers?${params.toString()}`);
+  }
+
+  async getCustomer(id: string) {
+    return this.request('get', `/_admin/customers/${id}`);
+  }
+
+  async createCustomer(data: {
+    name: string;
+    email: string;
+    metadata?: Record<string, any>;
+    limits?: {
+      maxSpinlets?: number;
+      maxMemory?: string;
+      maxDomains?: number;
+    };
+  }) {
+    return this.request('post', '/_admin/customers', data);
+  }
+
+  async updateCustomer(id: string, data: any) {
+    return this.request('put', `/_admin/customers/${id}`, data);
+  }
+
+  async deleteCustomer(id: string) {
+    return this.request('delete', `/_admin/customers/${id}`);
+  }
+
+  async deleteDeployment(name: string) {
+    return this.request('delete', `/_admin/deployments/${name}`);
+  }
+
+  async cancelDeployment(name: string) {
+    return this.request('post', `/_admin/deployments/${name}/cancel`, {});
   }
 }
 
 // Customer-specific API class that uses customer endpoints
 class CustomerAPI {
-  private customerId: string;
-  private authToken: string;
-
-  constructor() {
-    this.customerId = localStorage.getItem('customerId') || '';
-    this.authToken = localStorage.getItem('authToken') || '';
-  }
-
   setAuth(customerId: string, authToken: string) {
-    this.customerId = customerId;
-    this.authToken = authToken;
     localStorage.setItem('customerId', customerId);
     localStorage.setItem('authToken', authToken);
   }
 
-  private getHeaders() {
-    return {
-      'X-Customer-ID': this.customerId,
-      'Authorization': `Bearer ${this.authToken}`,
-      'Content-Type': 'application/json',
-    };
+  private async request<T>(method: 'get' | 'post' | 'put' | 'delete', url: string, data?: any): Promise<T> {
+    const response = await apiClient[method](url, data);
+    return response.data;
   }
 
   async getDeployments(): Promise<DeploymentStatus[]> {
-    const response = await axios.get(
-      `${API_BASE}/_api/customer/deployments`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request<DeploymentStatus[]>('get', '/_api/customer/deployments');
   }
 
   async getSpinlets(): Promise<Spinlet[]> {
-    const response = await axios.get(
-      `${API_BASE}/_api/customer/spinlets`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request<Spinlet[]>('get', '/_api/customer/spinlets');
   }
 
   async getDomains(): Promise<any[]> {
-    const response = await axios.get(
-      `${API_BASE}/_api/customer/domains`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('get', '/_api/customer/domains');
   }
 
   async getUsage(): Promise<any> {
-    const response = await axios.get(
-      `${API_BASE}/_api/customer/usage`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('get', '/_api/customer/usage');
   }
 
   async stopSpinlet(spinletId: string) {
-    const response = await axios.post(
-      `${API_BASE}/_api/customer/spinlets/${spinletId}/stop`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_api/customer/spinlets/${spinletId}/stop`, {});
   }
 
   async restartSpinlet(spinletId: string) {
-    const response = await axios.post(
-      `${API_BASE}/_api/customer/spinlets/${spinletId}/restart`,
-      {},
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('post', `/_api/customer/spinlets/${spinletId}/restart`, {});
   }
 
   async getSpinletLogs(spinletId: string, lines = 100) {
-    const response = await axios.get(
-      `${API_BASE}/_api/customer/spinlets/${spinletId}/logs?lines=${lines}`,
-      { headers: this.getHeaders() }
-    );
-    return response.data;
+    return this.request('get', `/_api/customer/spinlets/${spinletId}/logs?lines=${lines}`);
   }
 }
 

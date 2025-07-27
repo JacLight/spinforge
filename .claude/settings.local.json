@@ -63,7 +63,12 @@
       "Bash(kill:*)",
       "Bash(npm link:*)",
       "Bash(npx spinforge-cli@latest:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(redis-cli:*)",
+      "Bash(REDIS_PASSWORD=spinforge123 node ../../scripts/check-customers.js)",
+      "Bash(npx tsx:*)",
+      "Bash(npx node:*)",
+      "Bash(npx vite build:*)"
     ],
     "deny": []
   }

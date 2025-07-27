@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { config } from '../config/environment';
 import { 
   Rocket, 
   Server, 
@@ -63,7 +64,7 @@ const systemComponents = [
     description: 'Metrics collection and monitoring',
     icon: BarChart3,
     status: 'running',
-    link: 'http://localhost:9008',
+    link: config.PROMETHEUS_URL,
     external: true,
     metrics: { port: '9008', container: 'spinforge-prometheus' }
   },
@@ -72,7 +73,7 @@ const systemComponents = [
     description: 'Metrics visualization dashboard',
     icon: Activity,
     status: 'running',
-    link: 'http://localhost:9009',
+    link: config.GRAFANA_URL,
     external: true,
     metrics: { port: '9009', container: 'spinforge-grafana' }
   }

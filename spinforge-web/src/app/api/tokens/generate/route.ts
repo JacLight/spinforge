@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth-server";
-import { generateApiToken } from "@/lib/auth-simple";
+import { generateApiToken } from "@/lib/auth-spinhub";
 import { setJson } from "@/lib/redis";
 import { nanoid } from "nanoid";
 import { z } from "zod";

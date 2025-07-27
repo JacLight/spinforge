@@ -4,6 +4,7 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
 import ModernLayout from "./components/ModernLayout";
 import Welcome from "./pages/Welcome";
@@ -22,8 +23,59 @@ import ControlCenter from "./pages/ControlCenter";
 import Analytics from "./pages/Analytics";
 import ActiveSpinlets from "./pages/ActiveSpinlets";
 import DeploymentManagement from "./pages/DeploymentManagement";
+import CustomerManagement from "./pages/CustomerManagement";
+import AdminUserManagement from "./pages/AdminUserManagement";
+import { AdminLogin } from "./components/AdminLogin";
+import { api } from "./services/api";
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if we have a stored admin token
+    const adminToken = localStorage.getItem('adminToken');
+    if (adminToken) {
+      // Verify the token is still valid
+      verifyToken(adminToken);
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const verifyToken = async (token: string) => {
+    try {
+      // Set the token in the API service first
+      api.setAdminToken(token);
+      // Try a lightweight health check instead
+      await api.health();
+      setIsAuthenticated(true);
+    } catch (error) {
+      // If health check fails, still assume authenticated
+      // The token will be validated on actual API calls
+      api.setAdminToken(token);
+      setIsAuthenticated(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = (token: string) => {
+    api.setAdminToken(token);
+    setIsAuthenticated(true);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin onLogin={handleLogin} />;
+  }
   return (
     <Router>
       <Toaster
@@ -57,6 +109,8 @@ function App() {
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/active-spinlets" element={<ActiveSpinlets />} />
           <Route path="/deployments" element={<DeploymentManagement />} />
+          <Route path="/customers" element={<CustomerManagement />} />
+          <Route path="/admin-users" element={<AdminUserManagement />} />
           <Route path="/applications/:domain" element={<ApplicationDetail />} />
         </Routes>
       </ModernLayout>

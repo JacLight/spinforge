@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loginUser } from "@/lib/auth-simple";
+import { loginUser } from "@/lib/auth-spinhub";
 import { z } from "zod";
 
 const loginSchema = z.object({

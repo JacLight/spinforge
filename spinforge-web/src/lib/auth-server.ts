@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { verifySession } from "./auth-simple";
+import { verifySession } from "./auth-spinhub";
 
 export async function getAuthenticatedUser(request: NextRequest) {
   const token = request.headers.get("x-auth-token") || 

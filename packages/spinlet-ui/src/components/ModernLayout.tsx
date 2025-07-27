@@ -17,6 +17,8 @@ import {
   Shield,
   Activity,
   Archive,
+  Users,
+  UserCog,
 } from "lucide-react";
 import { classNames } from "@/utils/helpers";
 
@@ -60,6 +62,18 @@ const navItems = [
     icon: Archive,
     label: "Deployments",
     color: "from-yellow-500 to-yellow-600",
+  },
+  {
+    path: "/customers",
+    icon: Users,
+    label: "Customers",
+    color: "from-teal-500 to-teal-600",
+  },
+  {
+    path: "/admin-users",
+    icon: UserCog,
+    label: "Admin Users",
+    color: "from-rose-500 to-rose-600",
   },
   {
     path: "/analytics",

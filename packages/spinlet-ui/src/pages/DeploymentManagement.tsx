@@ -56,10 +56,7 @@ export default function DeploymentManagement() {
   // Fetch deployment folder contents
   const { data: deploymentFolder } = useQuery({
     queryKey: ["deployment-folder"],
-    queryFn: async () => {
-      const response = await fetch("/_admin/deployments/scan");
-      return response.json();
-    },
+    queryFn: () => api.scanDeployments(),
     refetchInterval: 60000, // Refresh every 60 seconds
     refetchOnWindowFocus: false,
     staleTime: 30000, // Consider data fresh for 30 seconds
@@ -74,20 +71,14 @@ export default function DeploymentManagement() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (deploymentName: string) =>
-      fetch(`/_admin/deployments/${deploymentName}/cancel`, {
-        method: "POST",
-      }),
+    mutationFn: (deploymentName: string) => api.cancelDeployment(deploymentName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deployments"] });
     },
   });
 
   const removeMutation = useMutation({
-    mutationFn: (deploymentName: string) =>
-      fetch(`/_admin/deployments/${deploymentName}`, {
-        method: "DELETE",
-      }),
+    mutationFn: (deploymentName: string) => api.deleteDeployment(deploymentName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deployments"] });
       queryClient.invalidateQueries({ queryKey: ["deployment-folder"] });

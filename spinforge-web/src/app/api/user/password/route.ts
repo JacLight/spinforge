@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth-server";
 import { getJson, setJson, KEYS } from "@/lib/redis";
-import type { User } from "@/lib/auth-simple";
+import type { User } from "@/lib/auth-simple"; // TODO: Migrate to SpinHub API
 import bcrypt from "bcryptjs";
 
 export async function PUT(request: NextRequest) {

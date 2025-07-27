@@ -397,23 +397,30 @@ export class DeploymentAPI {
 
   private async getDeployments(req: Request, res: Response): Promise<void> {
     try {
-      // Get customer ID from request headers
-      const customerId = req.headers['x-customer-id'] as string;
-      
-      if (!customerId) {
-        res.status(401).json({ error: "Customer ID required" });
-        return;
-      }
-      
       // Get deployment statuses from files and running processes
       const allDeployments = await this.collectDeploymentStatuses();
       
-      // Filter deployments by customer ID
-      const customerDeployments = allDeployments.filter(
-        deployment => deployment.customerId === customerId
-      );
+      // Check if this is an admin request (no customer ID filter needed)
+      const isAdminRequest = req.baseUrl?.includes('/_admin');
       
-      res.json(customerDeployments);
+      if (isAdminRequest) {
+        // Admin can see all deployments
+        res.json(allDeployments);
+      } else {
+        // Customer API - filter by customer ID
+        const customerId = req.headers['x-customer-id'] as string;
+        
+        if (!customerId) {
+          res.status(401).json({ error: "Customer ID required" });
+          return;
+        }
+        
+        const customerDeployments = allDeployments.filter(
+          deployment => deployment.customerId === customerId
+        );
+        
+        res.json(customerDeployments);
+      }
     } catch (error) {
       this.logger.error("Error fetching deployments", { error });
       res.status(500).json({ error: "Failed to fetch deployments" });

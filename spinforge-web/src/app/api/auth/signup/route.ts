@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createUser } from "@/lib/auth-simple";
+import { createUser } from "@/lib/auth-spinhub";
 import { z } from "zod";
 
 const signupSchema = z.object({

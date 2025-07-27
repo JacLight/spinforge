@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { config } from '../config/environment';
 import { 
   BarChart3, 
   ExternalLink, 
@@ -207,7 +208,7 @@ export default function Metrics() {
 
             {/* Grafana Link */}
             <a
-              href="http://localhost:9009"
+              href={config.GRAFANA_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
@@ -378,7 +379,7 @@ export default function Metrics() {
           </div>
           <div className="flex gap-4">
             <a
-              href="http://localhost:9009"
+              href={config.GRAFANA_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center px-4 py-2 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors"
@@ -387,7 +388,7 @@ export default function Metrics() {
               Grafana Dashboard
             </a>
             <a
-              href="http://localhost:9008"
+              href={config.PROMETHEUS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors border border-white/20"

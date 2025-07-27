@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { config } from '../config/environment';
 import { 
   Activity, 
   Package, 
@@ -158,7 +159,7 @@ export default function Dashboard() {
               View All Applications
             </a>
             <a
-              href="http://localhost:9009"
+              href={config.GRAFANA_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="block px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100"
