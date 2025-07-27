@@ -1,10 +1,13 @@
 import { existsSync, watch, statSync } from 'fs';
-import { resolve, join, basename } from 'path';
+import { resolve, join, basename, relative } from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { execSync } from 'child_process';
 import { getAuthConfig } from '../lib/auth';
 import { debounce } from '../lib/utils';
+import { getRequiredConfig } from '../lib/config';
+import axios from 'axios';
+import FormData from 'form-data';
+import { readFileSync } from 'fs';
 
 interface WatchOptions {
   domain?: string;
@@ -14,6 +17,14 @@ interface WatchOptions {
   name?: string;
   env?: string[];
   interval?: string;
+  noBuild?: boolean;
+  mode?: 'preview' | 'development';
+}
+
+interface FileChange {
+  path: string;
+  type: 'add' | 'change' | 'unlink';
+  content?: Buffer;
 }
 
 export async function watchCommand(path: string, options: WatchOptions) {
@@ -34,92 +45,444 @@ export async function watchCommand(path: string, options: WatchOptions) {
   }
 
   const projectName = options.name || basename(watchPath);
-  const domain = options.domain || `${projectName}.${auth.customerId}.spinforge.app`;
-  const framework = options.framework || 'custom';
-  const deploymentPath = process.env.SPINFORGE_DEPLOYMENTS || '/spinforge/deployments';
-  const targetPath = join(deploymentPath, projectName);
+  const framework = options.framework || await detectFramework(watchPath);
+  const apiUrl = getRequiredConfig('apiUrl');
+  const mode = options.mode || 'preview';
+  
+  // Sanitize customer ID for domain use (lowercase, replace underscores)
+  const sanitizedCustomerId = auth.customerId.toLowerCase().replace(/_/g, '-');
+  
+  // Use provided domain or generate default
+  const domain = options.domain || `${projectName}-${sanitizedCustomerId}.web.spinforge.app`;
 
   console.log(chalk.blue('\n📡 SpinForge Watch Mode'));
   console.log(chalk.gray('─'.repeat(50)));
   console.log(`${chalk.bold('Watching:')}   ${chalk.cyan(watchPath)}`);
-  console.log(`${chalk.bold('Deploy to:')}  ${chalk.cyan(targetPath)}`);
-  console.log(`${chalk.bold('Domain:')}     ${chalk.cyan(domain)}`);
-  console.log(`${chalk.bold('Customer:')}   ${chalk.yellow(auth.customerId)}`);
+  console.log(`${chalk.bold('Project:')}    ${chalk.cyan(projectName)}`);
+  console.log(`${chalk.bold('URL:')}        ${chalk.cyan(`https://${domain}`)}`);
+  console.log(`${chalk.bold('Framework:')}  ${chalk.cyan(framework)}`);
+  console.log(`${chalk.bold('Mode:')}       ${chalk.cyan(mode)}`);
+  console.log(`${chalk.bold('API:')}        ${chalk.cyan(apiUrl)}`);
   console.log(chalk.gray('─'.repeat(50)));
-  console.log(chalk.gray('\nPress Ctrl+C to stop watching\n'));
+  console.log(chalk.gray('\nThis is your permanent project URL.'));
+  console.log(chalk.gray('To add custom domains, use the SpinForge dashboard.\n'));
+  console.log(chalk.gray('Press Ctrl+C to stop watching\n'));
 
   let isDeploying = false;
+  let pendingChanges: Map<string, FileChange> = new Map();
   const spinner = ora();
+  // let deploymentExists = false;
 
-  // Debounced deploy function to avoid multiple rapid deployments
-  const debouncedDeploy = debounce(async () => {
-    if (isDeploying) {
-      console.log(chalk.yellow('⚠️  Deployment already in progress, skipping...'));
+  // Initial deployment check/create
+  const initializeDeployment = async () => {
+    spinner.start('Checking deployment status...');
+    
+    try {
+      // Check if deployment exists
+      const response = await axios.get(
+        `${apiUrl}/_api/customer/deployments`,
+        {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`,
+            'X-Customer-ID': auth.customerId,
+          }
+        }
+      );
+      
+      const existingDeployment = response.data.find((d: any) => d.name === projectName);
+      
+      if (!existingDeployment) {
+        spinner.text = 'Creating initial deployment...';
+        
+        // Create deployment first
+        await axios.post(
+          `${apiUrl}/_api/customer/deploy`,
+          {
+            name: projectName,
+            domain: domain,
+            customerId: auth.customerId,
+            framework: framework,
+            config: {
+              mode: mode,
+              resources: {
+                memory: options.memory || '512MB',
+                cpu: parseFloat(options.cpu || '0.5')
+              },
+              env: {
+                NODE_ENV: mode === 'preview' ? 'production' : 'development',
+                ...(options.env ? parseEnvVars(options.env) : {})
+              }
+            }
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${auth.token}`,
+              'X-Customer-ID': auth.customerId,
+            }
+          }
+        );
+        
+        spinner.succeed('Deployment folder created!');
+        console.log(chalk.gray('Now uploading application files...'));
+        
+        // Do initial full sync
+        await fullSync();
+      } else {
+        // deploymentExists = true;
+        const status = existingDeployment.status;
+        const statusColor = status === 'success' ? 'green' : 
+                          status === 'failed' ? 'red' : 
+                          status === 'building' ? 'yellow' : 'gray';
+        
+        spinner.succeed(`Deployment found! Status: ${chalk[statusColor](status)}`);
+        
+        if (status === 'failed') {
+          console.log(chalk.red('\n⚠️  Your deployment has failed!'));
+          if (existingDeployment.error) {
+            console.log(chalk.red(`   Error: ${existingDeployment.error}`));
+          }
+          console.log(chalk.yellow('\n   The watch command will sync your changes, but the app may not be running.'));
+          console.log(chalk.yellow('   Fix the errors and save your files to trigger a rebuild.\n'));
+        } else if (status === 'building' || status === 'pending') {
+          console.log(chalk.yellow('\n⏳ Your deployment is still building...'));
+          console.log(chalk.gray('   Watch mode will sync changes once the build completes.\n'));
+        } else if (status === 'success') {
+          console.log(chalk.green('\n✓ Your app is running!'));
+          console.log(chalk.blue(`   View it at: ${chalk.underline(`https://${domain}`)}`));
+          console.log(chalk.gray('\n   Watching for file changes...'));
+          console.log(chalk.gray('   Edit your files and they will be automatically synced\n'));
+        }
+      }
+    } catch (error: any) {
+      spinner.fail('Failed to initialize deployment');
+      
+      if (error.response?.data?.error) {
+        console.error(chalk.red('\nError:'), error.response.data.error);
+      } else if (error.code === 'ECONNREFUSED') {
+        console.error(chalk.red('\nCannot connect to SpinHub. Is it running?'));
+      } else {
+        console.error(chalk.red('\nError:'), error.message);
+      }
+      
+      process.exit(1);
+    }
+  };
+
+  // Full sync for initial deployment
+  const fullSync = async () => {
+    spinner.start('Performing initial deployment...');
+    
+    try {
+      // Create a temporary zip file
+      const archiver = require('archiver');
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+      
+      const zipPath = path.join(os.tmpdir(), `${projectName}-${Date.now()}.zip`);
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      
+      output.on('close', async () => {
+        spinner.text = 'Uploading deployment archive...';
+        
+        try {
+          const FormData = require('form-data');
+          const formData = new FormData();
+          
+          // Prepare deployment config
+          const deployConfig = {
+            name: projectName,
+            domain: domain,
+            customerId: auth.customerId,
+            framework: framework,
+            version: '1.0.0',
+            runtime: framework === 'static' ? 'static' : 'node',
+            nodeVersion: '20',
+            resources: {
+              memory: options.memory || '512MB',
+              cpu: parseFloat(options.cpu || '0.5')
+            },
+            env: {
+              NODE_ENV: mode === 'preview' ? 'production' : 'development',
+              ...(options.env ? parseEnvVars(options.env) : {})
+            }
+          };
+          
+          formData.append('archive', fs.createReadStream(zipPath));
+          formData.append('config', JSON.stringify(deployConfig));
+          formData.append('deploymentId', projectName);
+          
+          const response = await axios.post(
+            `${apiUrl}/_api/customer/deployments/upload`,
+            formData,
+            {
+              headers: {
+                ...formData.getHeaders(),
+                'Authorization': `Bearer ${auth.token}`,
+                'X-Customer-ID': auth.customerId,
+              },
+              maxBodyLength: Infinity,
+              maxContentLength: Infinity,
+            }
+          );
+          
+          if (response.data.success) {
+            spinner.succeed('Initial deployment uploaded!');
+            
+            // Wait for deployment to complete
+            spinner.start('Waiting for deployment to complete...');
+            
+            let deploymentStatus = 'pending';
+            let attempts = 0;
+            const maxAttempts = 60; // 5 minutes
+            
+            while ((deploymentStatus === 'pending' || deploymentStatus === 'building') && attempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              
+              const statusResponse = await axios.get(
+                `${apiUrl}/_api/customer/deployments`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${auth.token}`,
+                    'X-Customer-ID': auth.customerId,
+                  }
+                }
+              );
+              
+              // Debug: log all deployments on first attempt
+              if (attempts === 0) {
+                console.log(chalk.gray(`\nFound ${statusResponse.data.length} deployments`));
+                statusResponse.data.forEach((d: any) => {
+                  console.log(chalk.gray(`  - ${d.name} (${d.status})`));
+                });
+              }
+              
+              const ourDeployment = statusResponse.data.find((d: any) => d.name === projectName);
+              if (ourDeployment) {
+                deploymentStatus = ourDeployment.status;
+                spinner.text = `Deployment status: ${deploymentStatus}...`;
+                
+                // Check for error in deployment
+                if (ourDeployment.error) {
+                  spinner.fail(`Deployment failed: ${ourDeployment.error}`);
+                  throw new Error(ourDeployment.error);
+                }
+              } else if (attempts > 2) {
+                // After a few attempts, if we can't find the deployment, it probably failed
+                spinner.fail(`Deployment '${projectName}' not found in status list`);
+                console.log(chalk.red('\nAvailable deployments:'));
+                statusResponse.data.forEach((d: any) => {
+                  console.log(chalk.gray(`  - ${d.name}`));
+                });
+                throw new Error('Deployment failed - not found in status list');
+              }
+              attempts++;
+            }
+            
+            if (deploymentStatus === 'success') {
+              spinner.succeed('Initial deployment completed!');
+            } else if (deploymentStatus === 'failed') {
+              throw new Error('Initial deployment failed');
+            } else {
+              spinner.warn('Deployment is taking longer than expected');
+            }
+          } else {
+            throw new Error(response.data.error || 'Upload failed');
+          }
+          
+          // Clean up zip file
+          fs.unlinkSync(zipPath);
+          
+        } catch (error: any) {
+          spinner.fail('Failed to upload initial deployment');
+          
+          if (error.response?.status === 500) {
+            console.error(chalk.red('\nServer error during upload. This might be due to:'));
+            // Get file size from the zip file
+            const fileSize = fs.statSync(zipPath).size;
+            console.error(chalk.yellow('- File size too large (your archive is ' + (fileSize / 1024 / 1024).toFixed(1) + 'MB)'));
+            console.error(chalk.yellow('- Server upload limits'));
+            console.error(chalk.yellow('- Insufficient server resources\n'));
+            
+            if (fileSize > 50 * 1024 * 1024) {
+              console.error(chalk.red('Your deployment is quite large. Consider:'));
+              console.error(chalk.gray('- Adding more patterns to .gitignore'));
+              console.error(chalk.gray('- Excluding build artifacts'));
+              console.error(chalk.gray('- Removing unnecessary files\n'));
+            }
+          } else if (error.response?.data?.error) {
+            console.error(chalk.red('\nError:'), error.response.data.error);
+          } else if (error.code === 'ECONNREFUSED') {
+            console.error(chalk.red('\nCannot connect to SpinHub. Is it running?'));
+          } else {
+            console.error(chalk.red('\nError:'), error.message);
+          }
+          
+          // Clean up zip file before exiting
+          try {
+            fs.unlinkSync(zipPath);
+          } catch {}
+          
+          process.exit(1);
+        }
+      });
+      
+      archive.on('error', (err: Error) => {
+        spinner.fail('Failed to create deployment archive');
+        throw err;
+      });
+      
+      archive.pipe(output);
+      
+      // Add all files from the watch directory
+      archive.directory(watchPath, false, (entry: any) => {
+        // Exclude common build artifacts and dependencies
+        const excludePatterns = [
+          /node_modules/,
+          /\.git/,
+          /\.next/,
+          /\.cache/,
+          /dist/,
+          /build/,
+          /\.env\.local/,
+          /\.DS_Store/,
+          /\.vscode/,
+          /\.idea/,
+          /coverage/,
+          /\.nyc_output/,
+          /\.turbo/,
+          /out/,
+          /\.vercel/,
+          /\.netlify/,
+          /public\/uploads/,
+          /uploads/,
+          /tmp/,
+          /temp/,
+          /logs?/,
+          /.*\.log$/,
+          /.*\.map$/,
+          /.*\.lock$/
+        ];
+        
+        if (excludePatterns.some(pattern => pattern.test(entry.name))) {
+          return false;
+        }
+        return entry;
+      });
+      
+      await archive.finalize();
+      
+    } catch (error: any) {
+      spinner.fail('Failed to perform initial deployment');
+      
+      if (error.code === 'ENOSPC') {
+        console.error(chalk.red('\nError: No space left on device'));
+      } else {
+        console.error(chalk.red('\nError:'), error.message);
+      }
+      
+      process.exit(1);
+    }
+  };
+
+  // Sync changed files
+  const syncFiles = async () => {
+    if (isDeploying || pendingChanges.size === 0) {
       return;
     }
 
     isDeploying = true;
-    spinner.start('Deploying changes...');
+    const changes = Array.from(pendingChanges.values());
+    pendingChanges.clear();
+
+    spinner.start(`Syncing ${changes.length} file${changes.length > 1 ? 's' : ''}...`);
 
     try {
-      // Run build if package.json exists and has build script
-      const packageJsonPath = join(watchPath, 'package.json');
-      if (existsSync(packageJsonPath)) {
-        const packageJson = require(packageJsonPath);
-        if (packageJson.scripts?.build) {
-          spinner.text = 'Building application...';
-          execSync('npm run build', {
-            cwd: watchPath,
-            stdio: 'pipe',
-            env: { ...process.env, NODE_ENV: 'production' }
-          });
+      const formData = new FormData();
+      
+      // Add changed files
+      const updatedFiles: string[] = [];
+      const deletedFiles: string[] = [];
+      
+      for (const change of changes) {
+        if (change.type === 'unlink') {
+          deletedFiles.push(change.path);
+        } else if (change.content) {
+          formData.append('files', change.content, change.path);
+          updatedFiles.push(change.path);
         }
       }
-
-      // Sync files to deployment directory
-      spinner.text = 'Syncing files...';
-      execSync(`rsync -av --delete --exclude node_modules --exclude .git "${watchPath}/" "${targetPath}/"`, {
-        stdio: 'pipe'
-      });
-
-      // Create/update deploy.yaml
-      const deployConfig = {
-        name: projectName,
-        version: '1.0.0',
-        domain: domain,
-        customerId: auth.customerId,
-        framework: framework,
-        runtime: framework === 'static' ? 'static' : 'node',
-        nodeVersion: '20',
-        resources: {
-          memory: options.memory || '512MB',
-          cpu: parseFloat(options.cpu || '0.5')
-        },
-        env: {
-          NODE_ENV: 'production',
-          ...(options.env ? parseEnvVars(options.env) : {})
+      
+      // Add metadata
+      formData.append('metadata', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        mode: mode
+      }));
+      
+      if (deletedFiles.length > 0) {
+        formData.append('deleted', JSON.stringify(deletedFiles));
+      }
+      
+      formData.append('mode', mode);
+      
+      // Send to server
+      const response = await axios.post(
+        `${apiUrl}/_api/customer/deployments/${projectName}/sync`,
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            'Authorization': `Bearer ${auth.token}`,
+            'X-Customer-ID': auth.customerId,
+          },
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
         }
-      };
-
-      const yamlContent = generateYaml(deployConfig);
-      const deployYamlPath = join(targetPath, 'deploy.yaml');
-      require('fs').writeFileSync(deployYamlPath, yamlContent);
-
-      spinner.succeed(chalk.green('✓ Changes deployed successfully!'));
-      console.log(chalk.gray(`  Updated at ${new Date().toLocaleTimeString()}\n`));
+      );
+      
+      if (response.data.success) {
+        const action = response.data.action;
+        spinner.succeed(chalk.green(`✓ Synced ${updatedFiles.length} files (${action})`));
+        
+        if (action === 'rebuild' || action === 'restart') {
+          spinner.start(`Waiting for ${action}...`);
+          // Give it a few seconds for the action to complete
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          spinner.succeed(`${action} completed`);
+        }
+        
+        console.log(chalk.gray(`  Updated at ${new Date().toLocaleTimeString()}`));
+        console.log(chalk.blue(`  Preview at: ${chalk.underline(`https://${domain}`)}\n`));
+      } else {
+        throw new Error(response.data.error || 'Sync failed');
+      }
     } catch (error: any) {
-      spinner.fail('Deployment failed');
-      console.error(chalk.red('Error:'), error.message);
+      spinner.fail('Sync failed');
+      
+      if (error.response?.status === 404) {
+        console.error(chalk.red('\nDeployment not found. Run "spinforge deploy" first.'));
+      } else if (error.response?.data?.error) {
+        console.error(chalk.red('\nError:'), error.response.data.error);
+      } else {
+        console.error(chalk.red('\nError:'), error.message);
+      }
     } finally {
       isDeploying = false;
     }
-  }, parseInt(options.interval || '1000'));
+  };
 
-  // Initial deployment
-  await debouncedDeploy();
+  // Debounced sync function
+  const intervalMs = parseInt(options.interval || '10000');
+  const debouncedSync = debounce(syncFiles, intervalMs);
+  
+  console.log(chalk.gray(`Debounce: ${intervalMs}ms (changes reset timer)\n`));
+
+  // Initialize deployment
+  await initializeDeployment();
 
   // Watch for changes
-  const watcher = watch(watchPath, { recursive: true }, (_, filename) => {
+  const watcher = watch(watchPath, { recursive: true }, async (eventType, filename) => {
     if (!filename) return;
     
     // Ignore certain files/directories
@@ -132,16 +495,58 @@ export async function watchCommand(path: string, options: WatchOptions) {
       /dist\//,
       /build\//,
       /\.next\//,
-      /\.cache\//
+      /\.cache\//,
+      /\.turbo\//,
+      /coverage\//,
+      /\.nyc_output\//,
+      /\.vscode\//,
+      /\.idea\//,
+      /tmp\//,
+      /temp\//,
+      /logs?\//,
+      /.*\.log$/,
+      /.*\.lock$/,
+      /.*\.swp$/,
+      /.*~$/,
+      /\#.*\#$/  // Emacs temp files
     ];
 
     if (ignoredPatterns.some(pattern => pattern.test(filename))) {
       return;
     }
 
-    console.log(chalk.dim(`  → Changed: ${filename}`));
-    debouncedDeploy();
+    const fullPath = join(watchPath, filename);
+    const relativePath = relative(watchPath, fullPath);
+    
+    console.log(chalk.yellow(`  → ${eventType === 'rename' ? (existsSync(fullPath) ? 'added' : 'deleted') : 'changed'}: ${relativePath} ${chalk.gray(`(syncing in ${intervalMs / 1000}s...)`)}`)  );
+    
+    // Track the change
+    if (eventType === 'rename' && !existsSync(fullPath)) {
+      // File was deleted
+      pendingChanges.set(relativePath, {
+        path: relativePath,
+        type: 'unlink'
+      });
+    } else if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+      // File was added or changed
+      try {
+        const content = readFileSync(fullPath);
+        pendingChanges.set(relativePath, {
+          path: relativePath,
+          type: eventType === 'rename' ? 'add' : 'change',
+          content: content
+        });
+      } catch (error) {
+        console.error(chalk.red(`Failed to read file: ${relativePath}`));
+      }
+    }
+    
+    debouncedSync();
   });
+
+  // Show that we're actively watching
+  console.log(chalk.green('👀 Watching for changes...'));
+  console.log(chalk.gray('   Make changes to your files and they will be synced automatically'));
 
   // Handle exit
   process.on('SIGINT', () => {
@@ -162,29 +567,23 @@ function parseEnvVars(envArray: string[]): Record<string, string> {
   return envVars;
 }
 
-function generateYaml(config: any): string {
-  let yaml = `name: ${config.name}
-version: ${config.version}
-domain: ${config.domain}
-customerId: ${config.customerId}
-
-framework: ${config.framework}
-runtime: ${config.runtime}
-nodeVersion: "${config.nodeVersion}"
-`;
-
-  yaml += `
-resources:
-  memory: ${config.resources.memory}
-  cpu: ${config.resources.cpu}
-`;
-
-  if (config.env && Object.keys(config.env).length > 0) {
-    yaml += '\nenv:\n';
-    for (const [key, value] of Object.entries(config.env)) {
-      yaml += `  ${key}: ${value}\n`;
-    }
+async function detectFramework(projectPath: string): Promise<string> {
+  const packageJsonPath = join(projectPath, 'package.json');
+  if (!existsSync(packageJsonPath)) {
+    return 'static';
   }
-
-  return yaml;
+  
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+  const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+  
+  if (deps.next) return 'nextjs';
+  if (deps.remix || deps['@remix-run/node']) return 'remix';
+  if (deps.express) return 'express';
+  if (deps.fastify) return 'fastify';
+  if (deps.koa) return 'koa';
+  if (deps['@angular/core']) return 'angular';
+  if (deps.vue) return 'vue';
+  if (deps.react && deps['react-scripts']) return 'react';
+  
+  return 'custom';
 }

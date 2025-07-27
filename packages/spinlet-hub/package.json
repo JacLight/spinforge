@@ -14,6 +14,7 @@
   "dependencies": {
     "@spinforge/shared": "file:../shared",
     "@spinforge/spinlet-core": "file:../spinlet-core",
+    "@types/js-yaml": "^4.0.9",
     "@types/multer": "^2.0.0",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
@@ -23,6 +24,7 @@
     "helmet": "^7.1.0",
     "http-proxy": "^1.18.1",
     "ioredis": "^5.3.2",
+    "js-yaml": "^4.1.0",
     "multer": "^2.0.2",
     "nanoid": "^5.0.4",
     "node-7z": "^3.0.0",

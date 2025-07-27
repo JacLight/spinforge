@@ -20,6 +20,7 @@ import {
   CheckCircle,
   Settings as SettingsIcon,
   RefreshCw,
+  Hammer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +37,12 @@ const settingSections: SettingSection[] = [
     title: "Authentication",
     description: "API tokens and access control",
     icon: Key,
+  },
+  {
+    id: "build",
+    title: "Build & Deployment",
+    description: "Build timeouts and settings",
+    icon: Hammer,
   },
   {
     id: "resources",
@@ -115,6 +122,12 @@ export default function Settings() {
   const [autoCleanup, setAutoCleanup] = useState(true);
   const [cleanupAge, setCleanupAge] = useState("30");
 
+  // Build settings
+  const [buildTimeout, setBuildTimeout] = useState("5");
+  const [idleTimeout, setIdleTimeout] = useState("5");
+  const [enableBuildCache, setEnableBuildCache] = useState(true);
+  const [maxConcurrentBuilds, setMaxConcurrentBuilds] = useState("3");
+
   useEffect(() => {
     const token = localStorage.getItem("adminToken") || "";
     setAdminToken(token);
@@ -127,6 +140,7 @@ export default function Settings() {
     localStorage.setItem(
       "settings",
       JSON.stringify({
+        build: { buildTimeout, idleTimeout, enableBuildCache, maxConcurrentBuilds },
         resources: { defaultMemory, defaultCpu, maxMemory, maxCpu },
         networking: { portRangeStart, portRangeEnd, defaultDomainSuffix },
         security: { enableRateLimit, rateLimit, enableSSL, allowedFrameworks },
@@ -198,6 +212,122 @@ export default function Settings() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Generate New API Key
               </button>
+            </div>
+          </div>
+        );
+
+      case "build":
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Build Configuration
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Build Timeout (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={buildTimeout}
+                    onChange={(e) => setBuildTimeout(e.target.value)}
+                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="5"
+                    min="1"
+                    max="60"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Maximum time allowed for building and starting applications (especially important for Next.js apps)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Idle Timeout (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={idleTimeout}
+                    onChange={(e) => setIdleTimeout(e.target.value)}
+                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="5"
+                    min="1"
+                    max="60"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Time before idle applications are automatically shut down
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Max Concurrent Builds
+                  </label>
+                  <input
+                    type="number"
+                    value={maxConcurrentBuilds}
+                    onChange={(e) => setMaxConcurrentBuilds(e.target.value)}
+                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="3"
+                    min="1"
+                    max="10"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Maximum number of applications that can be built simultaneously
+                  </p>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="enableBuildCache"
+                    checked={enableBuildCache}
+                    onChange={(e) => setEnableBuildCache(e.target.checked)}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label
+                    htmlFor="enableBuildCache"
+                    className="ml-2 block text-sm text-gray-900"
+                  >
+                    Enable build cache
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Environment Variables
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-700 mb-2">
+                  Current timeout configuration:
+                </p>
+                <code className="block text-xs bg-gray-900 text-green-400 p-3 rounded">
+                  SPINLET_STARTUP_TIMEOUT_MS={parseInt(buildTimeout) * 60 * 1000}
+                </code>
+                <p className="mt-2 text-xs text-gray-500">
+                  This value will be applied on next restart
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Build Tips
+                  </h3>
+                  <ul className="mt-2 text-sm text-blue-700 list-disc list-inside">
+                    <li>Next.js apps typically need 3-5 minutes to build</li>
+                    <li>Static sites build quickly (under 1 minute)</li>
+                    <li>Enable build cache to speed up subsequent builds</li>
+                    <li>Monitor resource usage during builds</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         );

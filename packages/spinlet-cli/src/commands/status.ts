@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 import { table } from 'table';
 import axios from 'axios';
+import { getRequiredConfig } from '../lib/config';
 
 export async function statusCommand(spinletId?: string, options?: { customer?: string }) {
   try {
-    const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
+    const hubUrl = getRequiredConfig('apiUrl');
 
     if (spinletId) {
       // Get status of specific spinlet

@@ -1,12 +1,13 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import axios from 'axios';
+import { getRequiredConfig } from '../lib/config';
 
 export async function deploymentScanCommand() {
   const spinner = ora('Scanning deployment folder...').start();
 
   try {
-    const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
+    const hubUrl = getRequiredConfig('apiUrl');
     
     // Trigger deployment scan
     const response = await axios.post(`${hubUrl}/_admin/deployments/scan`);
@@ -26,7 +27,7 @@ export async function deploymentScanCommand() {
       console.log(chalk.yellow('\nNo new deployments found'));
     }
     
-    const deploymentPath = process.env.SPINFORGE_DEPLOYMENTS || '/spinforge/deployments';
+    const deploymentPath = getRequiredConfig('deploymentPath');
     console.log(chalk.gray(`\nDeployment folder: ${deploymentPath}`));
 
   } catch (error: any) {

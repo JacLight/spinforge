@@ -50,7 +50,20 @@
       "Bash(yarn install)",
       "Bash(yarn build)",
       "Bash(tar:*)",
-      "Bash(pm2 restart:*)"
+      "Bash(pm2 restart:*)",
+      "Bash(./dist/cli.js --help)",
+      "Bash(./dist/cli.js whoami:*)",
+      "Bash(./dist/cli.js version)",
+      "Bash(./dist/cli.js --version)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm i:*)",
+      "Bash(spinforge:*)",
+      "Bash(npm version:*)",
+      "Bash(npm publish:*)",
+      "Bash(kill:*)",
+      "Bash(npm link:*)",
+      "Bash(npx spinforge-cli@latest:*)",
+      "Bash(npm view:*)"
     ],
     "deny": []
   }

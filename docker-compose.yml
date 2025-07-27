@@ -21,7 +21,7 @@ services:
 
   # SpinHub - Main routing and orchestration service
   spinhub:
-    image: node:20-alpine
+    image: spinforge-hub:latest
     container_name: spinforge-hub
     working_dir: /spinforge
     restart: unless-stopped
@@ -42,6 +42,8 @@ services:
       - PORT_END=40000
       - DEFAULT_MEMORY_LIMIT=512MB
       - DEFAULT_CPU_LIMIT=0.5
+      - SPINLET_STARTUP_TIMEOUT_MS=${SPINLET_STARTUP_TIMEOUT_MS:-300000}
+      - IDLE_TIMEOUT_MS=${IDLE_TIMEOUT_MS:-300000}
     volumes:
       - ./:/spinforge
       - builds-data:/spinforge/builds
@@ -52,7 +54,6 @@ services:
         condition: service_healthy
     networks:
       - spinforge-network
-    command: sh -c "apk add --no-cache git python3 make g++ docker-cli && npm install -g typescript && cd /spinforge && rm -f package-lock.json && mv package.json package.json.bak || true && cd packages/shared && npm install && npm run build || true && cd ../spinlet-core && npm install && npm run build || true && cd ../spinlet-hub && npm install && npm run build || true && node dist/server.js"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/_health"]
       interval: 30s

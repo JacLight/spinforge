@@ -1,8 +1,14 @@
+import { config } from '@spinforge/shared';
+
+// Get configuration
+const deploymentConfig = config.get().deployment;
+const portsConfig = config.get().ports;
+
 // Time constants
-export const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+export const IDLE_TIMEOUT_MS = deploymentConfig.idleTimeout;
+export const STARTUP_TIMEOUT_MS = deploymentConfig.startupTimeout;
 export const HEALTH_CHECK_INTERVAL_MS = 10 * 1000; // 10 seconds
 export const METRICS_COLLECTION_INTERVAL_MS = 5 * 1000; // 5 seconds
-export const STARTUP_TIMEOUT_MS = 30 * 1000; // 30 seconds
 export const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 5 * 1000; // 5 seconds
 
 // Resource limits
@@ -13,8 +19,8 @@ export const MAX_CPU_LIMIT = '2.0';
 
 // Port configuration
 export const DEFAULT_PORT_RANGE = {
-  start: 3000,
-  end: 4000
+  start: portsConfig.rangeStart,
+  end: portsConfig.rangeEnd
 };
 
 // Redis keys

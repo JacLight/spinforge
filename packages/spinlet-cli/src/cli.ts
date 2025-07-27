@@ -14,13 +14,29 @@ import { watchCommand } from './commands/watch';
 import { loginCommand } from './commands/auth/login';
 import { logoutCommand } from './commands/auth/logout';
 import { whoamiCommand } from './commands/auth/whoami';
+import { versionCommand } from './commands/version';
+import { setupCommand } from './commands/setup';
+import { configCommand } from './commands/config';
 
+const packageJson = require('../package.json');
 const program = new Command();
 
 program
-  .name('spin')
-  .description('SpinForge CLI - AI and MicroSite hosting heaven')
-  .version('0.1.0');
+  .name('spinforge')
+  .description('SpinForge CLI - Deploy and manage applications with ease')
+  .version(packageJson.version);
+
+// Setup command (should be first)
+program
+  .command('setup')
+  .description('Initial setup wizard for SpinForge CLI')
+  .action(setupCommand);
+
+// Config command
+program
+  .command('config')
+  .description('Manage SpinForge CLI configuration')
+  .action(configCommand);
 
 // Auth commands
 program
@@ -122,8 +138,16 @@ program
   .option('-m, --memory <size>', 'Memory limit (e.g., 512MB)', '512MB')
   .option('--cpu <limit>', 'CPU limit (e.g., 0.5)', '0.5')
   .option('-e, --env <vars...>', 'Environment variables (KEY=value)')
-  .option('-i, --interval <ms>', 'Debounce interval in milliseconds', '1000')
+  .option('-i, --interval <ms>', 'Debounce interval in milliseconds', '10000')
+  .option('--no-build', 'Skip build step')
+  .option('--mode <mode>', 'Deployment mode (preview or development)', 'preview')
   .action(watchCommand);
+
+// Version command
+program
+  .command('version')
+  .description('Display version information')
+  .action(versionCommand);
 
 // Error handling
 program.exitOverride();
@@ -141,4 +165,5 @@ try {
 // Show help if no command provided
 if (!process.argv.slice(2).length) {
   program.outputHelp();
+  console.log('\n' + chalk.yellow('First time?') + ' Run ' + chalk.cyan('spinforge setup') + ' to configure the CLI\n');
 }

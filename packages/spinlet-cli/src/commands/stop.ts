@@ -1,12 +1,13 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import axios from 'axios';
+import { getRequiredConfig } from '../lib/config';
 
 export async function stopCommand(spinletId: string) {
   const spinner = ora(`Stopping spinlet ${spinletId}...`).start();
 
   try {
-    const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
+    const hubUrl = getRequiredConfig('apiUrl');
     
     const response = await axios.post(`${hubUrl}/_admin/spinlets/${spinletId}/stop`);
     

@@ -504,4 +504,89 @@ class SpinForgeAPI {
   }
 }
 
+// Customer-specific API class that uses customer endpoints
+class CustomerAPI {
+  private customerId: string;
+  private authToken: string;
+
+  constructor() {
+    this.customerId = localStorage.getItem('customerId') || '';
+    this.authToken = localStorage.getItem('authToken') || '';
+  }
+
+  setAuth(customerId: string, authToken: string) {
+    this.customerId = customerId;
+    this.authToken = authToken;
+    localStorage.setItem('customerId', customerId);
+    localStorage.setItem('authToken', authToken);
+  }
+
+  private getHeaders() {
+    return {
+      'X-Customer-ID': this.customerId,
+      'Authorization': `Bearer ${this.authToken}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  async getDeployments(): Promise<DeploymentStatus[]> {
+    const response = await axios.get(
+      `${API_BASE}/_api/customer/deployments`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async getSpinlets(): Promise<Spinlet[]> {
+    const response = await axios.get(
+      `${API_BASE}/_api/customer/spinlets`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async getDomains(): Promise<any[]> {
+    const response = await axios.get(
+      `${API_BASE}/_api/customer/domains`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async getUsage(): Promise<any> {
+    const response = await axios.get(
+      `${API_BASE}/_api/customer/usage`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async stopSpinlet(spinletId: string) {
+    const response = await axios.post(
+      `${API_BASE}/_api/customer/spinlets/${spinletId}/stop`,
+      {},
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async restartSpinlet(spinletId: string) {
+    const response = await axios.post(
+      `${API_BASE}/_api/customer/spinlets/${spinletId}/restart`,
+      {},
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+
+  async getSpinletLogs(spinletId: string, lines = 100) {
+    const response = await axios.get(
+      `${API_BASE}/_api/customer/spinlets/${spinletId}/logs?lines=${lines}`,
+      { headers: this.getHeaders() }
+    );
+    return response.data;
+  }
+}
+
 export const api = new SpinForgeAPI();
+export const customerApi = new CustomerAPI();

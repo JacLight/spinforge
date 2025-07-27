@@ -1,142 +1,192 @@
 # SpinForge CLI
 
-Command-line interface for managing SpinForge applications.
+<div align="center">
+  <h1>⚡ SpinForge CLI</h1>
+  <p><strong>Deploy and manage applications with ease on the SpinForge platform</strong></p>
+  <p>
+    <a href="https://spinforge.dev">Website</a> •
+    <a href="https://github.com/JacLight/spinforge">GitHub</a> •
+    <a href="https://spinforge.dev/docs">Documentation</a>
+  </p>
+</div>
 
 ## Installation
 
 ```bash
-npm install -g @spinforge/cli
+npm install -g spinforge-cli
 ```
+
+## Quick Start
+
+```bash
+# Deploy current directory
+spinforge deploy
+
+# Deploy with custom domain
+spinforge deploy -d myapp.spinforge.dev
+
+# Deploy a specific folder
+spinforge deploy -p ./my-app -d myapp.local
+```
+
+## Features
+
+- 🚀 **Instant Deployments** - Deploy applications in seconds
+- 🔧 **Framework Auto-Detection** - Automatically detects Next.js, React, Vue, Express, and more
+- 🌐 **Custom Domains** - Deploy with your own domain
+- 📊 **Real-time Monitoring** - View logs and metrics
+- 🔄 **Hot Reloading** - Watch for changes and auto-deploy
+- 🎯 **Zero Config** - Works out of the box with sensible defaults
 
 ## Commands
 
-### Deploy (Direct API)
-Deploy an application directly via the SpinHub API:
+### Authentication
 
 ```bash
-spinforge deploy <path> [options]
+spinforge login              # Login to SpinForge
+spinforge logout             # Logout from SpinForge
+spinforge whoami             # Display current user information
 ```
 
-Options:
-- `-d, --domain <domain>` - Domain for the application
-- `-c, --customer <id>` - Customer ID
-- `-f, --framework <type>` - Framework type (remix, nextjs, express)
-- `-m, --memory <size>` - Memory limit (default: 512MB)
-- `--cpu <limit>` - CPU limit (default: 0.5)
-
-### Deploy Folder (Hot Deployment)
-Prepare a folder for hot deployment with automatic build:
+### Deployment
 
 ```bash
-spinforge deploy-folder <path> [options]
+spinforge deploy [options]   # Deploy an application
+  -p, --path <path>          # Path to deploy (default: current directory)
+  -d, --domain <domain>      # Domain for the application
+  -f, --framework <type>     # Framework type (auto-detected if not specified)
+  -n, --name <name>          # Application name
+  -m, --memory <size>        # Memory limit (default: 512MB)
+  --cpu <limit>              # CPU limit (default: 0.5)
 ```
 
-Options:
-- `-d, --domain <domain>` - Domain for the application
-- `-c, --customer <id>` - Customer ID
-- `-f, --framework <type>` - Framework type (auto-detected if not specified)
-- `-n, --name <name>` - Application name
-- `-m, --memory <size>` - Memory limit (default: 512MB)
-- `--cpu <limit>` - CPU limit (default: 0.5)
-- `--skip-build` - Skip build step (for pre-built apps)
-- `-e, --env <vars...>` - Environment variables (KEY=value)
-
-Examples:
-```bash
-# Deploy with auto-detection
-spinforge deploy-folder ./my-app
-
-# Deploy pre-built Next.js app
-spinforge deploy-folder ./my-app --skip-build --framework nextjs
-
-# Deploy with custom domain and env vars
-spinforge deploy-folder ./my-app -d myapp.local -e API_KEY=secret -e DB_URL=postgres://...
-```
-
-### List Deployments
-View all deployments:
+### Management
 
 ```bash
-spinforge deployments [options]
+spinforge deployments        # List all deployments
+spinforge status [id]        # Get status of spinlets
+spinforge logs <id>          # Stream logs from a spinlet
+spinforge stop <id>          # Stop a running spinlet
+spinforge routes             # Manage domain routes
 ```
 
-Options:
-- `--json` - Output as JSON
-
-### Scan Deployments
-Manually trigger deployment folder scanning:
+### Development
 
 ```bash
-spinforge deployment-scan
+spinforge watch [path]       # Watch for changes and auto-deploy
+spinforge deploy-folder      # Prepare folder for hot deployment
 ```
-
-### View Status
-Get status of spinlets:
-
-```bash
-spinforge status [spinletId]
-```
-
-Options:
-- `-c, --customer <id>` - Filter by customer ID
-
-### View Logs
-Stream logs from a spinlet:
-
-```bash
-spinforge logs <spinletId> [options]
-```
-
-Options:
-- `-f, --follow` - Follow log output
-- `-n, --lines <number>` - Number of lines to show (default: 100)
-
-### Manage Routes
-Manage domain routes:
-
-```bash
-spinforge routes [options]
-```
-
-Options:
-- `-c, --customer <id>` - Filter by customer ID
-- `--add` - Add a new route
-- `--remove <domain>` - Remove a route
-
-### Stop Spinlet
-Stop a running spinlet:
-
-```bash
-spinforge stop <spinletId>
-```
-
-## Environment Variables
-
-- `SPINHUB_URL` - SpinHub API URL (default: http://localhost:8080)
-- `SPINFORGE_DEPLOYMENTS` - Deployment folder path (default: /spinforge/deployments)
-
-## Deployment Workflow
-
-### Option 1: Hot Deployment with Build
-1. Create your application
-2. Run `spinforge deploy-folder ./my-app`
-3. Copy to deployment folder when prompted
-4. SpinHub automatically builds and deploys
-
-### Option 2: Pre-built Deployment
-1. Build your application locally
-2. Run `spinforge deploy-folder ./my-app --skip-build`
-3. Copy built files to deployment folder
-4. SpinHub automatically deploys without building
-
-### Option 3: Direct API Deployment
-1. Use `spinforge deploy ./my-app` for immediate deployment
-2. Application is deployed directly via API
 
 ## Framework Support
 
-- **nextjs** - Next.js applications
-- **remix** - Remix applications  
-- **express** - Express.js applications
-- **static** - Static websites
-- **custom** - Custom Node.js applications
+SpinForge automatically detects and optimizes deployments for:
+
+- **Next.js** - Full support for SSR, SSG, and API routes
+- **React** - Optimized static builds
+- **Vue** - Production-ready deployments
+- **Express** - Node.js server applications
+- **NestJS** - Enterprise Node.js applications
+- **Remix** - Full-stack React framework
+- **Static Sites** - HTML, CSS, JS websites
+- **Custom Node.js** - Any Node.js application
+
+## Examples
+
+### Deploy a Next.js Application
+
+```bash
+cd my-nextjs-app
+spinforge deploy -d myapp.spinforge.dev
+```
+
+### Deploy with Environment Variables
+
+```bash
+spinforge deploy -e API_KEY=secret -e DB_URL=postgres://...
+```
+
+### Watch for Changes
+
+```bash
+spinforge watch ./my-app
+```
+
+### Deploy Pre-built Application
+
+```bash
+spinforge deploy-folder ./dist --skip-build --framework static
+```
+
+## Configuration
+
+Create a `spinforge.json` in your project root:
+
+```json
+{
+  "name": "my-app",
+  "domain": "myapp.spinforge.dev",
+  "framework": "nextjs",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "command": "npm run build",
+    "output": ".next"
+  }
+}
+```
+
+## Configuration
+
+SpinForge CLI requires explicit configuration. You can configure it using:
+
+1. **Environment Variables**
+2. **spinforge.config.json** file in your project directory
+
+### Environment Variables
+
+- `SPINFORGE_API_URL` - API URL (required)
+- `SPINFORGE_WEB_URL` - Web UI URL (required)
+- `SPINFORGE_TOKEN` - API token for authentication
+- `SPINFORGE_DEPLOYMENTS` - Local deployment directory path (required)
+
+### spinforge.config.json
+
+Create a `spinforge.config.json` file in your project directory:
+
+```json
+{
+  "apiUrl": "https://api.spinforge.dev",
+  "webUrl": "https://spinforge.dev",
+  "deploymentPath": "~/.spinforge/deployments"
+}
+```
+
+Environment variables take precedence over the config file.
+
+### Local Development
+
+For local development:
+
+```bash
+export SPINFORGE_API_URL=http://localhost:9006
+export SPINFORGE_WEB_URL=http://localhost:3000
+export SPINFORGE_DEPLOYMENTS=/Users/you/.spinforge/deployments
+```
+
+## Support
+
+- 📖 [Documentation](https://spinforge.dev/docs)
+- 🐛 [Report Issues](https://github.com/JacLight/spinforge/issues)
+- 💬 [Community](https://spinforge.dev/community)
+
+## License
+
+MIT License - see [LICENSE](https://github.com/JacLight/spinforge/blob/main/LICENSE) for details.
+
+---
+
+<div align="center">
+  <p>Built with ❤️ by the SpinForge Team</p>
+  <p><a href="https://spinforge.dev">spinforge.dev</a></p>
+</div>

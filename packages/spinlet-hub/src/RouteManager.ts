@@ -189,7 +189,7 @@ export class RouteManager {
 
   private isValidDomain(domain: string): boolean {
     // Basic domain validation
-    const domainRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z]{2,}$/;
+    const domainRegex = /^(\*\.)?([a-zA-Z0-9_]([a-zA-Z0-9_-]{0,61}[a-zA-Z0-9_])?\.)*[a-zA-Z]{2,}$/;
     return domainRegex.test(domain);
   }
 

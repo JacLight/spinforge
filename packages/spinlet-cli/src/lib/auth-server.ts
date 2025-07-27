@@ -79,9 +79,13 @@ export function startAuthServer(): Promise<AuthResult> {
           
           // Close server and resolve with auth data
           server.close();
+          if (!customerId) {
+            reject(new Error('Authentication response missing customer ID'));
+            return;
+          }
           resolve({
             token,
-            customerId: customerId || 'default',
+            customerId,
             email: email || undefined
           });
         } else {

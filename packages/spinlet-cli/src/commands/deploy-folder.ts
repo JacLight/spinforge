@@ -6,6 +6,7 @@ import ora from 'ora';
 // import { nanoid } from 'nanoid';
 import inquirer from 'inquirer';
 import { getAuthConfig } from '../lib/auth';
+import { getRequiredConfig } from '../lib/config';
 
 interface DeployFolderOptions {
   domain?: string;
@@ -104,7 +105,7 @@ export async function deployFolderCommand(path: string, options: DeployFolderOpt
     spinner.succeed('Deployment configuration created!');
 
     // Get deployment folder path
-    const deploymentPath = process.env.SPINFORGE_DEPLOYMENTS || '/spinforge/deployments';
+    const deploymentPath = getRequiredConfig('deploymentPath');
     const targetPath = join(deploymentPath, name);
 
     console.log('\n' + chalk.green('Deployment Configuration:'));

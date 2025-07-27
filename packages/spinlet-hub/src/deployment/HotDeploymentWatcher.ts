@@ -413,7 +413,7 @@ export class HotDeploymentWatcher {
       ? config.domain
       : [config.domain];
     for (const domain of domains) {
-      if (!/^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,}$/.test(domain)) {
+      if (!/^[a-zA-Z0-9_]+([-.]{1}[a-zA-Z0-9_]+)*(\.[a-zA-Z0-9_]+)*\.[a-zA-Z]{2,}$/i.test(domain)) {
         errors.push(`Invalid domain format: ${domain}`);
       }
     }

@@ -39,36 +39,6 @@ export default function DeploymentManagement() {
   const [showLogs, setShowLogs] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  // Mock data for development
-  const mockDeployments: DeploymentStatus[] = [
-    {
-      name: "appmint-blocks-site",
-      status: "failed",
-      timestamp: new Date().toISOString(),
-      error: "Cannot find module 'axios'",
-      framework: "nextjs",
-      customerId: "appmint-block",
-      buildTime: 45000,
-    },
-    {
-      name: "my-express-app",
-      status: "success",
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      domains: ["app.localhost"],
-      framework: "express",
-      customerId: "demo-customer",
-      buildTime: 23000,
-      spinletId: "my-express-app-1234567890",
-    },
-    {
-      name: "static-site",
-      status: "building",
-      timestamp: new Date(Date.now() - 60000).toISOString(),
-      framework: "static",
-      customerId: "web-customer",
-    },
-  ];
-
   // Fetch deployment statuses
   const {
     data: deployments,
@@ -97,10 +67,7 @@ export default function DeploymentManagement() {
 
   // Mutations for deployment management
   const retryMutation = useMutation({
-    mutationFn: (deploymentName: string) =>
-      fetch(`/_admin/deployments/${deploymentName}/retry`, {
-        method: "POST",
-      }),
+    mutationFn: (deploymentName: string) => api.retryDeployment(deploymentName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deployments"] });
     },
@@ -128,16 +95,12 @@ export default function DeploymentManagement() {
   });
 
   const scanMutation = useMutation({
-    mutationFn: () =>
-      fetch("/_admin/deployments/scan", {
-        method: "POST",
-      }),
+    mutationFn: () => api.scanDeployments(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deployments"] });
       queryClient.invalidateQueries({ queryKey: ["deployment-folder"] });
     },
   });
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
@@ -170,7 +133,7 @@ export default function DeploymentManagement() {
     }
   };
 
-  const deploymentData = deployments || mockDeployments;
+  const deploymentData = deployments || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -298,10 +261,20 @@ export default function DeploymentManagement() {
                                   retryMutation.mutate(deployment.name);
                                 }}
                                 className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                title={deployment.status === "failed" ? "Retry failed deployment" : "Force redeploy"}
+                                title={
+                                  deployment.status === "failed"
+                                    ? "Retry failed deployment"
+                                    : "Force redeploy"
+                                }
                                 disabled={retryMutation.isPending}
                               >
-                                <RefreshCw className={`h-4 w-4 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                                <RefreshCw
+                                  className={`h-4 w-4 ${
+                                    retryMutation.isPending
+                                      ? "animate-spin"
+                                      : ""
+                                  }`}
+                                />
                               </button>
                             )}
 

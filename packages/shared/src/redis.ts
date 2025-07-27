@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { logger } from './logger';
+import { getRedisConfig } from './config';
 
 export interface RedisConfig {
   host?: string;
@@ -11,12 +12,14 @@ export interface RedisConfig {
 }
 
 export function createRedisClient(config: RedisConfig = {}): Redis {
+  const redisConfig = getRedisConfig();
+  
   const client = new Redis({
-    host: config.host || process.env.REDIS_HOST || 'localhost',
-    port: config.port || parseInt(process.env.REDIS_PORT || '6379'),
-    password: config.password || process.env.REDIS_PASSWORD,
-    db: config.db || parseInt(process.env.REDIS_DB || '0'),
-    keyPrefix: config.keyPrefix || 'spinforge:',
+    host: config.host || redisConfig.host,
+    port: config.port || redisConfig.port,
+    password: config.password || redisConfig.password,
+    db: config.db || redisConfig.db,
+    keyPrefix: config.keyPrefix || redisConfig.keyPrefix,
     retryStrategy: config.retryStrategy || ((times: number) => {
       const delay = Math.min(times * 50, 2000);
       logger.warn(`Redis connection failed, retrying in ${delay}ms...`);

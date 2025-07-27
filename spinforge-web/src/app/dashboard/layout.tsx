@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { 
   Home, 
-  Rocket, 
+  Rocket,
+  Package, 
   Globe, 
   Key, 
   BarChart3, 
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: Home },
+  { name: "Applications", href: "/dashboard/applications", icon: Package },
   { name: "Deployments", href: "/dashboard/deployments", icon: Rocket },
   { name: "Domains", href: "/dashboard/domains", icon: Globe },
   { name: "API Tokens", href: "/dashboard/api-tokens", icon: Key },
@@ -130,7 +132,7 @@ export default function DashboardLayout({
               {navigation.find(n => n.href === pathname)?.name || "Dashboard"}
             </h1>
             <Link
-              href="/dashboard/deployments/new"
+              href="/dashboard/deployments"
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
               <Plus className="h-4 w-4" />

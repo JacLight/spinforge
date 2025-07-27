@@ -38,8 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = JSON.parse(storedUser);
         setUser(userData);
         
-        // Set axios default header
+        // Set axios default headers
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        axios.defaults.headers.common["X-Customer-ID"] = userData.customerId;
       } catch (error) {
         console.error("Error parsing user data:", error);
         logout();
@@ -53,21 +54,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await axios.post("/api/auth/login", { email, password });
     
     if (response.data.success) {
-      const { token, user } = response.data;
+      const { token, refreshToken, user } = response.data;
       
       // Store auth data
       localStorage.setItem("auth-token", token);
+      localStorage.setItem("refresh-token", refreshToken);
       localStorage.setItem("user", JSON.stringify(user));
       
-      // Set axios default header
+      // Set axios default headers
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      axios.defaults.headers.common["X-Customer-ID"] = user.customerId;
       
       setUser(user);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await axios.post("/api/auth/logout");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    
     localStorage.removeItem("auth-token");
+    localStorage.removeItem("refresh-token");
     localStorage.removeItem("user");
     delete axios.defaults.headers.common["Authorization"];
     setUser(null);

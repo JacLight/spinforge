@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -21,6 +21,18 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  
+  // Check if already logged in
+  useEffect(() => {
+    const authToken = localStorage.getItem("auth-token");
+    if (authToken) {
+      // Already logged in - redirect to dashboard
+      router.push("/dashboard");
+    } else {
+      setCheckingAuth(false);
+    }
+  }, [router]);
 
   const {
     register,
@@ -46,6 +58,7 @@ export default function LoginPage() {
         localStorage.setItem("auth-token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
         
+        // Always go to dashboard for regular login
         router.push("/dashboard");
       }
     } catch (error: any) {
@@ -76,6 +89,15 @@ export default function LoginPage() {
     // Redirect to GitHub OAuth
     window.location.href = "/api/auth/github";
   };
+
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+        <Loader2 className="animate-spin h-8 w-8 text-indigo-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">

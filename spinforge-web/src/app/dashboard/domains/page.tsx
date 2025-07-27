@@ -52,22 +52,10 @@ export default function DomainsPage() {
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Domains</h1>
-            <p className="text-gray-600">Manage your custom domains</p>
-          </div>
-          <button
-            onClick={() => setShowAddDomain(!showAddDomain)}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Domain
-          </button>
-        </div>
-      </div>
+      {/* Description */}
+      <p className="text-sm text-gray-500 mb-6">
+        Manage your custom domains and DNS settings
+      </p>
 
       {/* Add Domain Form */}
       {showAddDomain && (

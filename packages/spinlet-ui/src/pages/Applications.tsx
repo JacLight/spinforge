@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, Route, Spinlet, IdleInfo } from '../services/api';
+import { api, customerApi, Route, Spinlet, IdleInfo } from '../services/api';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -77,7 +77,7 @@ export default function Applications() {
       
       // Get deployment statuses
       try {
-        const deployments = await api.getDeployments();
+        const deployments = await customerApi.getDeployments();
         
         // Merge deployment info with routes and verify static deployments
         const routesWithStatus = await Promise.all(routeData.map(async route => {
@@ -125,6 +125,20 @@ export default function Applications() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to delete application: ${error.message}`);
+    },
+  });
+
+  const retryDeploymentMutation = useMutation({
+    mutationFn: async (deploymentName: string) => {
+      const response = await api.retryDeployment(deploymentName);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['routes'] });
+      toast.success('Deployment retry initiated');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to retry deployment: ${error.message}`);
     },
   });
 
@@ -538,6 +552,23 @@ export default function Applications() {
                             <div className="absolute bottom-0 right-4 transform translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
                           </div>
                         </div>
+
+                        {/* Retry Button for Failed Deployments */}
+                        {route.deploymentStatus === 'failed' && (
+                          <button
+                            onClick={() => {
+                              const deploymentName = route.spinletId.replace('static-', '') || 
+                                                   route.buildPath?.split('/').pop() || 
+                                                   route.domain.split('.')[0];
+                              retryDeploymentMutation.mutate(deploymentName);
+                            }}
+                            className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+                            title="Retry Failed Deployment"
+                            disabled={retryDeploymentMutation.isPending}
+                          >
+                            <RefreshCw className={`h-4 w-4 ${retryDeploymentMutation.isPending ? 'animate-spin' : ''}`} />
+                          </button>
+                        )}
 
                         {/* Extend Timeout Button */}
                         {route.idleInfo && route.spinletState?.state === 'running' && (

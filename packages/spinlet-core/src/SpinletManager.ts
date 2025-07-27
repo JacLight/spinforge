@@ -6,7 +6,7 @@ import * as path from "path";
 import { SpinletConfig, SpinletState } from "./types";
 import { PortAllocator } from "./PortAllocator";
 import { SpinletMonitor } from "./SpinletMonitor";
-import { IDLE_TIMEOUT_MS } from "./constants";
+import { IDLE_TIMEOUT_MS, STARTUP_TIMEOUT_MS } from "./constants";
 import { createLogger } from "@spinforge/shared";
 
 export class SpinletManager extends EventEmitter {
@@ -457,7 +457,7 @@ export class SpinletManager extends EventEmitter {
     spinletId: string,
     port: number,
     framework?: string,
-    timeout: number = 30000
+    timeout: number = STARTUP_TIMEOUT_MS
   ): Promise<void> {
     const startTime = Date.now();
 
@@ -472,11 +472,11 @@ export class SpinletManager extends EventEmitter {
         // Try to connect to the port
         const http = await import("http");
         await new Promise<void>((resolve, reject) => {
-          // For static sites, just check if the root responds
-          const path = framework === "static" ? "/" : "/health";
+          // For static sites and Next.js, just check if the root responds
+          const path = (framework === "static" || framework === "nextjs") ? "/" : "/health";
           const req = http.get(`http://localhost:${port}${path}`, (res) => {
-            // For static sites, any response is good (even 404 means server is up)
-            if (framework === "static" || res.statusCode === 200) {
+            // For static sites and Next.js, any response is good (even 404 means server is up)
+            if (framework === "static" || framework === "nextjs" || res.statusCode === 200) {
               resolve();
             } else {
               reject(new Error(`Health check returned ${res.statusCode}`));

@@ -16,7 +16,7 @@ import {
   BarChart3
 } from "lucide-react";
 import Link from "next/link";
-import axios from "axios";
+import { apiClient } from "@/lib/api-client";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const { data: deployments = [] } = useQuery({
     queryKey: ["customer-deployments", user?.customerId],
     queryFn: async () => {
-      const response = await axios.get(`/api/deployments?customerId=${user?.customerId}`);
+      const response = await apiClient.get("/deployments");
       return response.data;
     },
     enabled: !!user?.customerId,
@@ -152,7 +152,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">Your Applications</h3>
             <Link
-              href="/dashboard/deployments"
+              href="/dashboard/applications"
               className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
             >
               View all
@@ -166,7 +166,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-gray-500">Get started by creating a new deployment.</p>
               <div className="mt-6">
                 <Link
-                  href="/dashboard/deployments/new"
+                  href="/dashboard/deployments"
                   className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                 >
                   <Rocket className="h-4 w-4 mr-2" />
@@ -201,7 +201,7 @@ export default function DashboardPage() {
                     <tr key={deployment.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Link
-                          href={`/dashboard/deployments/${deployment.id}`}
+                          href={`/dashboard/applications`}
                           className="text-sm font-medium text-gray-900 hover:text-indigo-600"
                         >
                           {deployment.name}

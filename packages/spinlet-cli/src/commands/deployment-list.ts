@@ -2,6 +2,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import axios from 'axios';
 import { table } from 'table';
+import { getRequiredConfig } from '../lib/config';
+import { getAuthConfig } from '../lib/auth';
 
 interface ListOptions {
   json?: boolean;
@@ -11,10 +13,16 @@ export async function deploymentListCommand(options: ListOptions) {
   const spinner = ora('Fetching deployments...').start();
 
   try {
-    const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
+    const hubUrl = getRequiredConfig('apiUrl');
+    const auth = getAuthConfig();
     
-    // Fetch deployment statuses
-    const response = await axios.get(`${hubUrl}/_admin/deployments`);
+    // Fetch deployment statuses using customer API
+    const response = await axios.get(`${hubUrl}/_api/customer/deployments`, {
+      headers: {
+        'Authorization': `Bearer ${auth.token}`,
+        'X-Customer-ID': auth.customerId,
+      }
+    });
     const deployments = response.data;
 
     spinner.stop();
@@ -99,7 +107,7 @@ export async function deploymentListCommand(options: ListOptions) {
     if (axios.isAxiosError(error)) {
       console.error(chalk.red('\nError:'), error.response?.data?.error || error.message);
       if (error.code === 'ECONNREFUSED') {
-        console.error(chalk.yellow('Make sure SpinHub is running on'), process.env.SPINHUB_URL || 'http://localhost:8080');
+        console.error(chalk.yellow('Make sure SpinHub is running'));
       }
     } else {
       console.error(chalk.red('\nError:'), error.message);

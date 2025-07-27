@@ -441,7 +441,7 @@ export default function ApplicationDetail() {
                         <button
                           onClick={() => {
                             // Basic domain validation
-                            if (!/^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,}$/.test(newDomain)) {
+                            if (!/^[a-zA-Z0-9_]+([-.]{1}[a-zA-Z0-9_]+)*(\.[a-zA-Z0-9_]+)*\.[a-zA-Z]{2,}$/i.test(newDomain)) {
                               toast.error("Invalid domain format");
                               return;
                             }

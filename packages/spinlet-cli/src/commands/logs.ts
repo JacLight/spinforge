@@ -1,5 +1,7 @@
 import chalk from 'chalk';
-import { createRedisClient } from '@spinforge/shared';
+import axios from 'axios';
+import { getRequiredConfig } from '../lib/config';
+import { getAuthHeaders } from '../lib/auth';
 
 interface LogOptions {
   follow?: boolean;
@@ -7,118 +9,107 @@ interface LogOptions {
 }
 
 export async function logsCommand(spinletId: string, options: LogOptions) {
-  const redis = createRedisClient();
+  const apiUrl = getRequiredConfig('apiUrl');
   const lines = parseInt(options.lines || '100');
+  const headers = getAuthHeaders();
   
   try {
     console.log(chalk.gray(`Fetching logs for ${spinletId}...\n`));
 
-    // Get recent audit events for this spinlet
-    const events = await redis.xrevrange(
-      'spinforge:audit',
-      '+',
-      '-',
-      'COUNT',
-      lines
-    );
-
-    // Filter events for this spinlet
-    const spinletEvents = events.filter(([_, fields]) => {
-      for (let i = 0; i < fields.length; i += 2) {
-        if (fields[i] === 'spinletId' && fields[i + 1] === spinletId) {
-          return true;
-        }
+    // Get logs from API
+    const response = await axios.get(`${apiUrl}/spinlets/${spinletId}/logs`, {
+      headers,
+      params: {
+        lines
       }
-      return false;
     });
+    
+    const logs = response.data;
 
-    if (spinletEvents.length === 0) {
+    if (!logs || logs.length === 0) {
       console.log(chalk.yellow('No logs found for this spinlet'));
       return;
     }
 
     // Display logs
-    spinletEvents.reverse().forEach(([, fields]) => {
-      const event: any = {};
-      for (let i = 0; i < fields.length; i += 2) {
-        event[fields[i]] = fields[i + 1];
-      }
-
-      const timestamp = new Date(parseInt(event.timestamp)).toLocaleString();
-      const level = getLogLevel(event.event);
+    logs.forEach((log: any) => {
+      const timestamp = new Date(log.timestamp).toLocaleString();
+      const level = getLogLevel(log.level);
       
       console.log(
         chalk.gray(timestamp),
         level,
-        chalk.bold(event.event),
-        event.data ? chalk.gray(event.data) : ''
+        log.message
       );
     });
 
     if (options.follow) {
       console.log(chalk.gray('\nFollowing logs... (press Ctrl+C to stop)\n'));
       
-      // Subscribe to new events
-      let lastId = spinletEvents[spinletEvents.length - 1]?.[0] || '$';
+      // Poll for new logs
+      let lastTimestamp = logs[logs.length - 1]?.timestamp || Date.now();
       
       const checkForNewLogs = async () => {
-        const newEvents = await redis.xread(
-          'BLOCK', '1000',
-          'STREAMS', 'spinforge:audit', lastId
-        );
-
-        if (newEvents && newEvents.length > 0) {
-          const [_, entries] = newEvents[0];
-          
-          entries.forEach(([id, fields]: [string, string[]]) => {
-            const event: any = {};
-            for (let i = 0; i < fields.length; i += 2) {
-              event[fields[i]] = fields[i + 1];
+        try {
+          const response = await axios.get(`${apiUrl}/spinlets/${spinletId}/logs`, {
+            headers,
+            params: {
+              since: lastTimestamp
             }
-
-            if (event.spinletId === spinletId) {
-              const timestamp = new Date(parseInt(event.timestamp)).toLocaleString();
-              const level = getLogLevel(event.event);
+          });
+          
+          const newLogs = response.data;
+          
+          if (newLogs && newLogs.length > 0) {
+            newLogs.forEach((log: any) => {
+              const timestamp = new Date(log.timestamp).toLocaleString();
+              const level = getLogLevel(log.level);
               
               console.log(
                 chalk.gray(timestamp),
                 level,
-                chalk.bold(event.event),
-                event.data ? chalk.gray(event.data) : ''
+                log.message
               );
-            }
+            });
             
-            lastId = id;
-          });
+            lastTimestamp = newLogs[newLogs.length - 1].timestamp;
+          }
+        } catch (error) {
+          // Silently ignore errors while following
         }
       };
 
       // Keep following logs
-      const interval = setInterval(checkForNewLogs, 1000);
+      const interval = setInterval(checkForNewLogs, 2000);
       
       // Handle graceful shutdown
       process.on('SIGINT', () => {
         clearInterval(interval);
-        redis.quit();
         console.log(chalk.gray('\n\nStopped following logs'));
         process.exit(0);
       });
-    } else {
-      await redis.quit();
     }
   } catch (error: any) {
-    console.error(chalk.red('Error:'), error.message);
-    await redis.quit();
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.error(chalk.red('Error:'), `Spinlet ${spinletId} not found`);
+    } else {
+      console.error(chalk.red('Error:'), error.message);
+    }
     process.exit(1);
   }
 }
 
-function getLogLevel(event: string): string {
-  if (event.includes('error') || event.includes('crash')) {
-    return chalk.red('[ERROR]');
-  } else if (event.includes('start') || event.includes('stop')) {
-    return chalk.yellow('[INFO] ');
-  } else {
-    return chalk.blue('[DEBUG]');
+function getLogLevel(level: string): string {
+  switch (level?.toLowerCase()) {
+    case 'error':
+      return chalk.red('[ERROR]');
+    case 'warn':
+      return chalk.yellow('[WARN] ');
+    case 'info':
+      return chalk.blue('[INFO] ');
+    case 'debug':
+      return chalk.gray('[DEBUG]');
+    default:
+      return chalk.white('[LOG]  ');
   }
 }

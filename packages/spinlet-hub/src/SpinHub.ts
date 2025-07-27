@@ -23,6 +23,7 @@ import { MetricsCollector } from "./MetricsCollector";
 import { HubConfig, RouteConfig } from "./types";
 import { HotDeploymentWatcher } from "./deployment/HotDeploymentWatcher";
 import { DeploymentAPI } from "./deployment/DeploymentAPI";
+import { CustomerAPI } from "./api/CustomerAPI";
 import { readFileSync } from "fs";
 import multer from "multer";
 import * as path from "path";
@@ -40,6 +41,7 @@ export class SpinHub {
   private metricsCollector: MetricsCollector;
   private hotDeploymentWatcher?: HotDeploymentWatcher;
   private deploymentAPI?: DeploymentAPI;
+  private customerAPI?: CustomerAPI;
   private adminRouter?: express.Router;
   private logger = createLogger("SpinHub");
   private requestMetrics = {
@@ -380,6 +382,16 @@ export class SpinHub {
 
     // Admin API routes (should be protected in production)
     this.setupAdminRoutes();
+    
+    // Mount admin router to the app
+    if (this.adminRouter) {
+      this.app.use('/_admin', this.adminRouter);
+    }
+    
+    // Mount customer API router
+    if (this.customerAPI) {
+      this.app.use('/_api/customer', this.customerAPI.getRouter());
+    }
 
     // IMPORTANT: Proxy handler must be registered LAST, after all other routes
     // Otherwise it will catch all requests before they reach specific route handlers
@@ -428,16 +440,48 @@ export class SpinHub {
     const adminRouter = express.Router();
     this.adminRouter = adminRouter;
 
-    // Simple authentication middleware
+    // Admin authentication middleware - Allow localhost OR validate admin role
     adminRouter.use((req: Request, res: Response, next: express.NextFunction) => {
-      const adminToken = req.headers['x-admin-token'] as string;
+      // Check if request is from localhost
+      const remoteAddress = req.socket.remoteAddress;
+      const isLocalhost = remoteAddress === '127.0.0.1' || 
+                         remoteAddress === '::1' || 
+                         remoteAddress === '::ffff:127.0.0.1';
       
-      // For now, accept any token or no token (for testing)
-      // In production, this should validate against a real token
-      if (adminToken || true) {
+      if (isLocalhost) {
+        // Allow localhost access without token
         next();
-      } else {
-        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      
+      // For non-localhost, require admin token
+      const adminToken = req.headers['x-admin-token'] as string;
+      const authToken = req.headers['authorization']?.replace('Bearer ', '') || adminToken;
+      
+      if (!authToken) {
+        res.status(401).json({ error: "Unauthorized - Admin token required for remote access" });
+        return;
+      }
+      
+      try {
+        // Decode JWT token to check role
+        const tokenParts = authToken.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+          
+          // Check if user has admin role
+          if (payload.role !== 'admin') {
+            res.status(403).json({ error: "Forbidden - Admin access required" });
+            return;
+          }
+          
+          // Token is valid and user is admin
+          next();
+        } else {
+          res.status(401).json({ error: "Invalid token format" });
+        }
+      } catch (error) {
+        res.status(401).json({ error: "Invalid token" });
       }
     });
 
@@ -2015,6 +2059,14 @@ export class SpinHub {
         this.adminRouter.use(this.deploymentAPI.getRouter());
         this.logger.info("Deployment API routes added to admin router");
       }
+      
+      // Initialize Customer API
+      this.customerAPI = new CustomerAPI(
+        this.spinletManager,
+        this.routeManager,
+        this.redis,
+        this.deploymentAPI
+      );
 
       try {
         await this.hotDeploymentWatcher.start();

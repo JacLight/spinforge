@@ -19,7 +19,9 @@ export async function whoamiCommand() {
     console.log(chalk.gray('─'.repeat(40)));
     console.log(`Email:       ${chalk.cyan(config.email)}`);
     console.log(`Customer ID: ${chalk.yellow(config.customerId)}`);
-    console.log(`API URL:     ${chalk.gray(config.apiUrl || 'https://api.spinforge.com')}`);
+    if (config.apiUrl) {
+      console.log(`API URL:     ${chalk.gray(config.apiUrl)}`);
+    }
     console.log(chalk.gray('─'.repeat(40)));
   } catch (error) {
     console.error(chalk.red('Error:'), 'Failed to read authentication info');

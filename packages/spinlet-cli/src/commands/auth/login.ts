@@ -7,9 +7,19 @@ import { homedir } from 'os';
 import { join } from 'path';
 // import { toast } from 'sonner';
 import { startAuthServer } from '../../lib/auth-server';
+import { getRequiredConfig } from '../../lib/config';
+
+function getWebUrl(): string {
+  return getRequiredConfig('webUrl');
+}
+
+function getApiUrl(): string {
+  return getRequiredConfig('apiUrl');
+}
 
 const CONFIG_DIR = join(homedir(), '.spinforge');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+const ENV_FILE = join(CONFIG_DIR, '.env');
 
 export async function loginCommand() {
   console.log(chalk.bold('\n🚀 Login to SpinForge\n'));
@@ -47,9 +57,9 @@ export async function loginCommand() {
       const authServerPromise = startAuthServer();
       
       // Open browser for authentication
-      const authUrl = process.env.SPINFORGE_WEB_URL || 'https://spinforge.dev';
+      const authUrl = getWebUrl();
       const callbackUrl = encodeURIComponent('http://localhost:9876/callback');
-      const cliAuthUrl = `${authUrl}/cli?callback=true&return_url=${callbackUrl}`;
+      const cliAuthUrl = `${authUrl}/auth/cli?callback=true&return_url=${callbackUrl}`;
       
       spinner.text = 'Opening browser for authentication...';
       console.log(chalk.gray(`\nIf browser doesn't open, visit: ${cliAuthUrl}\n`));
@@ -74,7 +84,7 @@ export async function loginCommand() {
         token: authResult.token,
         customerId: authResult.customerId,
         email: authResult.email,
-        apiUrl: process.env.SPINHUB_URL || 'http://localhost:8080',
+        apiUrl: getApiUrl(),
         authMethod: 'token'
       });
       
@@ -83,8 +93,33 @@ export async function loginCommand() {
         console.log(chalk.gray(`Email: ${authResult.email}`));
       }
       console.log(chalk.gray(`Customer ID: ${authResult.customerId}`));
-      console.log(chalk.gray(`Config saved to: ${CONFIG_FILE}`));
+      
+      // Ask about configuration
+      const { configType } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'configType',
+          message: 'Which environment are you using?',
+          choices: [
+            { name: 'SpinForge Cloud (recommended)', value: 'cloud' },
+            { name: 'Local Development', value: 'local' },
+            { name: 'Custom/Self-hosted', value: 'custom' }
+          ]
+        }
+      ]);
+      
+      // Save config based on choice
+      await saveConfig({
+        token: authResult.token,
+        customerId: authResult.customerId,
+        email: authResult.email,
+        apiUrl: getApiUrl(),
+        authMethod: 'token',
+        configType
+      });
+      
       console.log('\n' + chalk.cyan('You can now use SpinForge CLI commands!'));
+      console.log(chalk.gray('Run ' + chalk.cyan('spinforge config') + ' to change settings anytime'));
       
     } catch (error: any) {
       spinner.fail('Authentication failed');
@@ -170,7 +205,7 @@ export async function loginCommand() {
       email: user.email,
       token,
       customerId: user.customerId,
-      apiUrl: process.env.SPINHUB_URL || 'http://localhost:8080',
+      apiUrl: getApiUrl(),
       authMethod: 'email'
     });
     
@@ -204,7 +239,10 @@ async function saveTokenConfig(token: string) {
     if (tokenParts.length === 3) {
       try {
         const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-        customerId = payload.customerId || payload.sub || 'default';
+        customerId = payload.customerId || payload.sub;
+        if (!customerId) {
+          throw new Error('Invalid token: missing customer ID');
+        }
       } catch (e) {
         // Not a JWT, use default
       }
@@ -213,7 +251,7 @@ async function saveTokenConfig(token: string) {
     await saveConfig({
       token,
       customerId,
-      apiUrl: process.env.SPINHUB_URL || 'http://localhost:8080',
+      apiUrl: getApiUrl(),
       authMethod: 'token'
     });
     
@@ -232,4 +270,72 @@ async function saveTokenConfig(token: string) {
 async function saveConfig(config: any) {
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  
+  // Determine URLs based on config type
+  let apiUrl = 'https://api.spinforge.dev';
+  let webUrl = 'https://spinforge.dev';
+  
+  if (config.configType === 'local') {
+    apiUrl = 'http://localhost:9006';
+    webUrl = 'http://localhost:9010';
+  } else if (config.configType === 'custom') {
+    // Ask for custom URLs
+    const answers = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'apiUrl',
+        message: 'API URL:',
+        default: 'https://api.your-domain.com',
+        validate: (input) => {
+          try {
+            new URL(input);
+            return true;
+          } catch {
+            return 'Please enter a valid URL';
+          }
+        }
+      },
+      {
+        type: 'input',
+        name: 'webUrl',
+        message: 'Web UI URL:',
+        default: 'https://your-domain.com',
+        validate: (input) => {
+          try {
+            new URL(input);
+            return true;
+          } catch {
+            return 'Please enter a valid URL';
+          }
+        }
+      }
+    ]);
+    
+    apiUrl = answers.apiUrl;
+    webUrl = answers.webUrl;
+  }
+  
+  // Also create/update .env file with defaults
+  const envContent = `# SpinForge CLI Configuration
+# Generated on ${new Date().toISOString()}
+
+# API Configuration
+SPINFORGE_API_URL=${apiUrl}
+SPINFORGE_WEB_URL=${webUrl}
+
+# Deployment Configuration  
+SPINFORGE_DEPLOYMENTS=${join(homedir(), '.spinforge', 'deployments')}
+
+# Authentication (auto-populated)
+SPINFORGE_TOKEN=${config.token}
+SPINFORGE_CUSTOMER_ID=${config.customerId}
+`;
+  
+  writeFileSync(ENV_FILE, envContent);
+  
+  console.log(chalk.gray(`\nConfiguration saved to:`));
+  console.log(chalk.gray(`- ${CONFIG_FILE}`));
+  console.log(chalk.gray(`- ${ENV_FILE}`));
+  console.log(chalk.yellow(`\nTo use these settings, add to your shell profile:`));
+  console.log(chalk.cyan(`source ~/.spinforge/.env`));
 }

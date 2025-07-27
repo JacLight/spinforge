@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       success: true,
       token: session.token,
+      refreshToken: session.refreshToken || session.token, // Use same token for now
       user: {
         email: session.email,
         customerId: session.customerId,
@@ -24,8 +25,15 @@ export async function POST(request: Request) {
       },
     });
 
-    // Set auth cookie
+    // Set auth cookies
     response.cookies.set("auth-token", session.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    });
+    
+    response.cookies.set("customer-id", session.customerId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

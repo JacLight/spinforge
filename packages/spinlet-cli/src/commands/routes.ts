@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { table } from 'table';
 import inquirer from 'inquirer';
 import axios from 'axios';
+import { getRequiredConfig } from '../lib/config';
 
 interface RouteOptions {
   customer?: string;
@@ -11,7 +12,7 @@ interface RouteOptions {
 
 export async function routesCommand(options: RouteOptions) {
   try {
-    const hubUrl = process.env.SPINHUB_URL || 'http://localhost:8080';
+    const hubUrl = getRequiredConfig('apiUrl');
 
     if (options.add) {
       // Interactive route addition

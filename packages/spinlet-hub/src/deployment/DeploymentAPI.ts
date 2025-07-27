@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { createLogger } from "@spinforge/shared";
 import { HotDeploymentWatcher } from "./HotDeploymentWatcher";
 import { readdir, stat, unlink, rmdir, mkdir, writeFile, readFile } from "fs/promises";
-import { join, basename } from "path";
+import { join, basename, dirname } from "path";
 import { RouteManager } from "../RouteManager";
 import { SpinletManager } from "@spinforge/spinlet-core";
 import multer from "multer";
@@ -87,6 +87,9 @@ export class DeploymentAPI {
   private setupRoutes(): void {
     // Get all deployment statuses
     this.router.get("/deployments", this.getDeployments.bind(this));
+    
+    // Simple deployment endpoint (creates deployment folder)
+    this.router.post("/deployments", this.createDeployment.bind(this));
 
     // Upload deployment archive
     this.router.post("/deployments/upload", 
@@ -124,6 +127,12 @@ export class DeploymentAPI {
     
     // Verify deployment accessibility
     this.router.get("/deployments/:name/verify", this.verifyDeployment.bind(this));
+    
+    // File sync endpoint for watch mode
+    this.router.post("/deployments/:name/sync", 
+      this.upload.array('files', 100), // Allow up to 100 files
+      this.syncFiles.bind(this)
+    );
   }
 
   private async uploadDeployment(req: Request, res: Response): Promise<void> {
@@ -193,12 +202,218 @@ export class DeploymentAPI {
       res.status(500).json({ error: "Failed to upload deployment" });
     }
   }
+  
+  private async syncFiles(req: Request, res: Response): Promise<void> {
+    try {
+      const deploymentName = req.params.name;
+      const deploymentPath = join(this.deploymentPath, deploymentName);
+      
+      // Check if deployment exists
+      try {
+        await stat(deploymentPath);
+      } catch (error) {
+        res.status(404).json({ error: "Deployment not found" });
+        return;
+      }
+      
+      // Get file metadata from request
+      const fileMetadata = req.body.metadata ? JSON.parse(req.body.metadata) : {};
+      const mode = req.body.mode || 'development'; // 'development' or 'preview'
+      
+      // Process uploaded files
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        res.status(400).json({ error: "No files provided" });
+        return;
+      }
+      
+      const updatedFiles: string[] = [];
+      let needsRebuild = false;
+      let needsRestart = false;
+      
+      // Write files to deployment directory
+      for (const file of files) {
+        const targetPath = join(deploymentPath, file.originalname);
+        const targetDir = dirname(targetPath);
+        
+        // Create directory if needed
+        await mkdir(targetDir, { recursive: true });
+        
+        // Write file
+        await writeFile(targetPath, file.buffer);
+        updatedFiles.push(file.originalname);
+        
+        // Determine if rebuild/restart needed
+        if (this.needsRebuild(file.originalname)) {
+          needsRebuild = true;
+        }
+        if (this.needsRestart(file.originalname)) {
+          needsRestart = true;
+        }
+      }
+      
+      // Handle deleted files if provided
+      const deletedFiles = req.body.deleted ? JSON.parse(req.body.deleted) : [];
+      for (const filepath of deletedFiles) {
+        const targetPath = join(deploymentPath, filepath);
+        try {
+          await unlink(targetPath);
+          this.logger.info(`Deleted file: ${filepath}`);
+        } catch (error) {
+          // File might not exist, ignore
+        }
+      }
+      
+      // Trigger appropriate action based on changes
+      let action = 'none';
+      if (needsRestart) {
+        action = 'restart';
+        // TODO: Trigger container restart
+      } else if (needsRebuild) {
+        action = 'rebuild';
+        // TODO: Trigger incremental build
+      } else {
+        action = 'hot-reload';
+        // TODO: Trigger hot reload if supported
+      }
+      
+      this.logger.info(`File sync completed for ${deploymentName}`, {
+        updatedFiles: updatedFiles.length,
+        deletedFiles: deletedFiles.length,
+        action,
+        mode
+      });
+      
+      res.json({
+        success: true,
+        updated: updatedFiles,
+        deleted: deletedFiles,
+        action,
+        message: `Synced ${updatedFiles.length} files`
+      });
+      
+    } catch (error) {
+      this.logger.error("Error syncing files", { error });
+      res.status(500).json({ error: "Failed to sync files" });
+    }
+  }
+  
+  private needsRebuild(filepath: string): boolean {
+    // Files that require rebuild
+    const rebuildPatterns = [
+      /\.(tsx?|jsx?)$/,        // TypeScript/JavaScript
+      /\.(vue|svelte)$/,       // Framework files
+      /package\.json$/,       // Dependencies
+      /tsconfig\.json$/,      // TS config
+      /next\.config\.(js|ts)$/, // Next.js config
+      /webpack\.config\.js$/, // Webpack config
+    ];
+    return rebuildPatterns.some(pattern => pattern.test(filepath));
+  }
+  
+  private needsRestart(filepath: string): boolean {
+    // Files that require full restart
+    const restartPatterns = [
+      /package\.json$/,       // New dependencies
+      /\.env(\.\w+)?$/,      // Environment variables
+      /server\.(js|ts)$/,     // Server files
+    ];
+    return restartPatterns.some(pattern => pattern.test(filepath));
+  }
+  
+  private async createDeployment(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, domain, customerId, framework, config } = req.body;
+      
+      // Validate required fields
+      if (!name || !domain || !customerId || !framework) {
+        res.status(400).json({ 
+          error: "Missing required fields: name, domain, customerId, framework" 
+        });
+        return;
+      }
+      
+      const deploymentId = name;
+      const deploymentDir = join(this.deploymentPath, deploymentId);
+      
+      // Check if deployment already exists
+      try {
+        await stat(deploymentDir);
+        res.status(409).json({ error: "Deployment already exists" });
+        return;
+      } catch (e) {
+        // Directory doesn't exist, good to proceed
+      }
+      
+      // Create deployment directory
+      await mkdir(deploymentDir, { recursive: true });
+      
+      // Create deploy.yaml
+      const deployConfig = {
+        name,
+        domain,
+        customerId,
+        framework,
+        version: "1.0.0",
+        runtime: framework === 'static' ? 'static' : 'node',
+        nodeVersion: "20",
+        resources: config?.resources || {
+          memory: "512MB",
+          cpu: 0.5
+        },
+        env: config?.env || {},
+        ...config
+      };
+      
+      const deployYamlPath = join(deploymentDir, 'deploy.yaml');
+      const yaml = require('js-yaml');
+      await writeFile(deployYamlPath, yaml.dump(deployConfig));
+      
+      // Mark deployment as pending
+      this.deploymentStatuses.set(deploymentId, {
+        name: deploymentId,
+        status: "pending",
+        timestamp: new Date().toISOString(),
+        framework,
+        customerId,
+        domains: [domain]
+      });
+      
+      // The hot deployment watcher will pick it up
+      this.logger.info(`Deployment created: ${deploymentId}`, { config: deployConfig });
+      
+      res.json({
+        success: true,
+        deploymentId,
+        message: "Deployment created successfully",
+        status: "pending"
+      });
+      
+    } catch (error) {
+      this.logger.error("Error creating deployment", { error });
+      res.status(500).json({ error: "Failed to create deployment" });
+    }
+  }
 
   private async getDeployments(req: Request, res: Response): Promise<void> {
     try {
+      // Get customer ID from request headers
+      const customerId = req.headers['x-customer-id'] as string;
+      
+      if (!customerId) {
+        res.status(401).json({ error: "Customer ID required" });
+        return;
+      }
+      
       // Get deployment statuses from files and running processes
-      const deployments = await this.collectDeploymentStatuses();
-      res.json(deployments);
+      const allDeployments = await this.collectDeploymentStatuses();
+      
+      // Filter deployments by customer ID
+      const customerDeployments = allDeployments.filter(
+        deployment => deployment.customerId === customerId
+      );
+      
+      res.json(customerDeployments);
     } catch (error) {
       this.logger.error("Error fetching deployments", { error });
       res.status(500).json({ error: "Failed to fetch deployments" });
