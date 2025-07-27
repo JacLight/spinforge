@@ -7,7 +7,7 @@ import Redis from "ioredis";
 import multer from "multer";
 import { join } from "path";
 import { nanoid } from "nanoid";
-import { mkdir } from "fs/promises";
+import { mkdir, stat } from "fs/promises";
 
 interface AuthenticatedRequest extends Request {
   customerId?: string;
@@ -130,29 +130,161 @@ export class CustomerAPI {
     try {
       const customerId = req.customerId!;
 
-      // Get all deployments for this customer from Redis
-      const deploymentKeys = await this.redis.keys(`spinforge:deployments*`);
-      const deployments: any[] = [];
+      // Get deployment statuses from files and running processes (like the server does)
+      const allDeployments =
+        await this.collectCustomerDeploymentStatuses(customerId);
 
-      for (const key of deploymentKeys) {
-        const deployment = await this.redis.hgetall(key);
-        if (deployment.name) {
-          deployments.push({
-            name: deployment.name,
-            status: deployment.status || "unknown",
-            framework: deployment.framework,
-            domains: deployment.domains ? JSON.parse(deployment.domains) : [],
-            createdAt: deployment.createdAt,
-            error: deployment.error,
-          } as any);
-        }
-      }
-
-      res.json(deployments);
+      res.json(allDeployments);
     } catch (error) {
       this.logger.error("Error fetching customer deployments", { error });
       res.status(500).json({ error: "Failed to fetch deployments" });
     }
+  }
+
+  private async collectCustomerDeploymentStatuses(
+    customerId: string
+  ): Promise<any[]> {
+    const deployments: any[] = [];
+    const deploymentPath =
+      process.env.HOT_DEPLOYMENT_PATH || "/spinforge/deployments";
+
+    try {
+      const fs = require("fs").promises;
+      const { readdir, stat } = fs;
+
+      const entries = await readdir(deploymentPath);
+
+      for (const entry of entries) {
+        // Skip non-directories and uploads folder
+        if (entry.startsWith(".")) continue;
+
+        const deploymentDir = join(deploymentPath, entry);
+        const stats = await stat(deploymentDir);
+
+        if (stats.isDirectory()) {
+          const status = await this.getCustomerDeploymentStatus(
+            entry,
+            deploymentDir,
+            customerId
+          );
+
+          // Only include deployments that belong to this customer
+          if (status && status.customerId === customerId) {
+            deployments.push(status);
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error("Error collecting customer deployment statuses", {
+        error,
+      });
+    }
+
+    return deployments;
+  }
+
+  private async getCustomerDeploymentStatus(
+    name: string,
+    deploymentDir: string,
+    customerId: string
+  ): Promise<any | null> {
+    const status: any = {
+      name,
+      status: "pending",
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const fs = require("fs").promises;
+
+      // Check for markers (like the server does)
+      const deployedMarker = join(deploymentDir, ".deployed");
+      const failedMarker = join(deploymentDir, ".failed");
+
+      try {
+        const deployedStat = await stat(deployedMarker);
+        status.status = "success";
+        status.timestamp = deployedStat.mtime.toISOString();
+
+        // Try to get additional info from the marker
+        try {
+          const markerContent = await fs.readFile(deployedMarker, "utf-8");
+          const markerData = JSON.parse(markerContent);
+          if (markerData.config) {
+            status.framework = markerData.config.framework;
+            status.customerId = markerData.config.customerId;
+            status.domains = Array.isArray(markerData.config.domain)
+              ? markerData.config.domain
+              : [markerData.config.domain];
+            status.spinletId = markerData.config.spinletId;
+          }
+        } catch (e) {
+          // Marker file might not have JSON content
+        }
+      } catch {
+        try {
+          const failedStat = await stat(failedMarker);
+          status.status = "failed";
+          status.timestamp = failedStat.mtime.toISOString();
+
+          // Try to get error info
+          try {
+            const markerContent = await fs.readFile(failedMarker, "utf-8");
+            const markerData = JSON.parse(markerContent);
+            status.error = markerData.error || "Unknown error";
+            if (markerData.config) {
+              status.customerId = markerData.config.customerId;
+              status.framework = markerData.config.framework;
+            }
+          } catch (e) {
+            // Marker file might not have JSON content
+          }
+        } catch {
+          // No markers, check if currently processing
+          status.status = "building";
+        }
+      }
+
+      // Check for deploy config to get framework info (like the server does)
+      try {
+        const deployConfig = join(deploymentDir, "deploy.yaml");
+        const configContent = await fs.readFile(deployConfig, "utf-8");
+        const { parse: parseYaml } = require("yaml");
+        const config = parseYaml(configContent);
+
+        status.framework = config.framework;
+        status.customerId = config.customerId;
+        status.domains = Array.isArray(config.domain)
+          ? config.domain
+          : [config.domain];
+      } catch {
+        // Try JSON config
+        try {
+          const deployConfig = join(deploymentDir, "deploy.json");
+          const configContent = await fs.readFile(deployConfig, "utf-8");
+          const config = JSON.parse(configContent);
+
+          status.framework = config.framework;
+          status.customerId = config.customerId;
+          status.domains = Array.isArray(config.domain)
+            ? config.domain
+            : [config.domain];
+        } catch {
+          // No config found, might not belong to this customer
+          return null;
+        }
+      }
+
+      // Only return if this deployment belongs to the customer
+      if (status.customerId !== customerId) {
+        return null;
+      }
+    } catch (error) {
+      this.logger.error(`Error getting status for ${name}`, { error });
+      return null;
+    }
+
+    return status;
   }
 
   private async getCustomerSpinlets(
