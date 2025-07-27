@@ -33,31 +33,32 @@ export class CustomerAPI {
     this.redis = redis;
     this.deploymentAPI = deploymentAPI;
     this.router = Router();
-    
+
     // Configure multer for file uploads
     const storage = multer.diskStorage({
       destination: async (req, file, cb) => {
-        const deploymentPath = process.env.DEPLOYMENT_PATH || "/tmp/deployments";
-        const uploadDir = join(deploymentPath, '.uploads');
+        const deploymentPath =
+          process.env.DEPLOYMENT_PATH || "/tmp/deployments";
+        const uploadDir = join(deploymentPath, ".uploads");
         await mkdir(uploadDir, { recursive: true });
         cb(null, uploadDir);
       },
       filename: (req, file, cb) => {
         const uniquePrefix = nanoid(8);
         cb(null, `${uniquePrefix}-${file.originalname}`);
-      }
+      },
     });
-    
-    this.upload = multer({ 
+
+    this.upload = multer({
       storage,
       limits: {
         fileSize: 500 * 1024 * 1024, // 500MB max
-      }
+      },
     });
-    
+
     // Customer authentication middleware
     this.router.use(this.authenticateCustomer.bind(this));
-    
+
     this.setupRoutes();
   }
 
@@ -66,15 +67,16 @@ export class CustomerAPI {
     res: Response,
     next: Function
   ): Promise<void> {
-    const customerId = req.headers['x-customer-id'] as string;
-    const authToken = req.headers['authorization']?.replace('Bearer ', '') ||
-                     req.headers['x-auth-token'] as string;
-    
+    const customerId = req.headers["x-customer-id"] as string;
+    const authToken =
+      req.headers["authorization"]?.replace("Bearer ", "") ||
+      (req.headers["x-auth-token"] as string);
+
     if (!customerId || !authToken) {
       res.status(401).json({ error: "Authentication required" });
       return;
     }
-    
+
     // TODO: Validate auth token against customer ID
     // For now, just ensure both are present
     req.customerId = customerId;
@@ -84,35 +86,37 @@ export class CustomerAPI {
   private setupRoutes(): void {
     // Customer's own deployments
     this.router.get("/deployments", this.getCustomerDeployments.bind(this));
-    
+
     // Customer's spinlets
     this.router.get("/spinlets", this.getCustomerSpinlets.bind(this));
-    
+
     // Customer's routes/domains
     this.router.get("/domains", this.getCustomerDomains.bind(this));
-    
+
     // Customer's resource usage
     this.router.get("/usage", this.getCustomerUsage.bind(this));
-    
+
     // Deploy new application
     this.router.post("/deploy", this.deployApplication.bind(this));
-    
+
     // Upload deployment archive
-    this.router.post("/deployments/upload", 
-      this.upload.single('archive'), 
+    this.router.post(
+      "/deployments/upload",
+      this.upload.single("archive"),
       this.uploadDeployment.bind(this)
     );
-    
+
     // File sync for watch mode
-    this.router.post("/deployments/:name/sync",
-      this.upload.array('files', 100),
+    this.router.post(
+      "/deployments/:name/sync",
+      this.upload.array("files", 100),
       this.syncFiles.bind(this)
     );
-    
+
     // Manage specific deployment
     this.router.get("/deployments/:name", this.getDeployment.bind(this));
     this.router.delete("/deployments/:name", this.deleteDeployment.bind(this));
-    
+
     // Manage specific spinlet
     this.router.post("/spinlets/:id/stop", this.stopSpinlet.bind(this));
     this.router.post("/spinlets/:id/restart", this.restartSpinlet.bind(this));
@@ -125,25 +129,25 @@ export class CustomerAPI {
   ): Promise<void> {
     try {
       const customerId = req.customerId!;
-      
+
       // Get all deployments for this customer from Redis
-      const deploymentKeys = await this.redis.keys(`spinforge:deployments:${customerId}:*`);
+      const deploymentKeys = await this.redis.keys(`spinforge:deployments*`);
       const deployments: any[] = [];
-      
+
       for (const key of deploymentKeys) {
         const deployment = await this.redis.hgetall(key);
         if (deployment.name) {
           deployments.push({
             name: deployment.name,
-            status: deployment.status || 'unknown',
+            status: deployment.status || "unknown",
             framework: deployment.framework,
             domains: deployment.domains ? JSON.parse(deployment.domains) : [],
             createdAt: deployment.createdAt,
-            error: deployment.error
+            error: deployment.error,
           } as any);
         }
       }
-      
+
       res.json(deployments);
     } catch (error) {
       this.logger.error("Error fetching customer deployments", { error });
@@ -157,11 +161,11 @@ export class CustomerAPI {
   ): Promise<void> {
     try {
       const customerId = req.customerId!;
-      
+
       // Get all spinlet states and filter by customer
       const allStates = (this.spinletManager as any).states as Map<string, any>;
       const customerSpinlets: any[] = [];
-      
+
       for (const [spinletId, state] of allStates) {
         if (state.customerId === customerId) {
           customerSpinlets.push({
@@ -176,13 +180,13 @@ export class CustomerAPI {
             errors: state.errors || 0,
             memory: state.memoryUsage || 0,
             cpu: state.cpuUsage || 0,
-            host: state.host || 'localhost',
+            host: state.host || "localhost",
             servicePath: state.servicePath,
-            domains: state.domains || []
+            domains: state.domains || [],
           });
         }
       }
-      
+
       res.json(customerSpinlets);
     } catch (error) {
       this.logger.error("Error fetching customer spinlets", { error });
@@ -196,21 +200,21 @@ export class CustomerAPI {
   ): Promise<void> {
     try {
       const customerId = req.customerId!;
-      
+
       // Get all routes/domains for this customer
       const allRoutes = await this.routeManager.getAllRoutes();
       const customerDomains: any[] = [];
-      
+
       for (const [domain, route] of Object.entries(allRoutes)) {
         if (route.customerId === customerId) {
           customerDomains.push({
             domain,
             spinletId: route.spinletId,
-            status: 'active'
+            status: "active",
           } as any);
         }
       }
-      
+
       res.json(customerDomains);
     } catch (error) {
       this.logger.error("Error fetching customer domains", { error });
@@ -224,36 +228,38 @@ export class CustomerAPI {
   ): Promise<void> {
     try {
       const customerId = req.customerId!;
-      
+
       // Calculate resource usage for customer
       const allStates = (this.spinletManager as any).states as Map<string, any>;
       const customerSpinlets: any[] = [];
-      
+
       for (const [spinletId, state] of allStates) {
         if (state.customerId === customerId) {
           customerSpinlets.push(state);
         }
       }
-      
+
       let totalMemory = 0;
       let totalCpu = 0;
       let activeSpinlets = 0;
-      
+
       for (const spinlet of customerSpinlets) {
-        if (spinlet.state === 'running') {
+        if (spinlet.state === "running") {
           activeSpinlets++;
           // Parse memory (e.g., "512MB" -> 512)
-          const memory = parseInt(spinlet.resources?.memory || spinlet.memory || '0');
+          const memory = parseInt(
+            spinlet.resources?.memory || spinlet.memory || "0"
+          );
           totalMemory += memory;
           totalCpu += spinlet.resources?.cpu || spinlet.cpu || 0;
         }
       }
-      
+
       res.json({
         activeSpinlets,
         totalMemory: `${totalMemory}MB`,
         totalCpu,
-        spinletCount: customerSpinlets.length
+        spinletCount: customerSpinlets.length,
       });
     } catch (error) {
       this.logger.error("Error fetching customer usage", { error });
@@ -267,18 +273,18 @@ export class CustomerAPI {
   ): Promise<void> {
     try {
       const customerId = req.customerId!;
-      
+
       // Ensure deployment belongs to this customer
       const deploymentData = {
         ...req.body,
-        customerId // Override any provided customer ID
+        customerId, // Override any provided customer ID
       };
-      
+
       // TODO: Implement deployment logic
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: "Deployment queued",
-        customerId 
+        customerId,
       });
     } catch (error) {
       this.logger.error("Error deploying application", { error });
@@ -293,24 +299,24 @@ export class CustomerAPI {
     try {
       const customerId = req.customerId!;
       const { name } = req.params;
-      
+
       // Get deployment from Redis
       const deployment = await this.redis.hgetall(
         `spinforge:deployments:${customerId}:${name}`
       );
-      
+
       if (!deployment.name) {
         res.status(404).json({ error: "Deployment not found" });
         return;
       }
-      
+
       res.json({
         name: deployment.name,
         status: deployment.status,
         framework: deployment.framework,
         domains: deployment.domains ? JSON.parse(deployment.domains) : [],
         createdAt: deployment.createdAt,
-        error: deployment.error
+        error: deployment.error,
       });
     } catch (error) {
       this.logger.error("Error fetching deployment", { error });
@@ -325,20 +331,20 @@ export class CustomerAPI {
     try {
       const customerId = req.customerId!;
       const { name } = req.params;
-      
+
       // Verify deployment belongs to customer
       const deployment = await this.redis.hgetall(
         `spinforge:deployments:${customerId}:${name}`
       );
-      
+
       if (!deployment.name) {
         res.status(404).json({ error: "Deployment not found" });
         return;
       }
-      
+
       // TODO: Actually delete deployment and stop spinlets
       await this.redis.del(`spinforge:deployments:${customerId}:${name}`);
-      
+
       res.json({ success: true });
     } catch (error) {
       this.logger.error("Error deleting deployment", { error });
@@ -353,15 +359,15 @@ export class CustomerAPI {
     try {
       const customerId = req.customerId!;
       const { id } = req.params;
-      
+
       // Get spinlet and verify ownership
       const state = await (this.spinletManager as any).getState(id);
       if (!state || state.customerId !== customerId) {
         res.status(404).json({ error: "Spinlet not found" });
         return;
       }
-      
-      await (this.spinletManager as any).stop(id, 'customer-request');
+
+      await (this.spinletManager as any).stop(id, "customer-request");
       res.json({ success: true });
     } catch (error) {
       this.logger.error("Error stopping spinlet", { error });
@@ -376,16 +382,16 @@ export class CustomerAPI {
     try {
       const customerId = req.customerId!;
       const { id } = req.params;
-      
+
       // Get spinlet and verify ownership
       const state = await (this.spinletManager as any).getState(id);
       if (!state || state.customerId !== customerId) {
         res.status(404).json({ error: "Spinlet not found" });
         return;
       }
-      
+
       // Stop and respawn
-      await (this.spinletManager as any).stop(id, 'restart');
+      await (this.spinletManager as any).stop(id, "restart");
       // The hot deployment watcher should handle respawning
       res.json({ success: true });
     } catch (error) {
@@ -402,14 +408,14 @@ export class CustomerAPI {
       const customerId = req.customerId!;
       const { id } = req.params;
       const lines = parseInt(req.query.lines as string) || 100;
-      
+
       // Get spinlet and verify ownership
       const state = await (this.spinletManager as any).getState(id);
       if (!state || state.customerId !== customerId) {
         res.status(404).json({ error: "Spinlet not found" });
         return;
       }
-      
+
       // For now, return empty logs
       // TODO: Implement actual log retrieval
       const logs = `[${new Date().toISOString()}] Spinlet ${id} logs\n[${new Date().toISOString()}] No logs available`;
@@ -426,20 +432,20 @@ export class CustomerAPI {
   ): Promise<void> {
     try {
       const customerId = req.customerId!;
-      
+
       if (!req.file) {
         res.status(400).json({ error: "No file uploaded" });
         return;
       }
-      
+
       // Ensure deployment belongs to this customer
-      const config = JSON.parse(req.body.config || '{}');
+      const config = JSON.parse(req.body.config || "{}");
       config.customerId = customerId; // Override any provided customer ID
-      
+
       // Delegate to deployment API if available
       if (this.deploymentAPI) {
         req.body.config = JSON.stringify(config);
-        req.headers['x-customer-id'] = customerId;
+        req.headers["x-customer-id"] = customerId;
         await (this.deploymentAPI as any).uploadDeployment(req, res);
       } else {
         res.status(500).json({ error: "Deployment service unavailable" });
@@ -449,7 +455,7 @@ export class CustomerAPI {
       res.status(500).json({ error: "Failed to upload deployment" });
     }
   }
-  
+
   private async syncFiles(
     req: AuthenticatedRequest,
     res: Response
@@ -457,20 +463,20 @@ export class CustomerAPI {
     try {
       const customerId = req.customerId!;
       const { name } = req.params;
-      
+
       // Verify deployment belongs to customer
       const deployment = await this.redis.hgetall(
         `spinforge:deployments:${customerId}:${name}`
       );
-      
+
       if (!deployment.name) {
         res.status(404).json({ error: "Deployment not found" });
         return;
       }
-      
+
       // Delegate to deployment API if available
       if (this.deploymentAPI) {
-        req.headers['x-customer-id'] = customerId;
+        req.headers["x-customer-id"] = customerId;
         await (this.deploymentAPI as any).syncFiles(req, res);
       } else {
         res.status(500).json({ error: "Deployment service unavailable" });

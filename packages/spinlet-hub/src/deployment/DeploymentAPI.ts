@@ -173,7 +173,11 @@ export class DeploymentAPI {
       
       const archivePath = join(deploymentDir, file.originalname);
       const fs = require('fs').promises;
-      await fs.rename(file.path, archivePath);
+      
+      // Use copyFile instead of rename to avoid cross-device link errors
+      await fs.copyFile(file.path, archivePath);
+      // Remove the temporary file after successful copy
+      await fs.unlink(file.path);
 
       // Create deploy.json in the deployment directory
       const deployConfigPath = join(deploymentDir, 'deploy.json');

@@ -44,6 +44,7 @@ services:
       - DEFAULT_CPU_LIMIT=0.5
       - SPINLET_STARTUP_TIMEOUT_MS=${SPINLET_STARTUP_TIMEOUT_MS:-300000}
       - IDLE_TIMEOUT_MS=${IDLE_TIMEOUT_MS:-300000}
+      - MAX_REQUEST_SIZE=${MAX_REQUEST_SIZE:-100mb}
     volumes:
       - ./:/spinforge
       - builds-data:/spinforge/builds
