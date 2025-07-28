@@ -532,6 +532,19 @@ class CustomerAPI {
   async getSpinletLogs(spinletId: string, lines = 100) {
     return this.request('get', `/_api/customer/spinlets/${spinletId}/logs?lines=${lines}`);
   }
+
+  // Settings API
+  async getSettings() {
+    return this.request('get', '/_admin/settings');
+  }
+
+  async updateSettings(settings: any) {
+    return this.request('put', '/_admin/settings', settings);
+  }
+
+  async resetSettings() {
+    return this.request('post', '/_admin/settings/reset', {});
+  }
 }
 
 export const api = new SpinForgeAPI();

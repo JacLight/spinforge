@@ -128,30 +128,112 @@ export default function Settings() {
   const [enableBuildCache, setEnableBuildCache] = useState(true);
   const [maxConcurrentBuilds, setMaxConcurrentBuilds] = useState("3");
 
+  // Fetch settings from API
+  const { data: serverSettings, isLoading: isLoadingSettings, refetch: refetchSettings } = useQuery({
+    queryKey: ["serverSettings"],
+    queryFn: () => api.getSettings(),
+  });
+
+  // Initialize form state from server settings when loaded
+  useEffect(() => {
+    if (serverSettings) {
+      // Build settings
+      setBuildTimeout(serverSettings.build.buildTimeout.toString());
+      setIdleTimeout(serverSettings.build.idleTimeout.toString());
+      setEnableBuildCache(serverSettings.build.enableBuildCache);
+      setMaxConcurrentBuilds(serverSettings.build.maxConcurrentBuilds.toString());
+
+      // Resource settings
+      setDefaultMemory(serverSettings.resources.defaultMemory);
+      setDefaultCpu(serverSettings.resources.defaultCpu);
+      setMaxMemory(serverSettings.resources.maxMemory);
+      setMaxCpu(serverSettings.resources.maxCpu);
+
+      // Network settings
+      setPortRangeStart(serverSettings.networking.portRangeStart.toString());
+      setPortRangeEnd(serverSettings.networking.portRangeEnd.toString());
+      setDefaultDomainSuffix(serverSettings.networking.defaultDomainSuffix);
+
+      // Security settings
+      setEnableRateLimit(serverSettings.security.enableRateLimit);
+      setRateLimit(serverSettings.security.rateLimit.toString());
+      setEnableSSL(serverSettings.security.enableSSL);
+      setAllowedFrameworks(serverSettings.security.allowedFrameworks);
+
+      // Notification settings
+      setEmailNotifications(serverSettings.notifications.emailNotifications);
+      setNotificationEmail(serverSettings.notifications.notificationEmail);
+      setSlackWebhook(serverSettings.notifications.slackWebhook);
+
+      // Maintenance settings
+      setAutoBackup(serverSettings.maintenance.autoBackup);
+      setBackupInterval(serverSettings.maintenance.backupInterval);
+      setAutoCleanup(serverSettings.maintenance.autoCleanup);
+      setCleanupAge(serverSettings.maintenance.cleanupAge.toString());
+    }
+  }, [serverSettings]);
+
   useEffect(() => {
     const token = localStorage.getItem("adminToken") || "";
     setAdminToken(token);
-    // Load other settings from localStorage or API
   }, []);
 
-  const handleSave = () => {
-    // Save all settings
-    api.setAdminToken(adminToken);
-    localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        build: { buildTimeout, idleTimeout, enableBuildCache, maxConcurrentBuilds },
-        resources: { defaultMemory, defaultCpu, maxMemory, maxCpu },
-        networking: { portRangeStart, portRangeEnd, defaultDomainSuffix },
-        security: { enableRateLimit, rateLimit, enableSSL, allowedFrameworks },
-        notifications: { emailNotifications, notificationEmail, slackWebhook },
-        maintenance: { autoBackup, backupInterval, autoCleanup, cleanupAge },
-      })
-    );
+  const handleSave = async () => {
+    try {
+      // Save admin token to localStorage
+      api.setAdminToken(adminToken);
 
-    toast.success("Settings saved locally! Note: These settings are stored in your browser only and don't affect the server configuration.");
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+      // Save settings to server
+      const settings = {
+        build: {
+          buildTimeout: parseInt(buildTimeout),
+          idleTimeout: parseInt(idleTimeout),
+          enableBuildCache,
+          maxConcurrentBuilds: parseInt(maxConcurrentBuilds),
+        },
+        resources: { defaultMemory, defaultCpu, maxMemory, maxCpu },
+        networking: {
+          portRangeStart: parseInt(portRangeStart),
+          portRangeEnd: parseInt(portRangeEnd),
+          defaultDomainSuffix,
+        },
+        security: {
+          enableRateLimit,
+          rateLimit: parseInt(rateLimit),
+          enableSSL,
+          allowedFrameworks,
+        },
+        notifications: { emailNotifications, notificationEmail, slackWebhook },
+        maintenance: {
+          autoBackup,
+          backupInterval,
+          autoCleanup,
+          cleanupAge: parseInt(cleanupAge),
+        },
+      };
+
+      await api.updateSettings(settings);
+      toast.success("Settings saved successfully!");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      
+      // Refetch settings to ensure UI is in sync
+      refetchSettings();
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      toast.error("Failed to save settings: " + (error as any).message);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await api.resetSettings();
+      toast.success("Settings reset to defaults!");
+      refetchSettings();
+    } catch (error) {
+      console.error("Failed to reset settings:", error);
+      toast.error("Failed to reset settings: " + (error as any).message);
+    }
   };
 
   const renderSectionContent = () => {
@@ -791,19 +873,32 @@ export default function Settings() {
     }
   };
 
+  if (isLoadingSettings) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="bg-white shadow-sm rounded-lg p-6">
+          <div className="flex items-center justify-center">
+            <RefreshCw className="h-8 w-8 text-gray-400 animate-spin" />
+            <span className="ml-3 text-gray-600">Loading settings...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Warning Banner */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+      {/* Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex">
-          <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800">
-              Local Settings Only
+            <h3 className="text-sm font-medium text-blue-800">
+              Server Configuration
             </h3>
-            <p className="mt-1 text-sm text-yellow-700">
-              These settings are stored in your browser's local storage only. To actually configure the SpinForge server, 
-              you need to modify the environment variables in your Docker configuration or .env file and restart the services.
+            <p className="mt-1 text-sm text-blue-700">
+              These settings are stored on the server and will take effect immediately. Some changes may require 
+              restarting individual services or containers to fully apply.
             </p>
           </div>
         </div>
@@ -823,26 +918,35 @@ export default function Settings() {
               </p>
             </div>
           </div>
-          <button
-            onClick={handleSave}
-            className={`inline-flex items-center px-4 py-2 rounded-lg shadow-sm text-sm font-medium text-white transition-all ${
-              saved
-                ? "bg-green-600 hover:bg-green-700"
-                : "bg-indigo-600 hover:bg-indigo-700"
-            }`}
-          >
-            {saved ? (
-              <>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Saved
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save All Settings
-              </>
-            )}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center px-4 py-2 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-all"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Reset to Defaults
+            </button>
+            <button
+              onClick={handleSave}
+              className={`inline-flex items-center px-4 py-2 rounded-lg shadow-sm text-sm font-medium text-white transition-all ${
+                saved
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-indigo-600 hover:bg-indigo-700"
+              }`}
+            >
+              {saved ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save All Settings
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

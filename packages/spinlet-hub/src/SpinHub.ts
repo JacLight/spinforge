@@ -27,6 +27,7 @@ import { CustomerService } from "./services/CustomerService";
 import { HotDeploymentWatcher } from "./deployment/HotDeploymentWatcher";
 import { DeploymentAPI } from "./deployment/DeploymentAPI";
 import { CustomerAPI } from "./api/CustomerAPI";
+import { SettingsAPI } from "./api/SettingsAPI";
 import { readFileSync } from "fs";
 import multer from "multer";
 import * as path from "path";
@@ -45,6 +46,7 @@ export class SpinHub {
   private hotDeploymentWatcher?: HotDeploymentWatcher;
   private deploymentAPI?: DeploymentAPI;
   private customerAPI?: CustomerAPI;
+  private settingsAPI?: SettingsAPI;
   private adminRouter?: express.Router;
   private adminService: AdminService;
   private customerService: CustomerService;
@@ -2491,10 +2493,19 @@ export class SpinHub {
       // Set deployment API reference in hot deployment watcher
       this.hotDeploymentWatcher.setDeploymentAPI(this.deploymentAPI);
 
+      // Initialize settings API
+      const dataPath = process.env.DATA_DIR || "/data";
+      this.settingsAPI = new SettingsAPI(dataPath);
+      await this.settingsAPI.init();
+
       // Now add deployment routes to admin router
       if (this.adminRouter) {
         this.adminRouter.use(this.deploymentAPI.getRouter());
         this.logger.info("Deployment API routes added to admin router");
+        
+        // Add settings routes
+        this.adminRouter.use("/settings", this.settingsAPI.router());
+        this.logger.info("Settings API routes added to admin router");
       }
 
       // Initialize Customer API
