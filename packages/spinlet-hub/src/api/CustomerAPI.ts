@@ -152,6 +152,38 @@ export class CustomerAPI {
       const fs = require("fs").promises;
       const { readdir, stat } = fs;
 
+      // First, check customer-specific folder
+      const customerPath = join(deploymentPath, customerId);
+      try {
+        const customerStats = await stat(customerPath);
+        if (customerStats.isDirectory()) {
+          const customerEntries = await readdir(customerPath);
+          
+          for (const entry of customerEntries) {
+            if (entry.startsWith(".")) continue;
+            
+            const deploymentDir = join(customerPath, entry);
+            const stats = await stat(deploymentDir);
+            
+            if (stats.isDirectory()) {
+              const status = await this.getCustomerDeploymentStatus(
+                `${customerId}/${entry}`,
+                deploymentDir,
+                customerId
+              );
+              
+              if (status) {
+                deployments.push(status);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Customer folder doesn't exist yet, that's OK
+        this.logger.debug(`Customer folder ${customerId} not found`);
+      }
+
+      // Also check root folder for backward compatibility
       const entries = await readdir(deploymentPath);
 
       for (const entry of entries) {
@@ -161,16 +193,21 @@ export class CustomerAPI {
         const deploymentDir = join(deploymentPath, entry);
         const stats = await stat(deploymentDir);
 
-        if (stats.isDirectory()) {
-          const status = await this.getCustomerDeploymentStatus(
-            entry,
-            deploymentDir,
-            customerId
-          );
+        if (stats.isDirectory() && entry !== customerId) {
+          // Check if this is a deployment directory (not a customer folder)
+          const hasDeployConfig = await this.hasDeploymentConfig(deploymentDir);
+          
+          if (hasDeployConfig) {
+            const status = await this.getCustomerDeploymentStatus(
+              entry,
+              deploymentDir,
+              customerId
+            );
 
-          // Only include deployments that belong to this customer
-          if (status && status.customerId === customerId) {
-            deployments.push(status);
+            // Only include deployments that belong to this customer
+            if (status && status.customerId === customerId) {
+              deployments.push(status);
+            }
           }
         }
       }
@@ -181,6 +218,22 @@ export class CustomerAPI {
     }
 
     return deployments;
+  }
+  
+  private async hasDeploymentConfig(path: string): Promise<boolean> {
+    try {
+      const fs = require("fs").promises;
+      await fs.stat(join(path, "deploy.yaml"));
+      return true;
+    } catch {
+      try {
+        const fs = require("fs").promises;
+        await fs.stat(join(path, "deploy.json"));
+        return true;
+      } catch {
+        return false;
+      }
+    }
   }
 
   private async getCustomerDeploymentStatus(

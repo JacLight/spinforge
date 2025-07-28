@@ -240,7 +240,18 @@ export default function ApplicationDetail() {
                         }`}>
                           {route.framework === 'static' ? 'Static Site' : 'Reverse Proxy'}
                         </span>
-                      : `Spinlet: ${spinlet?.spinletId}`
+                      : <>
+                          Spinlet: {spinlet?.spinletId}
+                          {spinlet?.mode && (
+                            <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              spinlet.mode === 'development' 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {spinlet.mode === 'development' ? 'DEV' : 'PROD'}
+                            </span>
+                          )}
+                        </>
                     }
                   </p>
                 </div>
@@ -606,6 +617,20 @@ export default function ApplicationDetail() {
                     {route.buildPath}
                   </dd>
                 </div>
+                {spinlet?.packageVersion && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Version</dt>
+                    <dd className="font-medium mt-1">{spinlet.packageVersion}</dd>
+                  </div>
+                )}
+                {spinlet?.runCommand && (
+                  <div>
+                    <dt className="text-sm text-gray-500">Run Command</dt>
+                    <dd className="font-medium mt-1 font-mono text-sm bg-gray-100 p-2 rounded">
+                      {spinlet.runCommand}
+                    </dd>
+                  </div>
+                )}
                 {!isStaticOrProxy && (
                   <>
                     <div>

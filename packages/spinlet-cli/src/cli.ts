@@ -66,6 +66,7 @@ program
   .option('--cpu <limit>', 'CPU limit (e.g., 0.5)', '0.5')
   .option('--no-build', 'Skip build step')
   .option('-e, --env <vars...>', 'Environment variables (KEY=value)')
+  .option('--override', 'Remove existing deployment and replace with new one')
   .action(deployCommand);
 
 // Status command
@@ -141,6 +142,7 @@ program
   .option('-i, --interval <ms>', 'Debounce interval in milliseconds', '10000')
   .option('--no-build', 'Skip build step')
   .option('--mode <mode>', 'Deployment mode (preview or development)', 'preview')
+  .option('--override', 'Remove existing deployment and replace with new one')
   .action(watchCommand);
 
 // Version command

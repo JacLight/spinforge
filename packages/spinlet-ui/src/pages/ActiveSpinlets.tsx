@@ -230,6 +230,15 @@ export default function ActiveSpinlets() {
                             <div className="text-xs text-gray-500">
                               {route.customerId}
                             </div>
+                            {spinlet.mode && (
+                              <span className={`mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                spinlet.mode === 'development' 
+                                  ? 'bg-purple-100 text-purple-700' 
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {spinlet.mode === 'development' ? 'DEV' : 'PROD'}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -242,6 +251,9 @@ export default function ActiveSpinlets() {
                             </div>
                             <div className="text-xs text-gray-500">
                               {route.framework}
+                              {spinlet.packageVersion && (
+                                <span className="ml-2">v{spinlet.packageVersion}</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -255,6 +267,11 @@ export default function ActiveSpinlets() {
                           <div className="text-xs text-gray-500 mt-1">
                             PID: {spinlet.pid}
                           </div>
+                          {spinlet.runCommand && (
+                            <div className="text-xs text-gray-400 mt-1 font-mono truncate max-w-xs" title={spinlet.runCommand}>
+                              {spinlet.runCommand}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

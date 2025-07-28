@@ -36,6 +36,9 @@ export interface Spinlet {
   host: string;
   servicePath: string;
   domains: string[];
+  mode?: 'development' | 'production';
+  packageVersion?: string;
+  runCommand?: string;
 }
 
 export interface IdleInfo {
@@ -483,6 +486,10 @@ class SpinForgeAPI {
 
   async cancelDeployment(name: string) {
     return this.request('post', `/_admin/deployments/${name}/cancel`, {});
+  }
+
+  async cleanupOrphanedDeployment(domain: string) {
+    return this.request('post', `/_admin/deployments/${encodeURIComponent(domain)}/cleanup-orphaned`, {});
   }
 }
 

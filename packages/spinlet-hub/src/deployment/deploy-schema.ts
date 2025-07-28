@@ -67,6 +67,9 @@ export interface DeploymentConfig {
   // Environment Variables
   env?: Record<string, string>; // Runtime environment variables
 
+  // Deployment Mode
+  mode?: 'development' | 'production'; // Deployment mode for watch/dev server support
+
   // Scaling
   scaling?: {
     min?: number; // Minimum instances (default: 1)

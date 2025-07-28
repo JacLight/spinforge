@@ -149,7 +149,7 @@ export default function Settings() {
       })
     );
 
-    toast.success("Settings saved successfully!");
+    toast.success("Settings saved locally! Note: These settings are stored in your browser only and don't affect the server configuration.");
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -793,6 +793,22 @@ export default function Settings() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Warning Banner */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex">
+          <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5" />
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-yellow-800">
+              Local Settings Only
+            </h3>
+            <p className="mt-1 text-sm text-yellow-700">
+              These settings are stored in your browser's local storage only. To actually configure the SpinForge server, 
+              you need to modify the environment variables in your Docker configuration or .env file and restart the services.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="bg-white shadow-sm rounded-lg p-6">
         <div className="flex items-center justify-between">

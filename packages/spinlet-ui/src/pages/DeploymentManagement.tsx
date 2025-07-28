@@ -22,7 +22,7 @@ import { motion } from "framer-motion";
 
 interface DeploymentStatus {
   name: string;
-  status: "pending" | "building" | "success" | "failed" | "processing";
+  status: "pending" | "building" | "success" | "failed" | "processing" | "unhealthy" | "orphaned";
   timestamp: string;
   error?: string;
   buildTime?: number;
@@ -30,6 +30,11 @@ interface DeploymentStatus {
   framework?: string;
   customerId?: string;
   spinletId?: string;
+  mode?: 'development' | 'production';
+  packageVersion?: string;
+  runCommand?: string;
+  orphaned?: boolean;
+  buildPath?: string;
 }
 
 export default function DeploymentManagement() {
@@ -92,6 +97,13 @@ export default function DeploymentManagement() {
       queryClient.invalidateQueries({ queryKey: ["deployment-folder"] });
     },
   });
+  
+  const cleanupOrphanedMutation = useMutation({
+    mutationFn: (domain: string) => api.cleanupOrphanedDeployment(domain),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deployments"] });
+    },
+  });
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
@@ -103,6 +115,10 @@ export default function DeploymentManagement() {
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "failed":
         return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case "unhealthy":
+        return <AlertCircle className="h-4 w-4 text-orange-500" />;
+      case "orphaned":
+        return <Trash2 className="h-4 w-4 text-gray-500" />;
       default:
         return <Clock className="h-4 w-4 text-gray-500" />;
     }
@@ -119,6 +135,10 @@ export default function DeploymentManagement() {
         return "bg-green-50 text-green-700 border-green-200";
       case "failed":
         return "bg-red-50 text-red-700 border-red-200";
+      case "unhealthy":
+        return "bg-orange-50 text-orange-700 border-orange-200";
+      case "orphaned":
+        return "bg-gray-100 text-gray-700 border-gray-300";
       default:
         return "bg-gray-50 text-gray-700 border-gray-200";
     }
@@ -223,6 +243,15 @@ export default function DeploymentManagement() {
                                     {deployment.framework}
                                   </span>
                                 )}
+                                {deployment.mode && (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                    deployment.mode === 'development' 
+                                      ? 'bg-purple-100 text-purple-700' 
+                                      : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {deployment.mode === 'development' ? 'DEV' : 'PROD'}
+                                  </span>
+                                )}
                                 {deployment.buildTime && (
                                   <span className="text-xs text-gray-500">
                                     {Math.round(deployment.buildTime / 1000)}s
@@ -306,6 +335,33 @@ export default function DeploymentManagement() {
                             </p>
                           </div>
                         )}
+                        
+                        {deployment.status === "orphaned" && (
+                          <div className="mt-4 p-3 bg-gray-100 rounded-lg">
+                            <p className="text-sm text-gray-700 mb-2">
+                              ⚠️ This deployment's folder no longer exists
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (
+                                  confirm(
+                                    `Clean up orphaned deployment ${deployment.name}? This will remove all routes.`
+                                  )
+                                ) {
+                                  const domain = deployment.domains?.[0];
+                                  if (domain) {
+                                    cleanupOrphanedMutation.mutate(domain);
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+                              disabled={cleanupOrphanedMutation.isPending}
+                            >
+                              {cleanupOrphanedMutation.isPending ? "Cleaning up..." : "Clean Up Orphaned Deployment"}
+                            </button>
+                          </div>
+                        )}
 
                         {deployment.domains &&
                           deployment.domains.length > 0 && (
@@ -366,6 +422,12 @@ export default function DeploymentManagement() {
                           d.status === "building" || d.status === "processing"
                       ).length
                     }
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Orphaned</span>
+                  <span className="font-semibold text-gray-600">
+                    {deploymentData.filter((d) => d.status === "orphaned").length}
                   </span>
                 </div>
               </div>
@@ -436,6 +498,34 @@ export default function DeploymentManagement() {
                             Framework
                           </span>
                           <p className="font-medium">{deployment.framework}</p>
+                        </div>
+                      )}
+                      {deployment.mode && (
+                        <div>
+                          <span className="text-sm text-gray-600">Mode</span>
+                          <p className="font-medium">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              deployment.mode === 'development' 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {deployment.mode.toUpperCase()}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                      {deployment.packageVersion && (
+                        <div>
+                          <span className="text-sm text-gray-600">Version</span>
+                          <p className="font-medium">{deployment.packageVersion}</p>
+                        </div>
+                      )}
+                      {deployment.runCommand && (
+                        <div>
+                          <span className="text-sm text-gray-600">Run Command</span>
+                          <p className="font-medium text-sm font-mono bg-gray-100 p-2 rounded">
+                            {deployment.runCommand}
+                          </p>
                         </div>
                       )}
                       {deployment.customerId && (

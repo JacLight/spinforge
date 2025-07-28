@@ -66,11 +66,14 @@ export class HotDeploymentWatcher {
 
         // Check if it's a deployment trigger
         if (this.isDeploymentTrigger(filename)) {
-          const deploymentDir = join(
-            this.deploymentPath,
-            filename.split("/")[0]
-          );
-          await this.processDeployment(deploymentDir);
+          // Handle both root-level and nested deployments
+          const fullPath = join(this.deploymentPath, filename);
+          const deploymentDir = dirname(fullPath);
+          
+          // Only process if it's a valid deployment directory
+          if (await this.hasDeploymentConfig(deploymentDir)) {
+            await this.processDeployment(deploymentDir);
+          }
         }
       }
     );
@@ -123,12 +126,49 @@ export class HotDeploymentWatcher {
         const fullPath = join(this.deploymentPath, entry);
         const stats = await stat(fullPath);
 
-        if (stats.isDirectory() || this.isArchive(entry)) {
+        if (stats.isDirectory()) {
+          // Check if this is a deployment directory (has deploy.yaml/json)
+          const hasDeployConfig = await this.hasDeploymentConfig(fullPath);
+          
+          if (hasDeployConfig) {
+            // It's a deployment directory, process it
+            await this.processDeployment(fullPath);
+          } else {
+            // It might be a customer folder, scan its contents
+            try {
+              const subEntries = await readdir(fullPath);
+              for (const subEntry of subEntries) {
+                const subPath = join(fullPath, subEntry);
+                const subStats = await stat(subPath);
+                
+                if (subStats.isDirectory() || this.isArchive(subEntry)) {
+                  await this.processDeployment(subPath);
+                }
+              }
+            } catch (subError) {
+              this.logger.debug(`Could not scan subdirectory ${fullPath}`, { error: subError });
+            }
+          }
+        } else if (this.isArchive(entry)) {
           await this.processDeployment(fullPath);
         }
       }
     } catch (error) {
       this.logger.error("Error scanning deployments", { error });
+    }
+  }
+  
+  private async hasDeploymentConfig(path: string): Promise<boolean> {
+    try {
+      await stat(join(path, "deploy.yaml"));
+      return true;
+    } catch {
+      try {
+        await stat(join(path, "deploy.json"));
+        return true;
+      } catch {
+        return false;
+      }
     }
   }
 
@@ -164,19 +204,7 @@ export class HotDeploymentWatcher {
     try {
       this.logger.info(`Processing deployment: ${deploymentId}`);
       
-      // Archive previous .failed marker if it exists
-      try {
-        const failedMarkerPath = join(deploymentPath, ".failed");
-        const stats = await stat(failedMarkerPath);
-        if (stats.isFile()) {
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const archivedPath = join(deploymentPath, `.failed-${timestamp}`);
-          await rename(failedMarkerPath, archivedPath);
-          this.logger.info(`Archived previous failure marker to ${basename(archivedPath)}`);
-        }
-      } catch (error) {
-        // No previous .failed marker, which is fine
-      }
+      // No need to archive .failed files anymore - we'll append to the existing one
       
       // Update deployment API status if available
       if (this.deploymentAPI) {
@@ -253,6 +281,32 @@ export class HotDeploymentWatcher {
         }
         
         return;
+      }
+
+      // Check if deployment needs to be moved to customer folder
+      const parentDir = dirname(actualPath);
+      const expectedCustomerPath = join(this.deploymentPath, config.customerId);
+      
+      // If deployment is in root folder and has customerId, move it to customer folder
+      if (parentDir === this.deploymentPath && config.customerId) {
+        // Check if it's not already in a customer folder
+        const relativePath = actualPath.replace(this.deploymentPath + '/', '');
+        const pathParts = relativePath.split('/');
+        
+        // If it's directly in root (not in a subfolder)
+        if (pathParts.length === 1) {
+          this.logger.info(`Moving deployment to customer folder: ${config.customerId}/${deploymentId}`);
+          
+          // Create customer directory if it doesn't exist
+          await mkdir(expectedCustomerPath, { recursive: true });
+          
+          // Move deployment to customer folder
+          const newPath = join(expectedCustomerPath, deploymentId);
+          await rename(actualPath, newPath);
+          actualPath = newPath;
+          
+          this.logger.info(`Deployment moved to: ${newPath}`);
+        }
       }
 
       // Create deployment
@@ -438,13 +492,27 @@ export class HotDeploymentWatcher {
       await this.runHooks(config.hooks.preDeploy, buildPath);
     }
 
-    // Build if needed
-    if (config.build?.command) {
-      await this.runBuildCommand(
-        config.build.command,
-        buildPath,
-        config.build.env
-      );
+    // Skip build phase entirely in development mode
+    if (config.mode !== 'development') {
+      // Production mode - run build if needed
+      let buildCommand = config.build?.command;
+      
+      // If no build command specified and not static/reverse-proxy, just run npm install
+      if (!buildCommand && config.framework && config.framework !== 'static' && config.framework !== 'reverse-proxy') {
+        buildCommand = 'npm install';
+        this.logger.info(`Build command: ${buildCommand}`);
+      }
+      
+      if (buildCommand) {
+        await this.runBuildCommand(
+          buildCommand,
+          buildPath,
+          config.build?.env
+        );
+      }
+    } else {
+      // Development mode - skip build entirely, SpinletManager will run npm run dev
+      this.logger.info(`Development mode - skipping build phase, will run dev server directly`);
     }
 
     // Determine actual build output path
@@ -511,7 +579,19 @@ export class HotDeploymentWatcher {
         // Check if domain already exists
         const existingRoute = await this.routeManager.getRoute(domain);
         if (existingRoute) {
-          throw new Error(`Domain ${domain} is already in use by another application`);
+          // Check if it's the same deployment (by name and customer)
+          // The name is stored in the spread config
+          const existingName = (existingRoute.config as any)?.name;
+          const isSameDeployment = existingName === config.name && 
+                                  existingRoute.customerId === config.customerId;
+          
+          if (!isSameDeployment) {
+            throw new Error(`Domain ${domain} is already in use by another application`);
+          } else {
+            // Same deployment, remove old route first
+            this.logger.info(`Domain ${domain} already registered to same deployment, updating...`);
+            await this.routeManager.removeRoute(domain);
+          }
         }
         
         await this.routeManager.addRoute({
@@ -547,6 +627,7 @@ export class HotDeploymentWatcher {
           memory: config.resources?.memory,
           cpu: config.resources?.cpu?.toString(),
         },
+        mode: config.mode === 'development' ? 'development' : 'production',
       });
 
       // Register routes for all domains
@@ -554,9 +635,24 @@ export class HotDeploymentWatcher {
         // Check if domain already exists
         const existingRoute = await this.routeManager.getRoute(domain);
         if (existingRoute) {
-          // If we already spawned the spinlet, we need to stop it
-          await this.spinletManager.stop(spinletId, "deployment_failed");
-          throw new Error(`Domain ${domain} is already in use by another application`);
+          // Check if it's the same deployment (by name and customer)
+          // The name is stored in the spread config
+          const existingName = (existingRoute.config as any)?.name;
+          const isSameDeployment = existingName === config.name && 
+                                  existingRoute.customerId === config.customerId;
+          
+          if (!isSameDeployment) {
+            // If we already spawned the spinlet, we need to stop it
+            await this.spinletManager.stop(spinletId, "deployment_failed");
+            throw new Error(`Domain ${domain} is already in use by another application`);
+          } else {
+            // Same deployment, remove old route and stop old spinlet
+            this.logger.info(`Domain ${domain} already registered to same deployment, updating...`);
+            if (existingRoute.spinletId) {
+              await this.spinletManager.stop(existingRoute.spinletId, "redeployment");
+            }
+            await this.routeManager.removeRoute(domain);
+          }
         }
         
         await this.routeManager.addRoute({
@@ -614,25 +710,8 @@ export class HotDeploymentWatcher {
     delete cleanEnv.VSCODE_CWD;
     delete cleanEnv.VSCODE_CODE_CACHE_PATH;
 
-    // For build commands, install all dependencies including devDependencies
+    // Use the build command as specified
     let buildCommand = command;
-    if (command.includes("npm install") && !command.includes("--production")) {
-      buildCommand = command.replace(
-        "npm install",
-        "npm install --include=dev"
-      );
-    }
-
-    // For Next.js projects, ensure TypeScript is installed and handle linting issues
-    if (command.includes("npm run build")) {
-      // Set environment variables to be more lenient with linting/type checking
-      // For Next.js 15+, we need to set NEXT_ESLINT_DISABLE=true to skip linting during build
-      env = {
-        ...env,
-        NEXT_ESLINT_DISABLE: "true"
-      };
-      buildCommand = "npm install --include=dev && npm run build";
-    }
 
     await execAsync(buildCommand, {
       cwd,
@@ -659,7 +738,35 @@ export class HotDeploymentWatcher {
     content: any
   ): Promise<void> {
     const markerPath = join(path, filename);
-    await writeFile(markerPath, JSON.stringify(content, null, 2));
+    
+    // For .failed files, append to existing file instead of creating new ones
+    if (filename === '.failed') {
+      let existingContent: any[] = [];
+      
+      // Try to read existing file
+      try {
+        const existingData = await readFile(markerPath, 'utf-8');
+        const parsed = JSON.parse(existingData);
+        // If it's an array, use it; if it's an object, convert to array
+        existingContent = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (error) {
+        // File doesn't exist or is invalid, start fresh
+        existingContent = [];
+      }
+      
+      // Add new failure to the list
+      existingContent.push(content);
+      
+      // Keep only the last 10 failures to prevent file from growing too large
+      if (existingContent.length > 10) {
+        existingContent = existingContent.slice(-10);
+      }
+      
+      await writeFile(markerPath, JSON.stringify(existingContent, null, 2));
+    } else {
+      // For other markers (.deployed), just write normally
+      await writeFile(markerPath, JSON.stringify(content, null, 2));
+    }
   }
 
   private async cleanupOrphanedRoutes(): Promise<void> {

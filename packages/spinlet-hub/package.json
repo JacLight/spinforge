@@ -9,7 +9,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jest",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "migrate-deployments": "node dist/scripts/migrate-deployments.js",
+    "cleanup-failed-markers": "node dist/scripts/cleanup-failed-markers.js",
+    "cleanup-domain": "node dist/scripts/cleanup-domain.js"
   },
   "dependencies": {
     "@spinforge/shared": "file:../shared",

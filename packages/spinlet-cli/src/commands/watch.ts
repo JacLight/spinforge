@@ -19,6 +19,7 @@ interface WatchOptions {
   interval?: string;
   noBuild?: boolean;
   mode?: 'preview' | 'development';
+  override?: boolean;
 }
 
 interface FileChange {
@@ -199,6 +200,7 @@ export async function watchCommand(path: string, options: WatchOptions) {
             version: '1.0.0',
             runtime: framework === 'static' ? 'static' : 'node',
             nodeVersion: '20',
+            mode: mode, // Add mode to track watch/development mode
             resources: {
               memory: options.memory || '512MB',
               cpu: parseFloat(options.cpu || '0.5')
@@ -477,6 +479,58 @@ export async function watchCommand(path: string, options: WatchOptions) {
   const debouncedSync = debounce(syncFiles, intervalMs);
   
   console.log(chalk.gray(`Debounce: ${intervalMs}ms (changes reset timer)\n`));
+
+  // Check for override option
+  if (options.override) {
+    spinner.start('Checking for existing deployment...');
+    
+    try {
+      // Check if deployment exists
+      const response = await axios.get(
+        `${apiUrl}/_api/customer/deployments`,
+        {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`,
+            'X-Customer-ID': auth.customerId,
+          }
+        }
+      );
+      
+      const existingDeployment = response.data.find((d: any) => d.name === projectName);
+      
+      if (existingDeployment) {
+        spinner.text = 'Removing existing deployment...';
+        
+        // Delete the existing deployment
+        await axios.delete(
+          `${apiUrl}/_api/customer/deployments/${projectName}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${auth.token}`,
+              'X-Customer-ID': auth.customerId,
+            }
+          }
+        );
+        
+        spinner.succeed('Existing deployment removed');
+        
+        // Wait a bit for cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        spinner.succeed('No existing deployment found');
+      }
+    } catch (error: any) {
+      spinner.fail('Failed to check/remove existing deployment');
+      
+      if (error.response?.status === 404) {
+        // No deployment exists, which is fine for override
+        spinner.succeed('No existing deployment found');
+      } else {
+        console.error(chalk.red('\nError:'), error.response?.data?.error || error.message);
+        process.exit(1);
+      }
+    }
+  }
 
   // Initialize deployment
   await initializeDeployment();

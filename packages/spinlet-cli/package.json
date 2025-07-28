@@ -1,6 +1,6 @@
 {
   "name": "spinforge-cli",
-  "version": "0.3.10",
+  "version": "0.3.13",
   "description": "SpinForge CLI - Deploy and manage applications with ease on the SpinForge platform",
   "bin": {
     "spinforge": "./dist/cli.js"

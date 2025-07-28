@@ -24,6 +24,7 @@ interface DeployOptions {
   env?: string[];
   noBuild?: boolean;
   path?: string;
+  override?: boolean;
 }
 
 export async function deployCommand(options: DeployOptions) {
@@ -159,6 +160,54 @@ export async function deployCommand(options: DeployOptions) {
     
     spinner.succeed('Deployment package prepared!');
     
+    // Check if deployment already exists and handle override
+    if (options.override) {
+      spinner.start('Checking for existing deployment...');
+      try {
+        const apiUrl = getRequiredConfig('apiUrl');
+        const statusResponse = await axios.get(
+          `${apiUrl}/_api/customer/deployments`,
+          {
+            headers: {
+              'Authorization': `Bearer ${auth.token}`,
+              'X-Customer-ID': auth.customerId,
+            }
+          }
+        );
+        
+        // Find existing deployment with the same name
+        const existingDeployment = statusResponse.data.find((d: any) => d.name === projectName);
+        if (existingDeployment) {
+          spinner.text = 'Removing existing deployment...';
+          
+          // Delete the existing deployment
+          await axios.delete(
+            `${apiUrl}/_api/customer/deployments/${projectName}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${auth.token}`,
+                'X-Customer-ID': auth.customerId,
+              }
+            }
+          );
+          
+          spinner.succeed('Existing deployment removed');
+          
+          // Wait a bit for cleanup to complete
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          spinner.succeed('No existing deployment found');
+        }
+      } catch (error: any) {
+        // If deployment doesn't exist, that's fine for override
+        if (error.response?.status !== 404) {
+          spinner.warn('Could not check for existing deployment');
+        } else {
+          spinner.succeed('No existing deployment found');
+        }
+      }
+    }
+    
     // Deploy to SpinHub
     spinner.start('Deploying to SpinForge...');
     
@@ -183,7 +232,8 @@ export async function deployCommand(options: DeployOptions) {
         filename: `${projectName}.zip`,
         contentType: 'application/zip'
       });
-      formData.append('deploymentId', projectName);
+      // Use customerId/projectName as deploymentId for organized structure
+      formData.append('deploymentId', `${auth.customerId}/${projectName}`);
       formData.append('config', JSON.stringify(deployConfig));
       
       const response = await axios.post(

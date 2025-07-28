@@ -10,7 +10,7 @@ import { nanoid } from "nanoid";
 
 interface DeploymentStatus {
   name: string;
-  status: "pending" | "building" | "success" | "failed" | "processing" | "unhealthy";
+  status: "pending" | "building" | "success" | "failed" | "processing" | "unhealthy" | "orphaned";
   timestamp: string;
   error?: string;
   buildTime?: number;
@@ -18,6 +18,11 @@ interface DeploymentStatus {
   framework?: string;
   customerId?: string;
   spinletId?: string;
+  mode?: 'development' | 'production';
+  packageVersion?: string;
+  runCommand?: string;
+  orphaned?: boolean;
+  buildPath?: string;
 }
 
 export class DeploymentAPI {
@@ -133,6 +138,9 @@ export class DeploymentAPI {
       this.upload.array('files', 100), // Allow up to 100 files
       this.syncFiles.bind(this)
     );
+    
+    // Cleanup orphaned deployment
+    this.router.post("/deployments/:domain/cleanup-orphaned", this.cleanupOrphanedDeployment.bind(this));
   }
 
   private async uploadDeployment(req: Request, res: Response): Promise<void> {
@@ -167,16 +175,39 @@ export class DeploymentAPI {
         return;
       }
 
-      // Move uploaded file to deployment directory
+      // Create deployment directory
       const deploymentDir = join(this.deploymentPath, deploymentId);
       await mkdir(deploymentDir, { recursive: true });
       
-      const archivePath = join(deploymentDir, file.originalname);
+      // Extract the archive directly into the deployment directory
       const fs = require('fs').promises;
+      const unzipper = require('unzipper');
+      const tar = require('tar');
+      const { pipeline } = require('stream/promises');
+      const { createReadStream } = require('fs');
       
-      // Use copyFile instead of rename to avoid cross-device link errors
-      await fs.copyFile(file.path, archivePath);
-      // Remove the temporary file after successful copy
+      this.logger.info(`Extracting archive ${file.originalname} to ${deploymentDir}`);
+      
+      const filename = file.originalname.toLowerCase();
+      
+      if (filename.endsWith('.zip')) {
+        // Extract zip file
+        await pipeline(
+          createReadStream(file.path),
+          unzipper.Extract({ path: deploymentDir })
+        );
+      } else if (filename.endsWith('.tar') || filename.endsWith('.tar.gz') || filename.endsWith('.tgz')) {
+        // Extract tar file
+        await tar.x({
+          file: file.path,
+          cwd: deploymentDir,
+          strip: 1 // Remove the top-level directory from the archive
+        });
+      } else {
+        throw new Error(`Unsupported archive format: ${file.originalname}`);
+      }
+      
+      // Remove the temporary file after successful extraction
       await fs.unlink(file.path);
 
       // Create deploy.json in the deployment directory
@@ -272,13 +303,32 @@ export class DeploymentAPI {
       let action = 'none';
       if (needsRestart) {
         action = 'restart';
-        // TODO: Trigger container restart
+        // For now, just notify - in production this would restart the container
+        this.logger.info(`Restart required for ${deploymentName} due to file changes`);
       } else if (needsRebuild) {
-        action = 'rebuild';
-        // TODO: Trigger incremental build
+        action = 'incremental-build';
+        
+        // For development mode with frameworks that support HMR
+        if (mode === 'development') {
+          // Most modern frameworks handle this automatically via their dev server
+          // The file update will trigger HMR/Fast Refresh
+          this.logger.info(`Incremental build triggered for ${deploymentName}`, {
+            files: updatedFiles,
+            mode
+          });
+        } else {
+          // For production preview mode, we might need to trigger a build
+          // This depends on the framework and setup
+          this.logger.info(`Production mode file update for ${deploymentName}`, {
+            files: updatedFiles
+          });
+        }
       } else {
         action = 'hot-reload';
-        // TODO: Trigger hot reload if supported
+        // Static assets can be served immediately
+        this.logger.info(`Hot reload for static assets in ${deploymentName}`, {
+          files: updatedFiles
+        });
       }
       
       this.logger.info(`File sync completed for ${deploymentName}`, {
@@ -611,7 +661,44 @@ export class DeploymentAPI {
   private async removeDeployment(req: Request, res: Response): Promise<void> {
     try {
       const { name } = req.params;
-      const deploymentDir = join(this.deploymentPath, name);
+      
+      // Handle both simple names and customerId/projectName format
+      let deploymentDir: string;
+      if (name.includes('/')) {
+        // It's in customerId/projectName format
+        deploymentDir = join(this.deploymentPath, name);
+      } else {
+        // Try to find it in the root or in customer folders
+        deploymentDir = join(this.deploymentPath, name);
+        
+        // Check if it exists in root
+        try {
+          await stat(deploymentDir);
+        } catch {
+          // Not in root, search in customer folders
+          const entries = await readdir(this.deploymentPath);
+          let found = false;
+          
+          for (const entry of entries) {
+            const customerPath = join(this.deploymentPath, entry);
+            const possiblePath = join(customerPath, name);
+            
+            try {
+              await stat(possiblePath);
+              deploymentDir = possiblePath;
+              found = true;
+              break;
+            } catch {
+              // Continue searching
+            }
+          }
+          
+          if (!found) {
+            res.status(404).json({ error: "Deployment not found" });
+            return;
+          }
+        }
+      }
 
       // Remove from processing queue
       this.processingDeployments.delete(name);
@@ -651,22 +738,68 @@ export class DeploymentAPI {
     const deployments: DeploymentStatus[] = [];
 
     try {
+      // First, collect deployments from filesystem
       const entries = await readdir(this.deploymentPath);
 
       for (const entry of entries) {
-        const deploymentDir = join(this.deploymentPath, entry);
-        const stats = await stat(deploymentDir);
+        const fullPath = join(this.deploymentPath, entry);
+        const stats = await stat(fullPath);
 
         if (stats.isDirectory()) {
-          const status = await this.getDeploymentStatus(entry, deploymentDir);
-          deployments.push(status);
+          // Check if this is a deployment directory
+          const hasDeployConfig = await this.hasDeploymentConfig(fullPath);
+          
+          if (hasDeployConfig) {
+            // It's a deployment directory
+            const status = await this.getDeploymentStatus(entry, fullPath);
+            deployments.push(status);
+          } else {
+            // It might be a customer folder, scan its contents
+            try {
+              const subEntries = await readdir(fullPath);
+              for (const subEntry of subEntries) {
+                const subPath = join(fullPath, subEntry);
+                const subStats = await stat(subPath);
+                
+                if (subStats.isDirectory()) {
+                  const hasSubDeployConfig = await this.hasDeploymentConfig(subPath);
+                  if (hasSubDeployConfig) {
+                    // Use customerId/projectName as the deployment name
+                    const deploymentName = `${entry}/${subEntry}`;
+                    const status = await this.getDeploymentStatus(deploymentName, subPath);
+                    deployments.push(status);
+                  }
+                }
+              }
+            } catch (subError) {
+              this.logger.debug(`Could not scan subdirectory ${fullPath}`, { error: subError });
+            }
+          }
         }
       }
+
+      // Now check for orphaned routes (routes without deployment folders)
+      const orphanedDeployments = await this.checkOrphanedRoutes();
+      deployments.push(...orphanedDeployments);
     } catch (error) {
       this.logger.error("Error collecting deployment statuses", { error });
     }
 
     return deployments;
+  }
+  
+  private async hasDeploymentConfig(path: string): Promise<boolean> {
+    try {
+      await stat(join(path, "deploy.yaml"));
+      return true;
+    } catch {
+      try {
+        await stat(join(path, "deploy.json"));
+        return true;
+      } catch {
+        return false;
+      }
+    }
   }
 
   private async getDeploymentStatus(
@@ -699,6 +832,7 @@ export class DeploymentAPI {
           status.domains = Array.isArray(markerData.config.domain)
             ? markerData.config.domain
             : [markerData.config.domain];
+          status.mode = markerData.config.mode || 'production';
         }
       } catch {
         try {
@@ -710,7 +844,16 @@ export class DeploymentAPI {
           const fs = require("fs").promises;
           const markerContent = await fs.readFile(failedMarker, "utf-8");
           const markerData = JSON.parse(markerContent);
-          status.error = markerData.error || "Unknown error";
+          
+          // Handle both old format (single object) and new format (array)
+          if (Array.isArray(markerData)) {
+            // Get the most recent error (last in array)
+            const latestError = markerData[markerData.length - 1];
+            status.error = latestError.error || "Unknown error";
+          } else {
+            // Old format
+            status.error = markerData.error || "Unknown error";
+          }
         } catch {
           // No markers, check if currently processing
           if (this.processingDeployments.has(name)) {
@@ -732,6 +875,7 @@ export class DeploymentAPI {
         status.domains = Array.isArray(config.domain)
           ? config.domain
           : [config.domain];
+        status.mode = config.mode || 'production';
       } catch {
         // Try JSON config
         try {
@@ -745,9 +889,31 @@ export class DeploymentAPI {
           status.domains = Array.isArray(config.domain)
             ? config.domain
             : [config.domain];
+          status.mode = config.mode || 'production';
         } catch {
           // No config found
         }
+      }
+
+      // Try to get package.json info
+      try {
+        const fs = require("fs").promises;
+        const packageJsonPath = join(deploymentDir, "package.json");
+        const packageContent = await fs.readFile(packageJsonPath, "utf-8");
+        const packageJson = JSON.parse(packageContent);
+        
+        status.packageVersion = packageJson.version;
+        
+        // Get the run command based on mode
+        if (packageJson.scripts) {
+          if (status.mode === 'development' && packageJson.scripts.dev) {
+            status.runCommand = `npm run dev`;
+          } else if (packageJson.scripts.start) {
+            status.runCommand = `npm run start`;
+          }
+        }
+      } catch {
+        // No package.json or error reading it
       }
     } catch (error) {
       this.logger.error(`Error getting status for ${name}`, { error });
@@ -845,6 +1011,66 @@ ${status.error || "Unknown error"}
     this.deploymentStatuses.set(name, status);
   }
 
+  private async checkOrphanedRoutes(): Promise<DeploymentStatus[]> {
+    const orphanedDeployments: DeploymentStatus[] = [];
+    
+    try {
+      // Get all routes from Redis
+      const Redis = require('ioredis');
+      const redis = new Redis({
+        host: process.env.REDIS_HOST || 'keydb',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD
+      });
+      
+      const allDomains = await redis.hkeys("spinforge:routes");
+      
+      for (const domain of allDomains) {
+        const routeData = await redis.hget("spinforge:routes", domain);
+        if (!routeData) continue;
+        
+        const route = JSON.parse(routeData);
+        
+        // Skip if not a deployment from our watched folder
+        if (!route.buildPath || !route.buildPath.startsWith(this.deploymentPath)) {
+          continue;
+        }
+        
+        // Check if the deployment folder exists
+        let folderExists = true;
+        try {
+          await stat(route.buildPath);
+        } catch {
+          folderExists = false;
+        }
+        
+        if (!folderExists) {
+          // This is an orphaned route
+          const deploymentName = route.config?.name || basename(route.buildPath);
+          
+          orphanedDeployments.push({
+            name: deploymentName,
+            status: "orphaned",
+            timestamp: new Date().toISOString(),
+            error: "Deployment folder no longer exists",
+            domains: [domain],
+            framework: route.framework,
+            customerId: route.customerId,
+            spinletId: route.spinletId,
+            orphaned: true,
+            buildPath: route.buildPath
+          });
+        }
+      }
+      
+      await redis.quit();
+    } catch (error) {
+      this.logger.error("Error checking orphaned routes", { error });
+    }
+    
+    return orphanedDeployments;
+  }
+
   public markDeploymentAsProcessing(name: string): void {
     this.processingDeployments.add(name);
     this.updateDeploymentStatus(name, {
@@ -891,6 +1117,63 @@ ${status.error || "Unknown error"}
         });
         break;
       }
+    }
+  }
+
+  private async cleanupOrphanedDeployment(req: Request, res: Response): Promise<void> {
+    try {
+      const { domain } = req.params;
+      
+      // Get route info from Redis
+      const Redis = require('ioredis');
+      const redis = new Redis({
+        host: process.env.REDIS_HOST || 'keydb',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD
+      });
+      
+      const routeData = await redis.hget("spinforge:routes", domain);
+      
+      if (!routeData) {
+        res.status(404).json({ error: "Route not found" });
+        await redis.quit();
+        return;
+      }
+      
+      const route = JSON.parse(routeData);
+      
+      // Remove from routes
+      await redis.hdel("spinforge:routes", domain);
+      
+      // Remove from customer routes if exists
+      if (route.customerId) {
+        await redis.srem(`spinforge:customer:${route.customerId}:routes`, domain);
+      }
+      
+      // Stop spinlet if it exists
+      if (route.spinletId && this.spinletManager) {
+        try {
+          await this.spinletManager.stop(route.spinletId, "orphaned_cleanup");
+        } catch (error) {
+          this.logger.warn(`Failed to stop spinlet ${route.spinletId}`, { error });
+        }
+      }
+      
+      await redis.quit();
+      
+      this.logger.info(`Cleaned up orphaned deployment for domain: ${domain}`, {
+        customerId: route.customerId,
+        spinletId: route.spinletId,
+        buildPath: route.buildPath
+      });
+      
+      res.json({ 
+        success: true, 
+        message: `Orphaned deployment for ${domain} has been cleaned up` 
+      });
+    } catch (error) {
+      this.logger.error(`Error cleaning up orphaned deployment ${req.params.domain}`, { error });
+      res.status(500).json({ error: "Failed to cleanup orphaned deployment" });
     }
   }
 

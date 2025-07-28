@@ -22,6 +22,7 @@ export interface SpinletConfig {
     cpu?: string; // e.g., "0.5"
   };
   domains?: string[]; // Optional domains for the spinlet
+  mode?: 'development' | 'production'; // Deployment mode for watch/dev server support
 }
 
 export interface SpinletState {

@@ -50,11 +50,13 @@ export class SpinletManager extends EventEmitter {
     const port =
       config.port || (await this.portAllocator.allocate(config.spinletId));
 
+    const isDevelopment = config.mode === 'development' || config.env?.NODE_ENV === 'development';
+    
     const env = {
       PORT: port.toString(),
       SPINLET_ID: config.spinletId,
       CUSTOMER_ID: config.customerId,
-      NODE_ENV: "production",
+      NODE_ENV: isDevelopment ? "development" : "production",
       ...config.env,
     };
 
@@ -64,12 +66,13 @@ export class SpinletManager extends EventEmitter {
         ? config.buildPath.substring(0, config.buildPath.length - 6) // Remove /.next
         : config.buildPath;
 
-    let child: ChildProcess;
+    let child: ChildProcess | undefined;
 
     if (config.framework === "nextjs") {
       // For Next.js, check if standalone server exists
       const fs = require("fs");
       const path = require("path");
+      const { spawn } = require("child_process");
       const standaloneServerPath = path.join(config.buildPath, ".next", "standalone", "server.js");
       
       if (fs.existsSync(standaloneServerPath)) {
@@ -85,65 +88,163 @@ export class SpinletManager extends EventEmitter {
           execArgv: this.getExecArgv(config),
         });
       } else {
-        // Fallback to node server.js if package.json has start script
-        const { spawn } = require("child_process");
-        const startScript = path.join(cwd, "node_modules", ".bin", "next");
+        // Check package.json for start/dev scripts
+        const packageJsonPath = path.join(cwd, "package.json");
+        let useNpmScripts = false;
         
-        if (fs.existsSync(startScript)) {
-          child = spawn("node", [startScript, "start", "-p", port.toString()], {
-            cwd,
-            env,
-            stdio: ["ignore", "pipe", "pipe"],
-          });
-        } else {
-          // Last resort - try to use global next
-          child = spawn("npx", ["next", "start", "-p", port.toString()], {
-            cwd,
-            env,
-            stdio: ["ignore", "pipe", "pipe"],
-          });
+        if (fs.existsSync(packageJsonPath)) {
+          try {
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+            const scriptName = isDevelopment ? 'dev' : 'start';
+            if (packageJson.scripts && packageJson.scripts[scriptName]) {
+              useNpmScripts = true;
+              // Use npm run with the script from package.json
+              child = spawn("npm", ["run", scriptName], {
+                cwd,
+                env,
+                stdio: ["ignore", "pipe", "pipe"],
+              });
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to read package.json: ${error}`);
+          }
         }
-      }
-    } else if (config.framework === "node" || config.framework === "custom") {
-      // For Express/custom, use fork with the entry point
-      const fs = require("fs");
-      const path = require("path");
-      
-      // Determine the entry point
-      let entryPoint = config.buildPath;
-      
-      // If buildPath is a directory, look for common entry points
-      if (fs.statSync(config.buildPath).isDirectory()) {
-        const possibleEntries = ['server.js', 'index.js', 'app.js', 'main.js'];
-        for (const entry of possibleEntries) {
-          const entryPath = path.join(config.buildPath, entry);
-          if (fs.existsSync(entryPath)) {
-            entryPoint = entryPath;
-            break;
+        
+        if (!useNpmScripts) {
+          // Fallback to direct next command if no npm scripts
+          const startScript = path.join(cwd, "node_modules", ".bin", "next");
+          
+          if (fs.existsSync(startScript)) {
+            const command = isDevelopment ? "dev" : "start";
+            child = spawn("node", [startScript, command, "-p", port.toString()], {
+              cwd,
+              env,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
+          } else {
+            // Last resort - try to use global next
+            const command = isDevelopment ? "dev" : "start";
+            child = spawn("npx", ["next", command, "-p", port.toString()], {
+              cwd,
+              env,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
           }
         }
       }
+    } else if (config.framework === "node" || config.framework === "custom") {
+      // For Express/custom, check package.json first
+      const fs = require("fs");
+      const path = require("path");
+      const { spawn } = require("child_process");
+      const packageJsonPath = path.join(config.buildPath, "package.json");
+      let useNpmScripts = false;
       
-      child = fork(entryPoint, [], {
-        cwd: path.dirname(entryPoint),
-        env,
-        silent: true,
-        execArgv: this.getExecArgv(config),
-      });
+      if (fs.existsSync(packageJsonPath)) {
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+          const scriptName = isDevelopment ? (packageJson.scripts?.dev ? 'dev' : 'start') : 'start';
+          
+          if (packageJson.scripts && packageJson.scripts[scriptName]) {
+            useNpmScripts = true;
+            child = spawn("npm", ["run", scriptName], {
+              cwd: config.buildPath,
+              env,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to read package.json: ${error}`);
+        }
+      }
+      
+      if (!useNpmScripts) {
+        // Fallback to forking the entry point directly
+        let entryPoint = config.buildPath;
+        
+        // If buildPath is a directory, look for common entry points
+        if (fs.statSync(config.buildPath).isDirectory()) {
+          const possibleEntries = ['server.js', 'index.js', 'app.js', 'main.js'];
+          for (const entry of possibleEntries) {
+            const entryPath = path.join(config.buildPath, entry);
+            if (fs.existsSync(entryPath)) {
+              entryPoint = entryPath;
+              break;
+            }
+          }
+        }
+        
+        child = fork(entryPoint, [], {
+          cwd: path.dirname(entryPoint),
+          env,
+          silent: true,
+          execArgv: this.getExecArgv(config),
+        });
+      }
     } else if (
       config.framework === "static" ||
       config.framework === "react" ||
       config.framework === "vue" ||
       config.framework === "astro"
     ) {
-      // For static sites and SPAs, use a simple HTTP server
       const { spawn } = require("child_process");
-      // Use Python's built-in HTTP server for static files
-      child = spawn("python3", ["-m", "http.server", port.toString()], {
-        cwd: config.buildPath,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      const fs = require("fs");
+      const path = require("path");
+      
+      // For non-static frameworks in development mode, check for dev scripts
+      if (config.framework !== "static" && isDevelopment) {
+        const packageJsonPath = path.join(config.buildPath, "package.json");
+        
+        if (fs.existsSync(packageJsonPath)) {
+          try {
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+            
+            if (packageJson.scripts && packageJson.scripts.dev) {
+              // Use the dev script for hot reload
+              child = spawn("npm", ["run", "dev"], {
+                cwd: config.buildPath,
+                env,
+                stdio: ["ignore", "pipe", "pipe"],
+              });
+            } else if (packageJson.scripts && packageJson.scripts.start) {
+              // Fallback to start script
+              child = spawn("npm", ["run", "start"], {
+                cwd: config.buildPath,
+                env,
+                stdio: ["ignore", "pipe", "pipe"],
+              });
+            } else {
+              // Fallback to static server
+              child = spawn("python3", ["-m", "http.server", port.toString()], {
+                cwd: config.buildPath,
+                env,
+                stdio: ["ignore", "pipe", "pipe"],
+              });
+            }
+          } catch (error) {
+            // Fallback to static server
+            child = spawn("python3", ["-m", "http.server", port.toString()], {
+              cwd: config.buildPath,
+              env,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
+          }
+        } else {
+          // No package.json, use static server
+          child = spawn("python3", ["-m", "http.server", port.toString()], {
+            cwd: config.buildPath,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        }
+      } else {
+        // For static sites or production builds, use a simple HTTP server
+        child = spawn("python3", ["-m", "http.server", port.toString()], {
+          cwd: config.buildPath,
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      }
     } else if (config.framework === "nestjs") {
       // For NestJS, use node with the main file
       child = fork(path.join(config.buildPath, "main.js"), [], {
@@ -153,13 +254,36 @@ export class SpinletManager extends EventEmitter {
         execArgv: this.getExecArgv(config),
       });
     } else if (config.framework === "remix") {
-      // For Remix, use npm start
+      // For Remix, use npm scripts
       const { spawn } = require("child_process");
-      child = spawn("npm", ["run", "start"], {
-        cwd: config.buildPath,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      const fs = require("fs");
+      const path = require("path");
+      const packageJsonPath = path.join(config.buildPath, "package.json");
+      
+      if (fs.existsSync(packageJsonPath)) {
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+          const scriptName = isDevelopment ? (packageJson.scripts?.dev ? 'dev' : 'start') : 'start';
+          child = spawn("npm", ["run", scriptName], {
+            cwd: config.buildPath,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        } catch (error) {
+          // Fallback to npm start
+          child = spawn("npm", ["run", "start"], {
+            cwd: config.buildPath,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        }
+      } else {
+        child = spawn("npm", ["run", "start"], {
+          cwd: config.buildPath,
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      }
     } else if (config.framework === "flutter") {
       const { spawn } = require("child_process");
       child = spawn(
@@ -181,6 +305,11 @@ export class SpinletManager extends EventEmitter {
       });
     } else {
       throw new Error(`Unsupported framework: ${config.framework}`);
+    }
+    
+    // Ensure child is defined
+    if (!child) {
+      throw new Error(`Failed to spawn process for framework: ${config.framework}`);
     }
 
     const state: SpinletState = {
