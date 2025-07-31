@@ -1,0 +1,186 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Logs
+logs/
+*.log
+error.log
+access.log
+combined.log
+/var/log/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Docker volumes and generated files
+keydb-data/
+openresty-logs/
+caddy-data/
+caddy-config/
+caddy-sites/
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+tmp/
+temp/
+cache/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.turbo/
+.vercel/
+.output/
+
+# Static site deployments (test data)
+test-sites/
+hosting/data/static/test-*/
+
+# Backup files
+*.bak
+*.backup
+backups/
+*.old
+
+# Archive and compressed files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+dump.rdb
+
+# SSL certificates (except examples)
+*.pem
+*.key
+*.crt
+*.csr
+*.der
+*.p12
+*.pfx
+!examples/**/*.pem
+!examples/**/*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+*.tfvars.json
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+!examples/**/*.yaml
+!examples/**/*.yml
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.tar
+*.rar
+
+# Lock files (keep package-lock.json for npm)
+yarn.lock
+pnpm-lock.yaml
+!package-lock.json
+
+# Monitoring
+grafana/data/
+prometheus/data/
+
+# Custom
+_archive/deployments/
+_archive/logs/
+_archive/cache/
+deployments/
+!_archive/test-deployments/
+!examples/deploy-templates/
+
+# Spinforge specific
+/hosting/data/static/*
+!/hosting/data/static/.gitkeep
+/hosting/openresty/logs/
+/test-deployments/
+spinforge-*.log
+
+# Keep important config files
+!docker-compose.yml
+!docker-compose.*.yml
+!Dockerfile
+!*/Dockerfile
+!nginx.conf
+!Caddyfile
+!*.lua

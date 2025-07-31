@@ -1,0 +1,108 @@
+{
+	# Global options
+	admin 0.0.0.0:2019
+	
+	# Enable the Caddy API
+	servers {
+		metrics
+	}
+	
+	# Storage for certificates (using default file storage)
+	# Redis storage requires custom build
+	
+	# Default SNI
+	default_sni spinforge.io
+}
+
+# Import dynamic configurations
+import /etc/caddy/sites/*.caddy
+
+# Health check endpoint
+:80 {
+	handle /health {
+		respond "OK" 200
+	}
+}
+
+# Metrics endpoint
+:9180 {
+	handle /metrics {
+		metrics
+	}
+}
+
+# Default handler for unmatched domains
+http:// {
+	handle {
+		respond "Domain not configured" 404
+	}
+}
+
+# Catch-all HTTPS with automatic certificates
+https:// {
+	# TLS will be configured per-site
+	handle {
+		respond "Domain not configured" 404
+	}
+}
+
+# Common templates for imported sites
+(tls_on_demand) {
+	tls {
+		on_demand
+		on_demand_ask http://localhost:18080/api/verify-domain
+
+		# Rate limiting for certificate generation
+		on_demand_rate_limit {
+			interval 1m
+			burst 5
+		}
+	}
+}
+
+(security_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+(common_proxy) {
+	header_up X-Real-IP {remote_host}
+	header_up X-Forwarded-For {remote_host}
+	header_up X-Forwarded-Proto {scheme}
+	header_up X-Forwarded-Host {host}
+	
+	# Enable compression
+	encode gzip
+	
+	# Timeouts
+	transport http {
+		dial_timeout 10s
+		response_header_timeout 10s
+		read_timeout 30s
+		write_timeout 30s
+		idle_timeout 120s
+	}
+}
+
+# Cookie-based routing template
+(cookie_route) {
+	@has_cookie {
+		header Cookie *{args.0}*
+	}
+}
+
+# Rate limiting template
+(rate_limit) {
+	rate_limit {
+		zone dynamic {
+			key {remote_host}
+			window 1m
+			events {args.0}
+		}
+	}
+}

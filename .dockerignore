@@ -1,0 +1,54 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+LICENSE
+docs/
+*.md
+
+# Development
+.env*
+.vscode/
+.idea/
+*.log
+
+# Dependencies (will be installed fresh in container)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+coverage/
+
+# Build artifacts
+dist/
+build/
+*.map
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Archives and backups
+*.zip
+*.tar.gz
+*.bak
+backups/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Docker files (not needed inside containers)
+docker-compose*.yml
+Dockerfile*
+.dockerignore

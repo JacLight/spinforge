@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(cp:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker restart:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker:*)",
+      "Bash(/Users/imzee/projects/spinforge/deploy-test-sites.sh:*)",
+      "Bash(/Users/imzee/projects/spinforge/test-sites-access.sh:*)",
+      "Bash(/Users/imzee/projects/spinforge/migrate-to-openresty.sh:*)"
+    ],
+    "deny": []
+  }
+}

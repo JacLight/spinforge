@@ -1,0 +1,10 @@
+# Ignore everything except what we need
+*
+
+# Include only necessary files
+!nginx.conf
+!lua/
+
+# Exclude logs even if in lua directory
+lua/*.log
+lua/*.tmp

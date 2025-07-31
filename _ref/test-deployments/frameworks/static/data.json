@@ -1,0 +1,16 @@
+{
+  "test": "Static JSON file loaded successfully",
+  "framework": "static",
+  "features": [
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "JSON",
+    "Images"
+  ],
+  "deployment": {
+    "type": "static",
+    "hosting": "SpinForge",
+    "cdn": false
+  }
+}

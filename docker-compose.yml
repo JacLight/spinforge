@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  keydb:
+    image: eqalpha/keydb:latest
+    container_name: spinforge-keydb
+    restart: unless-stopped
+    volumes:
+      - keydb-data:/data
+    environment:
+      - KEYDB_PASSWORD=${REDIS_PASSWORD:-}
+    command: keydb-server --appendonly yes --protected-mode no --port 16378
+    networks:
+      - spinforge
+    healthcheck:
+      test: ["CMD", "keydb-cli", "-p", "16378", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  openresty:
+    build:
+      context: ./hosting/openresty
+      dockerfile: Dockerfile
+    container_name: spinforge-openresty
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8082:8081"
+    environment:
+      - REDIS_HOST=keydb
+      - REDIS_PORT=16378
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=1
+    volumes:
+      - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./hosting/openresty/lua:/etc/openresty/lua:ro
+      - ./hosting/data/static:/var/www/static
+      - openresty-logs:/var/log/nginx
+    networks:
+      - spinforge
+    depends_on:
+      keydb:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./hosting/api
+      dockerfile: Dockerfile
+    container_name: spinforge-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=keydb
+      - REDIS_PORT=16378
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - CADDY_API=http://caddy:2019
+      - PORT=8080
+    # No volumes needed - API writes directly to Redis
+    networks:
+      - spinforge
+    depends_on:
+      - keydb
+      - openresty
+
+volumes:
+  keydb-data:
+  openresty-logs:
+
+networks:
+  spinforge:
+    driver: bridge
