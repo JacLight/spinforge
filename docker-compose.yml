@@ -61,7 +61,7 @@ services:
       - BASE_DOMAIN=${BASE_DOMAIN:-spinforge.localhost}
       - STATIC_ROOT=/data/static
     volumes:
-      - ./hosting/data:/data:ro
+      - ./hosting/data:/data
     networks:
       - spinforge
     depends_on:

@@ -4,7 +4,7 @@ import { hostingAPI } from "../services/hosting-api";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useDebounce } from "../hooks/useDebounce";
-import ApplicationDrawer from "../components/ApplicationDrawer";
+import ApplicationDrawerV2 from "../components/ApplicationDrawerV2";
 import {
   Globe,
   Package,
@@ -370,13 +370,8 @@ export default function Applications() {
                       {getStatusIcon(vhost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">{vhost.subdomain}</div>
-                          <div className="text-gray-500 text-xs">
-                            {vhost.domain ? vhost.domain.replace(vhost.subdomain + '.', '.') : '.spinforge.localhost'}
-                          </div>
-                        </div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {vhost.domain || `${vhost.subdomain}.spinforge.localhost`}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -450,12 +445,9 @@ export default function Applications() {
                 </div>
 
                 <div className="mb-3">
-                  <h3 className="font-medium text-gray-900 truncate" title={vhost.subdomain}>
-                    {vhost.subdomain}
-                  </h3>
-                  <p className="text-xs text-gray-500 truncate" title={vhost.domain}>
+                  <h3 className="font-medium text-gray-900 truncate" title={vhost.domain || `${vhost.subdomain}.spinforge.localhost`}>
                     {vhost.domain || `${vhost.subdomain}.spinforge.localhost`}
-                  </p>
+                  </h3>
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-gray-600 mb-3">
@@ -500,7 +492,7 @@ export default function Applications() {
       )}
 
       {/* Application Details Drawer */}
-      <ApplicationDrawer
+      <ApplicationDrawerV2
         vhost={selectedVhost}
         isOpen={drawerOpen}
         onClose={() => {

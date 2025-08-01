@@ -3,6 +3,7 @@
 
 local redis = require "resty.redis"
 local cjson = require "cjson"
+local logger = require "logger"
 
 -- Helper function to get Redis connection
 local function get_redis_connection()
@@ -83,6 +84,47 @@ local function get_vhost_config(subdomain)
     return cjson.decode(vhost_json)
 end
 
+-- Get vhost by domain lookup
+local function get_vhost_by_domain(domain)
+    -- Check cache first
+    local routes_cache = ngx.shared.routes_cache
+    local cache_key = "domain:" .. domain
+    local cached_subdomain = routes_cache:get(cache_key)
+    
+    if cached_subdomain then
+        ngx.log(ngx.DEBUG, "Domain cache hit for: ", domain)
+        return get_vhost_config(cached_subdomain)
+    end
+    
+    -- Get from Redis
+    local red, err = get_redis_connection()
+    if not red then
+        return nil, err
+    end
+    
+    -- Check domain mapping
+    local domain_key = "domain:" .. domain
+    local subdomain, err = red:get(domain_key)
+    
+    if err then
+        return_redis_connection(red)
+        return nil, err
+    end
+    
+    if subdomain == ngx.null or not subdomain then
+        return_redis_connection(red)
+        return nil, "Domain mapping not found"
+    end
+    
+    -- Cache domain to subdomain mapping
+    routes_cache:set(cache_key, subdomain, 60)
+    
+    return_redis_connection(red)
+    
+    -- Now get the vhost config
+    return get_vhost_config(subdomain)
+end
+
 -- Update metrics
 local function update_metrics(domain, status)
     local metrics = ngx.shared.metrics
@@ -98,21 +140,34 @@ local host = ngx.var.host:lower()
 local subdomain = host:match("^([^.]+)")
 
 -- Handle special cases
-if not subdomain or host == "localhost" or host:match("^%d+%.%d+%.%d+%.%d+") then
+if host == "localhost" or host:match("^%d+%.%d+%.%d+%.%d+") then
     ngx.log(ngx.INFO, "Direct access or IP access: ", host)
     ngx.var.route_type = ""
     return
 end
 
-ngx.log(ngx.INFO, "Routing request for subdomain: ", subdomain)
+ngx.log(ngx.INFO, "Routing request for host: ", host)
 
--- Get vhost configuration
-local vhost, err = get_vhost_config(subdomain)
+-- Try to get vhost by full domain first
+local vhost, err = get_vhost_by_domain(host)
+
+-- If not found by domain, try subdomain lookup
+if not vhost and subdomain then
+    ngx.log(ngx.INFO, "Domain lookup failed, trying subdomain: ", subdomain)
+    vhost, err = get_vhost_config(subdomain)
+end
+
 if not vhost then
-    ngx.log(ngx.WARN, "Vhost not found for subdomain: ", subdomain, " Error: ", err)
+    ngx.log(ngx.WARN, "Vhost not found for host: ", host, " Error: ", err)
     ngx.var.route_type = ""
     update_metrics(host, 404)
     return
+end
+
+-- Store the resolved subdomain for static path and logging
+if vhost.subdomain then
+    subdomain = vhost.subdomain
+    ngx.ctx.resolved_subdomain = subdomain
 end
 
 -- Route based on type

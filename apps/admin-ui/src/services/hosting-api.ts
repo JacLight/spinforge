@@ -13,6 +13,7 @@ const apiClient = axios.create({
 export interface VHost {
   subdomain: string;
   domain?: string;
+  aliases?: string[];
   actual_domain?: string;
   files_exist?: boolean;
   type: 'static' | 'proxy' | 'container' | 'loadbalancer';
@@ -58,6 +59,51 @@ export interface VHostSearchParams {
 
 export interface VHostSearchResponse {
   data: VHost[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface VHostMetrics {
+  subdomain: string;
+  timeRange: string;
+  lastAccessed: string | null;
+  totalRequests: number;
+  totalBandwidth: number;
+  uniqueVisitors: number;
+  metrics: {
+    requests: number;
+    avgResponseTime: number;
+    statusCodes: Record<string, number>;
+    bandwidth: number;
+    errorRate: number;
+  };
+  recentLogs: Array<{
+    timestamp: number;
+    method: string;
+    path: string;
+    status: number;
+    bytes: number;
+    responseTime: number;
+    ip: string;
+    userAgent?: string;
+    referer?: string;
+  }>;
+}
+
+export interface LogsResponse {
+  logs: Array<{
+    timestamp: number;
+    method: string;
+    path: string;
+    status: number;
+    bytes: number;
+    responseTime: number;
+    ip: string;
+    userAgent?: string;
+    referer?: string;
+  }>;
   total: number;
   limit: number;
   offset: number;
@@ -123,5 +169,24 @@ export const hostingAPI = {
       loadbalancer_sites: vhosts.filter(v => v.type === 'loadbalancer').length,
     };
     return stats;
+  },
+
+  // Get metrics for a specific vhost
+  async getVHostMetrics(subdomain: string, timeRange?: string): Promise<VHostMetrics> {
+    const response = await apiClient.get(`/api/vhost/${subdomain}/metrics`, {
+      params: { range: timeRange }
+    });
+    return response.data;
+  },
+
+  // Get logs for a specific vhost
+  async getVHostLogs(subdomain: string, params?: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    search?: string;
+  }): Promise<LogsResponse> {
+    const response = await apiClient.get(`/api/vhost/${subdomain}/logs`, { params });
+    return response.data;
   }
 };

@@ -204,9 +204,15 @@ app.post('/api/vhost', async (req, res) => {
     vhost.enabled = vhost.enabled !== false;
     vhost.createdAt = new Date().toISOString();
     vhost.updatedAt = vhost.createdAt;
+    vhost.subdomain = vhost.subdomain; // Ensure subdomain is stored
     
     // Save to Redis - this is all we need for OpenResty!
     await redisClient.set(`vhost:${vhost.subdomain}`, JSON.stringify(vhost));
+    
+    // Create domain mappings
+    if (vhost.domain || vhost.aliases) {
+      await updateDomainMappings(vhost.subdomain, vhost.domain, vhost.aliases || []);
+    }
     
     // Clear route cache in OpenResty (optional - cache expires in 60s anyway)
     await redisClient.del(`routes_cache:${vhost.subdomain}`);
@@ -216,6 +222,30 @@ app.post('/api/vhost', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Helper function to update domain mappings
+async function updateDomainMappings(subdomain, domain, aliases = []) {
+  // Clear old domain mappings for this subdomain
+  const oldDomainKeys = await redisClient.keys(`domain:*`);
+  for (const key of oldDomainKeys) {
+    const mappedSubdomain = await redisClient.get(key);
+    if (mappedSubdomain === subdomain) {
+      await redisClient.del(key);
+    }
+  }
+  
+  // Set primary domain mapping
+  if (domain) {
+    await redisClient.set(`domain:${domain}`, subdomain);
+  }
+  
+  // Set alias mappings
+  for (const alias of aliases) {
+    if (alias && alias !== domain) {
+      await redisClient.set(`domain:${alias}`, subdomain);
+    }
+  }
+}
 
 // Update virtual host
 app.put('/api/vhost/:subdomain', async (req, res) => {
@@ -238,6 +268,37 @@ app.put('/api/vhost/:subdomain', async (req, res) => {
     // Save to Redis
     await redisClient.set(`vhost:${subdomain}`, JSON.stringify(vhost));
     
+    // Update domain mappings if domain or aliases changed
+    if (updates.domain !== undefined || updates.aliases !== undefined) {
+      await updateDomainMappings(subdomain, vhost.domain, vhost.aliases || []);
+    }
+    
+    // If domain/aliases were updated and this is a static site, update deploy.json
+    if ((updates.domain || updates.aliases) && vhost.type === 'static') {
+      const staticPath = vhost.static_path || path.join(STATIC_ROOT, vhost.subdomain);
+      const deployJsonPath = path.join(staticPath, 'deploy.json');
+      
+      try {
+        if (fs.existsSync(deployJsonPath)) {
+          // Read existing deploy.json
+          const deployData = JSON.parse(fs.readFileSync(deployJsonPath, 'utf8'));
+          // Update domain and aliases
+          if (updates.domain !== undefined) {
+            deployData.domain = vhost.domain;
+          }
+          if (updates.aliases !== undefined) {
+            deployData.aliases = vhost.aliases || [];
+          }
+          // Write back
+          fs.writeFileSync(deployJsonPath, JSON.stringify(deployData, null, 2));
+          console.log(`Updated deploy.json for ${subdomain}`);
+        }
+      } catch (e) {
+        console.error(`Error updating deploy.json for ${subdomain}:`, e);
+        // Don't fail the whole update if deploy.json update fails
+      }
+    }
+    
     // Clear route cache
     await redisClient.del(`routes_cache:${subdomain}`);
     
@@ -252,10 +313,22 @@ app.delete('/api/vhost/:subdomain', async (req, res) => {
   try {
     const subdomain = req.params.subdomain;
     
-    // Check if exists
-    const exists = await redisClient.exists(`vhost:${subdomain}`);
-    if (!exists) {
+    // Get vhost to clean up domain mappings
+    const data = await redisClient.get(`vhost:${subdomain}`);
+    if (!data) {
       return res.status(404).json({ error: 'Virtual host not found' });
+    }
+    
+    const vhost = JSON.parse(data);
+    
+    // Clear all domain mappings for this vhost
+    if (vhost.domain) {
+      await redisClient.del(`domain:${vhost.domain}`);
+    }
+    if (vhost.aliases) {
+      for (const alias of vhost.aliases) {
+        await redisClient.del(`domain:${alias}`);
+      }
     }
     
     // Delete from Redis
@@ -358,6 +431,123 @@ app.get('/api/routes', async (req, res) => {
     }
     
     res.json(routes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get hosting metrics for a specific vhost
+app.get('/api/vhost/:subdomain/metrics', async (req, res) => {
+  try {
+    const { subdomain } = req.params;
+    const timeRange = req.query.range || '24h'; // 1h, 24h, 7d, 30d
+    
+    // Get metrics from Redis
+    const metricsKey = `metrics:${subdomain}`;
+    const logsKey = `logs:${subdomain}`;
+    
+    // Get current metrics
+    const currentMetrics = await redisClient.hgetall(metricsKey);
+    
+    // Get recent access logs (last 100)
+    const logs = await redisClient.lrange(logsKey, 0, 99);
+    const parsedLogs = logs.map(log => {
+      try {
+        return JSON.parse(log);
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean);
+    
+    // Calculate stats
+    const now = Date.now();
+    const timeRanges = {
+      '1h': 3600000,
+      '24h': 86400000,
+      '7d': 604800000,
+      '30d': 2592000000
+    };
+    const cutoff = now - (timeRanges[timeRange] || timeRanges['24h']);
+    
+    const recentLogs = parsedLogs.filter(log => new Date(log.timestamp).getTime() > cutoff);
+    
+    // Status code distribution
+    const statusCodes = {};
+    recentLogs.forEach(log => {
+      const status = log.status || 'unknown';
+      statusCodes[status] = (statusCodes[status] || 0) + 1;
+    });
+    
+    // Response time stats
+    const responseTimes = recentLogs.map(log => log.responseTime || 0).filter(t => t > 0);
+    const avgResponseTime = responseTimes.length > 0 
+      ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+      : 0;
+    
+    res.json({
+      subdomain,
+      timeRange,
+      lastAccessed: currentMetrics.lastAccessed || null,
+      totalRequests: parseInt(currentMetrics.totalRequests || '0'),
+      totalBandwidth: parseInt(currentMetrics.totalBandwidth || '0'),
+      uniqueVisitors: parseInt(currentMetrics.uniqueVisitors || '0'),
+      metrics: {
+        requests: recentLogs.length,
+        avgResponseTime: Math.round(avgResponseTime),
+        statusCodes,
+        bandwidth: recentLogs.reduce((sum, log) => sum + (log.bytes || 0), 0),
+        errorRate: recentLogs.filter(log => log.status >= 400).length / (recentLogs.length || 1),
+      },
+      recentLogs: parsedLogs.slice(0, 10) // Last 10 logs
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get request logs for a specific vhost
+app.get('/api/vhost/:subdomain/logs', async (req, res) => {
+  try {
+    const { subdomain } = req.params;
+    const { limit = 100, offset = 0, status, search } = req.query;
+    
+    const logsKey = `logs:${subdomain}`;
+    const logs = await redisClient.lrange(logsKey, 0, -1);
+    
+    let parsedLogs = logs.map(log => {
+      try {
+        return JSON.parse(log);
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean);
+    
+    // Filter by status if provided
+    if (status) {
+      parsedLogs = parsedLogs.filter(log => log.status == status);
+    }
+    
+    // Search in path and user agent
+    if (search) {
+      const searchLower = search.toLowerCase();
+      parsedLogs = parsedLogs.filter(log => 
+        (log.path && log.path.toLowerCase().includes(searchLower)) ||
+        (log.userAgent && log.userAgent.toLowerCase().includes(searchLower)) ||
+        (log.ip && log.ip.includes(search))
+      );
+    }
+    
+    // Paginate
+    const total = parsedLogs.length;
+    const paginatedLogs = parsedLogs.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+    
+    res.json({
+      logs: paginatedLogs,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      hasMore: parseInt(offset) + parseInt(limit) < total
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
