@@ -13,4 +13,7 @@ COPY . .
 
 EXPOSE 8080
 
+# Set environment for static files location
+ENV STATIC_ROOT=/data/static
+
 CMD ["node", "server-openresty.js"]

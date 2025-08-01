@@ -58,7 +58,10 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - CADDY_API=http://caddy:2019
       - PORT=8080
-    # No volumes needed - API writes directly to Redis
+      - BASE_DOMAIN=${BASE_DOMAIN:-spinforge.localhost}
+      - STATIC_ROOT=/data/static
+    volumes:
+      - ./hosting/data:/data:ro
     networks:
       - spinforge
     depends_on:

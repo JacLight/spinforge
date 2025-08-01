@@ -7,6 +7,19 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 // Redis client
 const redisClient = redis.createClient({
   socket: {
@@ -124,8 +137,21 @@ async function reloadCaddy() {
 app.get('/api/vhost', async (req, res) => {
   try {
     const keys = await redisClient.keys('vhost:*');
-    const vhosts = keys.map(key => key.replace('vhost:', ''));
-    res.json({ vhosts });
+    const vhosts = [];
+    
+    for (const key of keys) {
+      const data = await redisClient.get(key);
+      if (data) {
+        try {
+          const vhost = JSON.parse(data);
+          vhosts.push(vhost);
+        } catch (e) {
+          console.error(`Error parsing vhost data for ${key}:`, e);
+        }
+      }
+    }
+    
+    res.json(vhosts);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -280,6 +306,111 @@ app.get('/api/verify-domain', async (req, res) => {
     res.status(200).send('OK');
   } catch (error) {
     res.status(500).send('Internal Server Error');
+  }
+});
+
+// Check site files (for static sites)
+app.get('/api/vhost/:subdomain/files', async (req, res) => {
+  try {
+    const subdomain = req.params.subdomain;
+    const data = await redisClient.get(`vhost:${subdomain}`);
+    
+    if (!data) {
+      return res.status(404).json({ error: 'Virtual host not found' });
+    }
+    
+    const vhost = JSON.parse(data);
+    
+    if (vhost.type !== 'static') {
+      return res.json({ 
+        type: vhost.type,
+        message: 'Not a static site',
+        files: []
+      });
+    }
+    
+    const staticPath = vhost.static_path || `/var/www/static/${subdomain}`;
+    
+    try {
+      const stats = await fs.stat(staticPath);
+      if (!stats.isDirectory()) {
+        return res.json({ exists: false, files: [] });
+      }
+      
+      const files = await fs.readdir(staticPath);
+      const fileDetails = [];
+      
+      for (const file of files) {
+        try {
+          const filePath = path.join(staticPath, file);
+          const fileStats = await fs.stat(filePath);
+          fileDetails.push({
+            name: file,
+            size: fileStats.size,
+            isDirectory: fileStats.isDirectory(),
+            modified: fileStats.mtime
+          });
+        } catch (e) {
+          // Skip files we can't stat
+        }
+      }
+      
+      res.json({
+        exists: true,
+        path: staticPath,
+        files: fileDetails
+      });
+    } catch (error) {
+      res.json({ 
+        exists: false, 
+        error: error.message,
+        files: [] 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get statistics
+app.get('/api/stats', async (req, res) => {
+  try {
+    const keys = await redisClient.keys('vhost:*');
+    const stats = {
+      total_sites: 0,
+      static_sites: 0,
+      proxy_sites: 0,
+      container_sites: 0,
+      loadbalancer_sites: 0,
+      enabled_sites: 0,
+      disabled_sites: 0
+    };
+    
+    for (const key of keys) {
+      const data = await redisClient.get(key);
+      if (data) {
+        try {
+          const vhost = JSON.parse(data);
+          stats.total_sites++;
+          
+          // Count by type
+          if (vhost.type === 'static') stats.static_sites++;
+          else if (vhost.type === 'proxy') stats.proxy_sites++;
+          else if (vhost.type === 'container') stats.container_sites++;
+          else if (vhost.type === 'loadbalancer') stats.loadbalancer_sites++;
+          
+          // Count by status
+          if (vhost.enabled) stats.enabled_sites++;
+          else stats.disabled_sites++;
+        } catch (e) {
+          console.error(`Error parsing vhost data for ${key}:`, e);
+        }
+      }
+    }
+    
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
