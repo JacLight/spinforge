@@ -20,7 +20,18 @@
       "Bash(npm run dev:*)",
       "Bash(grep:*)",
       "Bash(cat:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(./fix-domain-suffixes.sh:*)",
+      "Bash(./register-demo-sites.sh:*)",
+      "Bash(node:*)",
+      "Bash(/Users/imzee/projects/spinforge/register-demo-sites.sh)",
+      "Bash(/Users/imzee/projects/spinforge/redeploy-static-sites.sh:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo:*)",
+      "Bash(/Users/imzee/projects/spinforge/rename-static-folders.sh:*)",
+      "Bash(/Users/imzee/projects/spinforge/make-folders-fs-friendly.sh)",
+      "Bash(/Users/imzee/projects/spinforge/update-static-paths.sh:*)"
     ],
     "deny": []
   }

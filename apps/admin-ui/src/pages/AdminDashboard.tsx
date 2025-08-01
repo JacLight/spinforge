@@ -215,7 +215,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             recentSites.map((vhost) => (
-              <div key={vhost.subdomain} className="p-4 hover:bg-gray-50 transition-colors">
+              <div key={vhost.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className={`w-3 h-3 rounded-full mr-3 ${
@@ -223,7 +223,7 @@ export default function AdminDashboard() {
                     }`}></div>
                     <div>
                       <h3 className="text-sm font-medium text-gray-900">
-                        {vhost.subdomain}.spinforge.localhost
+                        {vhost.domain || vhost.id}
                       </h3>
                       <p className="text-xs text-gray-500">
                         Type: {vhost.type} • Customer: {vhost.customerId || 'Unknown'}
@@ -232,7 +232,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <a
-                      href={`http://${vhost.subdomain}.spinforge.localhost`}
+                      href={vhost.domain ? `http://${vhost.domain}` : '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800"

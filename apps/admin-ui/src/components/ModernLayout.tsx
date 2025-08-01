@@ -47,12 +47,6 @@ const navItems = [
     color: "from-green-500 to-green-600",
   },
   {
-    path: "/hosting",
-    icon: HardDrive,
-    label: "Hosting Management",
-    color: "from-violet-500 to-violet-600",
-  },
-  {
     path: "/active-spinlets",
     icon: Activity,
     label: "Active Spinlets",

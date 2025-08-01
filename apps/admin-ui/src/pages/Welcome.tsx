@@ -90,7 +90,7 @@ const features = [
   { icon: Shield, label: 'SSL/TLS certificates' },
   { icon: GitBranch, label: 'Multiple site types' },
   { icon: Terminal, label: 'REST API access' },
-  { icon: Globe, label: 'Custom subdomains' }
+  { icon: Globe, label: 'Custom domains' }
 ];
 
 export default function Welcome() {

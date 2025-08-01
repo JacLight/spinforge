@@ -59,7 +59,6 @@ export default function Deploy() {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string>("static");
   const [formData, setFormData] = useState({
-    subdomain: "",
     domain: "",
     customerId: "",
     target: "",
@@ -88,32 +87,20 @@ export default function Deploy() {
 
   const isValidDomain = (domain: string) => {
     if (!domain) return false;
-    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-    return domainRegex.test(domain);
+    // Just check it has at least one character and no spaces
+    return domain.length > 0 && !domain.includes(' ');
   };
 
-  const isValidSubdomain = (subdomain: string) => {
-    if (!subdomain) return false;
-    const subdomainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-    return subdomainRegex.test(subdomain);
-  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    // Validate subdomain
-    if (!formData.subdomain) {
-      newErrors.subdomain = "Site name is required";
-    } else if (!isValidSubdomain(formData.subdomain)) {
-      newErrors.subdomain = "Please enter a valid site name (letters, numbers, hyphens only)";
-    } else if (allVhosts.some(v => v.subdomain === formData.subdomain)) {
-      newErrors.subdomain = "This site name is already taken";
-    }
-
-    // Validate domain
-    if (formData.domain && !isValidDomain(formData.domain)) {
+    // Validate domain (required)
+    if (!formData.domain) {
+      newErrors.domain = "Domain is required";
+    } else if (!isValidDomain(formData.domain)) {
       newErrors.domain = "Please enter a valid domain";
-    } else if (formData.domain && allVhosts.some(v => v.domain === formData.domain || v.aliases?.includes(formData.domain))) {
+    } else if (allVhosts.some(v => v.domain === formData.domain || v.aliases?.includes(formData.domain))) {
       newErrors.domain = "This domain is already in use";
     }
 
@@ -134,15 +121,11 @@ export default function Deploy() {
     }
 
     const data: any = {
-      subdomain: formData.subdomain,
+      domain: formData.domain, // Primary key
       type: selectedType,
       customerId: formData.customerId || undefined,
       enabled: true,
     };
-
-    if (formData.domain) {
-      data.domain = formData.domain;
-    }
 
     if (formData.aliases.length > 0) {
       data.aliases = formData.aliases;
@@ -255,39 +238,11 @@ export default function Deploy() {
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Application Configuration</h2>
             
             <div className="space-y-6">
-              {/* Site Name (Subdomain) */}
-              <div>
-                <label htmlFor="subdomain" className="block text-sm font-medium text-gray-700 mb-2">
-                  Site Name <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    id="subdomain"
-                    value={formData.subdomain}
-                    onChange={(e) => {
-                      setFormData({ ...formData, subdomain: e.target.value.toLowerCase() });
-                      if (errors.subdomain) validateForm();
-                    }}
-                    className={`pl-10 block w-full rounded-md border ${
-                      errors.subdomain ? "border-red-300" : "border-gray-300"
-                    } py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                    placeholder="my-awesome-site"
-                  />
-                </div>
-                {errors.subdomain && (
-                  <p className="mt-1 text-sm text-red-600">{errors.subdomain}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  This will be your site identifier. Use only letters, numbers, and hyphens.
-                </p>
-              </div>
 
-              {/* Primary Domain */}
+              {/* Domain */}
               <div>
                 <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-2">
-                  Primary Domain
+                  Domain <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -302,16 +257,11 @@ export default function Deploy() {
                     className={`pl-10 block w-full rounded-md border ${
                       errors.domain ? "border-red-300" : "border-gray-300"
                     } py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                    placeholder="example.com (optional)"
+                    placeholder="example.com"
                   />
                 </div>
                 {errors.domain && (
                   <p className="mt-1 text-sm text-red-600">{errors.domain}</p>
-                )}
-                {!formData.domain && formData.subdomain && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Default: {formData.subdomain}.spinforge.localhost
-                  </p>
                 )}
               </div>
 
@@ -434,7 +384,7 @@ export default function Deploy() {
                         After creating your site, upload your files to:
                       </p>
                       <code className="block mt-2 text-xs bg-blue-100 px-2 py-1 rounded">
-                        /hosting/data/static/{formData.subdomain || "your-site-name"}/
+                        /hosting/data/static/{formData.domain ? formData.domain.replace(/[^a-z0-9-]/g, '-') : "your-site"}/
                       </code>
                     </div>
                   </div>

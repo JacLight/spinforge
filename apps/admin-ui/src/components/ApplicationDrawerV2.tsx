@@ -3,17 +3,50 @@ import { Dialog, Transition } from "@headlessui/react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { hostingAPI } from "../services/hosting-api";
 import { toast } from "sonner";
+import {
+  X,
+  Globe,
+  Server,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+  Edit2,
+  Save,
+  FolderOpen,
+  Network,
+  Package,
+  Copy,
+  RefreshCw,
+  Trash2,
+  Info,
+  Plus,
+  AlertTriangle,
+  Check,
+  XCircle,
+  Link,
+  Tag,
+  User,
+  Calendar,
+  Shield,
+  ChevronRight,
+  Activity,
+  Clock,
+  Users,
+  Zap,
+  BarChart3,
+  TrendingUp,
+} from "lucide-react";
 
 // Metrics component
-function MetricsSection({ subdomain }: { subdomain?: string }) {
+function MetricsSection({ domain }: { domain?: string }) {
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ['vhost-metrics', subdomain],
-    queryFn: () => subdomain ? hostingAPI.getVHostMetrics(subdomain) : null,
-    enabled: !!subdomain,
+    queryKey: ['vhost-metrics', domain],
+    queryFn: () => domain ? hostingAPI.getVHostMetrics(domain) : null,
+    enabled: !!domain,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  if (!subdomain || isLoading) {
+  if (!domain || isLoading) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -181,39 +214,6 @@ function MetricsSection({ subdomain }: { subdomain?: string }) {
     </div>
   );
 }
-import {
-  X,
-  Globe,
-  Server,
-  CheckCircle,
-  AlertCircle,
-  ExternalLink,
-  Edit2,
-  Save,
-  FolderOpen,
-  Network,
-  Package,
-  Copy,
-  RefreshCw,
-  Trash2,
-  Info,
-  Plus,
-  AlertTriangle,
-  Check,
-  XCircle,
-  Link,
-  Tag,
-  User,
-  Calendar,
-  Shield,
-  ChevronRight,
-  Activity,
-  Clock,
-  Users,
-  Zap,
-  BarChart3,
-  TrendingUp,
-} from "lucide-react";
 
 interface ApplicationDrawerProps {
   vhost: any | null;
@@ -245,7 +245,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   // Initialize form when vhost changes
   React.useEffect(() => {
     if (vhost) {
-      setDomain(vhost.domain || `${vhost.subdomain}.spinforge.localhost`);
+      setDomain(vhost.domain || '');
       setAliases(vhost.aliases || []);
       setCustomerId(vhost.customerId || '');
       setEnabled(vhost.enabled !== false);
@@ -259,7 +259,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   }, [vhost]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => hostingAPI.updateVHost(vhost.subdomain, data),
+    mutationFn: (data: any) => hostingAPI.updateVHost(vhost.domain, data),
     onSuccess: () => {
       toast.success("Application updated successfully");
       queryClient.invalidateQueries({ queryKey: ["vhosts"] });
@@ -272,7 +272,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => hostingAPI.deleteVHost(vhost.subdomain),
+    mutationFn: () => hostingAPI.deleteVHost(vhost.domain),
     onSuccess: () => {
       toast.success("Application deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["vhosts"] });
@@ -298,7 +298,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
     }
     
     const isDuplicateDomain = allVhosts.some(v => 
-      v.subdomain !== vhost.subdomain && 
+      v.id !== vhost.id && 
       (v.domain === value || v.aliases?.includes(value))
     );
     if (isDuplicateDomain) {
@@ -317,7 +317,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
     }
     
     const isDuplicate = allVhosts.some(v => 
-      v.subdomain !== vhost.subdomain && 
+      v.id !== vhost.id && 
       (v.domain === value || v.aliases?.includes(value))
     );
     if (isDuplicate) {
@@ -366,8 +366,8 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
 
   const isValidDomain = (domain: string) => {
     if (!domain) return false;
-    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-    return domainRegex.test(domain);
+    // Just check it has at least one character and no spaces
+    return domain.length > 0 && !domain.includes(' ');
   };
 
   const handleAddAlias = () => {
@@ -385,7 +385,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
 
     // Check if alias is used by another site
     const isUsedElsewhere = allVhosts.some(v => 
-      v.subdomain !== vhost.subdomain && 
+      v.id !== vhost.id && 
       (v.domain === newAlias || v.aliases?.includes(newAlias))
     );
     if (isUsedElsewhere) {
@@ -399,7 +399,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   };
 
   const handleDelete = () => {
-    const expectedDomain = vhost.domain || `${vhost.subdomain}.spinforge.localhost`;
+    const expectedDomain = vhost.domain || '';
     if (deleteConfirmation !== expectedDomain) {
       setDeleteError('Please type the domain name exactly as shown');
       return;
@@ -445,7 +445,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
 
   const Icon = getTypeIcon(vhost.type);
   const typeInfo = getTypeInfo(vhost.type);
-  const siteUrl = vhost.domain || `${vhost.subdomain}.spinforge.localhost`;
+  const siteUrl = vhost.domain || '';
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -473,7 +473,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                           </div>
                           <div>
                             <Dialog.Title className="text-xl font-semibold text-gray-900">
-                              {vhost.subdomain}
+                              {vhost.id}
                             </Dialog.Title>
                             <p className="text-sm text-gray-500 mt-0.5">{typeInfo.description}</p>
                           </div>
@@ -529,7 +529,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                 onClick={() => {
                                   setIsEditing(false);
                                   // Reset form
-                                  setDomain(vhost.domain || `${vhost.subdomain}.spinforge.localhost`);
+                                  setDomain(vhost.domain || '');
                                   setAliases(vhost.aliases || []);
                                   setCustomerId(vhost.customerId || '');
                                   setEnabled(vhost.enabled !== false);
@@ -618,7 +618,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                   <Tag className="h-4 w-4 mr-2" />
                                   Site Name
                                 </dt>
-                                <dd className="text-sm text-gray-900 font-medium">{vhost.subdomain}</dd>
+                                <dd className="text-sm text-gray-900 font-medium">{vhost.id}</dd>
                               </div>
                               
                               <div className="px-4 py-4 flex items-center">
@@ -853,7 +853,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                         {/* Metrics Section */}
                         <section id="section-metrics" className="space-y-6">
                           <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">Hosting Metrics</h2>
-                          <MetricsSection subdomain={vhost?.subdomain} />
+                          <MetricsSection domain={vhost?.domain} />
                         </section>
 
                         {/* Settings Section */}
@@ -1015,7 +1015,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                           This action cannot be undone. This will permanently delete the application and all associated data.
                         </p>
                         <p className="mt-3 text-sm font-medium text-gray-700">
-                          Please type <span className="font-mono bg-gray-100 px-1 py-0.5 rounded">{vhost?.domain || `${vhost?.subdomain}.spinforge.localhost`}</span> to confirm:
+                          Please type <span className="font-mono bg-gray-100 px-1 py-0.5 rounded">{vhost?.domain || ''}</span> to confirm:
                         </p>
                         <input
                           type="text"
@@ -1039,7 +1039,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                     <button
                       type="button"
                       onClick={handleDelete}
-                      disabled={deleteMutation.isPending || deleteConfirmation !== (vhost?.domain || `${vhost?.subdomain}.spinforge.localhost`)}
+                      disabled={deleteMutation.isPending || deleteConfirmation !== (vhost?.domain || '')}
                       className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto"
                     >
                       {deleteMutation.isPending ? 'Deleting...' : 'Delete'}

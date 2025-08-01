@@ -25,14 +25,12 @@ import {
 } from "lucide-react";
 
 export default function ApplicationDetailHosting() {
-  const { domain } = useParams<{ domain: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<any>({});
 
-  // Extract subdomain from domain parameter
-  const subdomain = domain?.split('.')[0] || domain;
 
   const {
     data: vhost,
@@ -40,16 +38,16 @@ export default function ApplicationDetailHosting() {
     error,
     refetch
   } = useQuery({
-    queryKey: ["vhost-detail", subdomain],
-    queryFn: () => hostingAPI.getVHost(subdomain!),
-    enabled: !!subdomain,
+    queryKey: ["vhost-detail", id],
+    queryFn: () => hostingAPI.getVHost(id!),
+    enabled: !!id,
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => hostingAPI.updateVHost(subdomain!, data),
+    mutationFn: (data: any) => hostingAPI.updateVHost(id!, data),
     onSuccess: () => {
       toast.success("Application updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["vhost-detail", subdomain] });
+      queryClient.invalidateQueries({ queryKey: ["vhost-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["vhosts"] });
       setEditMode(false);
     },
@@ -59,7 +57,7 @@ export default function ApplicationDetailHosting() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => hostingAPI.deleteVHost(subdomain!),
+    mutationFn: () => hostingAPI.deleteVHost(id!),
     onSuccess: () => {
       toast.success("Application deleted successfully");
       navigate("/applications");
@@ -148,7 +146,7 @@ export default function ApplicationDetailHosting() {
   }
 
   const Icon = getTypeIcon(vhost.type);
-  const siteUrl = vhost.domain ? `http://${vhost.domain}` : `http://${vhost.subdomain}.spinforge.localhost`;
+  const siteUrl = vhost.domain ? `http://${vhost.domain}` : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -165,7 +163,7 @@ export default function ApplicationDetailHosting() {
                   <ArrowLeft className="h-5 w-5" />
                 </button>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{vhost.subdomain}</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">{vhost.domain || vhost.id}</h1>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(vhost.type)}`}>
                       <Icon className="h-3 w-3 mr-1" />
@@ -243,9 +241,9 @@ export default function ApplicationDetailHosting() {
                 <div>
                   <dt className="text-sm text-gray-500">Domain</dt>
                   <dd className="mt-1 flex items-center gap-2">
-                    <span className="font-medium">{vhost.domain || `${vhost.subdomain}.spinforge.localhost`}</span>
+                    <span className="font-medium">{vhost.domain || ''}</span>
                     <button
-                      onClick={() => handleCopy(vhost.domain || `${vhost.subdomain}.spinforge.localhost`)}
+                      onClick={() => handleCopy(vhost.domain || '')}
                       className="text-gray-400 hover:text-gray-600"
                     >
                       <Copy className="h-4 w-4" />
@@ -314,7 +312,7 @@ export default function ApplicationDetailHosting() {
                   <div>
                     <dt className="text-sm text-gray-500">Static Path</dt>
                     <dd className="mt-1 font-mono text-sm bg-gray-50 p-2 rounded">
-                      {vhost.static_path || `/data/static/${vhost.subdomain}`}
+                      {vhost.static_path || `/data/static/${vhost.id}`}
                     </dd>
                   </div>
                   <div>
@@ -462,7 +460,7 @@ export default function ApplicationDetailHosting() {
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm(`Are you sure you want to delete ${vhost.subdomain}?`)) {
+                    if (confirm(`Are you sure you want to delete ${vhost.domain || vhost.id}?`)) {
                       deleteMutation.mutate();
                     }
                   }}

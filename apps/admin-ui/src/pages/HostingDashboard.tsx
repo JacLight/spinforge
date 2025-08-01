@@ -35,7 +35,7 @@ export default function HostingDashboard() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (subdomain: string) => hostingAPI.deleteVHost(subdomain),
+    mutationFn: (id: string) => hostingAPI.deleteVHost(id),
     onSuccess: () => {
       toast.success('Site deleted successfully');
       queryClient.invalidateQueries({ queryKey: ['vhosts'] });
@@ -47,9 +47,9 @@ export default function HostingDashboard() {
     },
   });
 
-  const handleDelete = (subdomain: string) => {
-    if (confirm(`Are you sure you want to delete ${subdomain}.spinforge.io?`)) {
-      deleteMutation.mutate(subdomain);
+  const handleDelete = (id: string) => {
+    if (confirm(`Are you sure you want to delete this site?`)) {
+      deleteMutation.mutate(id);
     }
   };
 
@@ -68,8 +68,8 @@ export default function HostingDashboard() {
     }
   };
 
-  const getSiteUrl = (subdomain: string) => {
-    return `http://${subdomain}.spinforge.io`;
+  const getSiteUrl = (domain: string) => {
+    return domain ? `http://${domain}` : '#';
   };
 
   if (error) {
@@ -213,14 +213,14 @@ export default function HostingDashboard() {
             ) : (
               vhosts.map((vhost) => (
                 <tr
-                  key={vhost.subdomain}
+                  key={vhost.id}
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => setSelectedSite(vhost)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <Globe className="h-5 w-5 text-gray-400 mr-2" />
-                      <span className="font-medium">{vhost.subdomain}.spinforge.io</span>
+                      <span className="font-medium">{vhost.domain || vhost.id}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -246,7 +246,7 @@ export default function HostingDashboard() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
                       <a
-                        href={getSiteUrl(vhost.subdomain)}
+                        href={getSiteUrl(vhost.domain || '')}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-900"
@@ -257,7 +257,7 @@ export default function HostingDashboard() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(vhost.subdomain);
+                          handleDelete(vhost.id);
                         }}
                         className="text-red-600 hover:text-red-900"
                       >
@@ -278,7 +278,7 @@ export default function HostingDashboard() {
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-auto">
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-2xl font-bold">{selectedSite.subdomain}.spinforge.io</h2>
+                <h2 className="text-2xl font-bold">{selectedSite.domain || selectedSite.id}</h2>
                 <button
                   onClick={() => setSelectedSite(null)}
                   className="text-gray-500 hover:text-gray-700"
@@ -329,7 +329,7 @@ export default function HostingDashboard() {
                 )}
                 <div className="flex justify-end gap-2 mt-6">
                   <a
-                    href={getSiteUrl(selectedSite.subdomain)}
+                    href={getSiteUrl(selectedSite.domain || '')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
@@ -338,7 +338,7 @@ export default function HostingDashboard() {
                     Visit Site
                   </a>
                   <button
-                    onClick={() => handleDelete(selectedSite.subdomain)}
+                    onClick={() => handleDelete(selectedSite.id)}
                     className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 flex items-center gap-2"
                   >
                     <Trash2 className="h-4 w-4" />

@@ -11,8 +11,8 @@ const apiClient = axios.create({
 });
 
 export interface VHost {
-  subdomain: string;
-  domain?: string;
+  id: string; // kept for backward compatibility
+  domain: string; // now required as primary key
   aliases?: string[];
   actual_domain?: string;
   files_exist?: boolean;
@@ -66,7 +66,7 @@ export interface VHostSearchResponse {
 }
 
 export interface VHostMetrics {
-  subdomain: string;
+  id: string;
   timeRange: string;
   lastAccessed: string | null;
   totalRequests: number;
@@ -113,14 +113,14 @@ export interface LogsResponse {
 export const hostingAPI = {
   // List all virtual hosts with search
   async listVHosts(params?: VHostSearchParams): Promise<VHost[]> {
-    const response = await apiClient.get('/api/vhost', { params });
+    const response = await apiClient.get('/api/sites', { params });
     // Handle both old format (array) and new format (object with data property)
     return Array.isArray(response.data) ? response.data : response.data.data;
   },
   
   // Search virtual hosts with pagination
   async searchVHosts(params: VHostSearchParams): Promise<VHostSearchResponse> {
-    const response = await apiClient.get('/api/vhost', { params });
+    const response = await apiClient.get('/api/sites', { params });
     // If old format, convert to new format
     if (Array.isArray(response.data)) {
       return {
@@ -134,27 +134,32 @@ export const hostingAPI = {
     return response.data;
   },
 
-  // Get specific virtual host
-  async getVHost(subdomain: string): Promise<VHost> {
-    const response = await apiClient.get(`/api/vhost/${subdomain}`);
+  // Get specific virtual host by domain
+  async getVHost(domainOrId: string): Promise<VHost> {
+    // Try to get by domain first, fall back to id for backward compatibility
+    const domain = domainOrId;
+    const response = await apiClient.get(`/api/sites/${domain}`);
     return response.data;
   },
 
   // Create virtual host
   async createVHost(vhost: VHost): Promise<{ message: string }> {
-    const response = await apiClient.post('/api/vhost', vhost);
+    const response = await apiClient.post('/api/sites', vhost);
     return response.data;
   },
 
   // Update virtual host
-  async updateVHost(subdomain: string, vhost: Partial<VHost>): Promise<{ message: string }> {
-    const response = await apiClient.put(`/api/vhost/${subdomain}`, vhost);
+  async updateVHost(domainOrId: string, vhost: Partial<VHost>): Promise<{ message: string }> {
+    // Use domain if available, otherwise use id
+    const domain = vhost.domain || domainOrId;
+    const response = await apiClient.put(`/api/sites/${domain}`, vhost);
     return response.data;
   },
 
   // Delete virtual host
-  async deleteVHost(subdomain: string): Promise<{ message: string }> {
-    const response = await apiClient.delete(`/api/vhost/${subdomain}`);
+  async deleteVHost(domainOrId: string): Promise<{ message: string }> {
+    const domain = domainOrId;
+    const response = await apiClient.delete(`/api/sites/${domain}`);
     return response.data;
   },
 
@@ -163,30 +168,32 @@ export const hostingAPI = {
     const vhosts = await this.listVHosts();
     const stats: HostingStats = {
       total_sites: vhosts.length,
-      static_sites: vhosts.filter(v => v.type === 'static').length,
-      proxy_sites: vhosts.filter(v => v.type === 'proxy').length,
-      container_sites: vhosts.filter(v => v.type === 'container').length,
-      loadbalancer_sites: vhosts.filter(v => v.type === 'loadbalancer').length,
+      static_sites: vhosts.filter((v: VHost) => v.type === 'static').length,
+      proxy_sites: vhosts.filter((v: VHost) => v.type === 'proxy').length,
+      container_sites: vhosts.filter((v: VHost) => v.type === 'container').length,
+      loadbalancer_sites: vhosts.filter((v: VHost) => v.type === 'loadbalancer').length,
     };
     return stats;
   },
 
   // Get metrics for a specific vhost
-  async getVHostMetrics(subdomain: string, timeRange?: string): Promise<VHostMetrics> {
-    const response = await apiClient.get(`/api/vhost/${subdomain}/metrics`, {
+  async getVHostMetrics(domainOrId: string, timeRange?: string): Promise<VHostMetrics> {
+    const domain = domainOrId;
+    const response = await apiClient.get(`/api/sites/${domain}/metrics`, {
       params: { range: timeRange }
     });
     return response.data;
   },
 
   // Get logs for a specific vhost
-  async getVHostLogs(subdomain: string, params?: {
+  async getVHostLogs(domainOrId: string, params?: {
     limit?: number;
     offset?: number;
     status?: string;
     search?: string;
   }): Promise<LogsResponse> {
-    const response = await apiClient.get(`/api/vhost/${subdomain}/logs`, { params });
+    const domain = domainOrId;
+    const response = await apiClient.get(`/api/sites/${domain}/logs`, { params });
     return response.data;
   }
 };

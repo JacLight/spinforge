@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { hostingAPI } from "../services/hosting-api";
+import { hostingAPI, VHost } from "../services/hosting-api";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useDebounce } from "../hooks/useDebounce";
 import ApplicationDrawerV2 from "../components/ApplicationDrawerV2";
+import { Dialog, Transition } from "@headlessui/react";
 import {
   Globe,
   Package,
@@ -24,6 +25,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  Link,
 } from "lucide-react";
 
 function formatDate(dateStr: string | undefined): string {
@@ -63,6 +65,10 @@ export default function Applications() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedVhost, setSelectedVhost] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [vhostToDelete, setVhostToDelete] = useState<any>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   
   // Debounce search term for API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -98,7 +104,7 @@ export default function Applications() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (subdomain: string) => hostingAPI.deleteVHost(subdomain),
+    mutationFn: (domain: string) => hostingAPI.deleteVHost(domain),
     onSuccess: () => {
       toast.success("Site deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["vhosts"] });
@@ -108,12 +114,25 @@ export default function Applications() {
     },
   });
 
-  const handleDelete = (subdomain: string) => {
-    const vhost = vhosts.find(v => v.subdomain === subdomain);
-    const domain = vhost?.domain || `${subdomain}.spinforge.localhost`;
-    if (confirm(`Are you sure you want to delete ${domain}?`)) {
-      deleteMutation.mutate(subdomain);
+  const handleDeleteClick = (vhost: VHost) => {
+    setVhostToDelete(vhost);
+    setDeleteConfirmation("");
+    setDeleteError("");
+    setDeleteModalOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (!vhostToDelete) return;
+    
+    const expectedDomain = vhostToDelete.domain;
+    if (deleteConfirmation !== expectedDomain) {
+      setDeleteError("Please type the domain name exactly as shown");
+      return;
     }
+    
+    deleteMutation.mutate(vhostToDelete.domain);
+    setDeleteModalOpen(false);
+    setVhostToDelete(null);
   };
 
   const getTypeIcon = (type: string) => {
@@ -147,7 +166,7 @@ export default function Applications() {
   };
 
   const getSiteUrl = (vhost: any) => {
-    return vhost.domain ? `http://${vhost.domain}` : `http://${vhost.subdomain}.spinforge.localhost`;
+    return vhost.domain ? `http://${vhost.domain}` : null;
   };
 
   const getStatusIcon = (vhost: any) => {
@@ -201,6 +220,11 @@ export default function Applications() {
           <p className="text-gray-600">
             {vhosts.length} {totalCount > vhosts.length ? `of ${totalCount}` : ''} sites
             {searchTerm && ` matching "${searchTerm}"`}
+            {vhosts.reduce((count, v) => count + (v.aliases?.length || 0), 0) > 0 && (
+              <span className="ml-2">
+                • {vhosts.reduce((count, v) => count + (v.aliases?.length || 0), 0)} aliases
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -223,7 +247,7 @@ export default function Applications() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by domain, subdomain, or customer..."
+                placeholder="Search by domain, site ID, or customer..."
                 className="pl-9 pr-3 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -365,14 +389,31 @@ export default function Applications() {
               {vhosts.map((vhost) => {
                 const Icon = getTypeIcon(vhost.type);
                 return (
-                  <tr key={vhost.subdomain} className="hover:bg-gray-50">
+                  <tr key={vhost.domain} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusIcon(vhost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {vhost.domain || `${vhost.subdomain}.spinforge.localhost`}
+                        {vhost.domain || (
+                          <span className="text-gray-500 italic">No domain configured</span>
+                        )}
                       </div>
+                      {vhost.aliases && vhost.aliases.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-xs text-gray-500">Aliases:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {vhost.aliases.map((alias: string, index: number) => (
+                              <span key={index} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                {alias}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {vhost.id && vhost.id !== vhost.domain && (
+                        <div className="text-xs text-gray-500">ID: {vhost.id}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -388,15 +429,21 @@ export default function Applications() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        <a
-                          href={getSiteUrl(vhost)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Visit site"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
+                        {getSiteUrl(vhost) ? (
+                          <a
+                            href={getSiteUrl(vhost)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Visit site"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <span className="text-gray-400" title="No domain configured">
+                            <ExternalLink className="h-4 w-4" />
+                          </span>
+                        )}
                         <button
                           onClick={() => {
                             setSelectedVhost(vhost);
@@ -408,7 +455,7 @@ export default function Applications() {
                           <Settings className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(vhost.subdomain)}
+                          onClick={() => handleDeleteClick(vhost as VHost)}
                           className="text-red-600 hover:text-red-900"
                           title="Delete"
                         >
@@ -429,7 +476,7 @@ export default function Applications() {
             const Icon = getTypeIcon(vhost.type);
             return (
               <div
-                key={vhost.subdomain}
+                key={vhost.domain}
                 className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-4"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -445,9 +492,29 @@ export default function Applications() {
                 </div>
 
                 <div className="mb-3">
-                  <h3 className="font-medium text-gray-900 truncate" title={vhost.domain || `${vhost.subdomain}.spinforge.localhost`}>
-                    {vhost.domain || `${vhost.subdomain}.spinforge.localhost`}
+                  <h3 className="font-medium text-gray-900 truncate" title={vhost.domain || 'No domain'}>
+                    {vhost.domain || (
+                      <span className="text-gray-500 italic text-sm">No domain configured</span>
+                    )}
                   </h3>
+                  {vhost.aliases && vhost.aliases.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Link className="h-3 w-3 text-gray-400" />
+                      <div className="flex flex-wrap gap-1">
+                        {vhost.aliases.slice(0, 2).map((alias: string, index: number) => (
+                          <span key={index} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={alias}>
+                            {alias}
+                          </span>
+                        ))}
+                        {vhost.aliases.length > 2 && (
+                          <span className="text-xs text-gray-500">+{vhost.aliases.length - 2}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {vhost.id && vhost.id !== vhost.domain && (
+                    <p className="text-xs text-gray-500">ID: {vhost.id}</p>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-gray-600 mb-3">
@@ -458,15 +525,21 @@ export default function Applications() {
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t">
-                  <a
-                    href={getSiteUrl(vhost)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800"
-                    title="Visit site"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
+                  {getSiteUrl(vhost) ? (
+                    <a
+                      href={getSiteUrl(vhost)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Visit site"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <span className="text-gray-400" title="No domain configured">
+                      <ExternalLink className="h-4 w-4" />
+                    </span>
+                  )}
                   <button
                     onClick={() => {
                       setSelectedVhost(vhost);
@@ -478,7 +551,7 @@ export default function Applications() {
                     <Settings className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(vhost.subdomain)}
+                    onClick={() => handleDeleteClick(vhost.id)}
                     className="text-red-600 hover:text-red-800"
                     title="Delete"
                   >
@@ -501,6 +574,97 @@ export default function Applications() {
         }}
         onRefresh={() => refetch()}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Transition.Root show={deleteModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-[60]" onClose={() => setDeleteModalOpen(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                enterTo="opacity-100 translate-y-0 sm:scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+                leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+              >
+                <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <AlertTriangle className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                      <Dialog.Title as="h3" className="text-base font-semibold leading-6 text-gray-900">
+                        Delete Application
+                      </Dialog.Title>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          This action cannot be undone. This will permanently delete the application and all associated data.
+                        </p>
+                        <p className="mt-3 text-sm font-medium text-gray-700">
+                          Please type <span className="font-mono bg-gray-100 px-1 py-0.5 rounded">
+                            {vhostToDelete?.domain}
+                          </span> to confirm:
+                        </p>
+                        <input
+                          type="text"
+                          value={deleteConfirmation}
+                          onChange={(e) => {
+                            setDeleteConfirmation(e.target.value);
+                            if (deleteError) setDeleteError("");
+                          }}
+                          placeholder="Type the domain name"
+                          className={`mt-2 w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent ${
+                            deleteError ? "border-red-300" : "border-gray-300"
+                          }`}
+                        />
+                        {deleteError && (
+                          <p className="text-sm text-red-600 mt-1">{deleteError}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={deleteMutation.isPending || !deleteConfirmation}
+                      className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto"
+                    >
+                      {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteModalOpen(false);
+                        setVhostToDelete(null);
+                        setDeleteConfirmation("");
+                        setDeleteError("");
+                      }}
+                      className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition.Root>
     </div>
   );
 }

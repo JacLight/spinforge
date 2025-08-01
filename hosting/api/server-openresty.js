@@ -33,12 +33,11 @@ redisClient.connect();
 const fs = require('fs');
 const path = require('path');
 
-// Get base domain from environment or default
-const BASE_DOMAIN = process.env.BASE_DOMAIN || 'spinforge.localhost';
+// Static root for file storage
 const STATIC_ROOT = process.env.STATIC_ROOT || '/var/www/static';
 
-// List all virtual hosts with file checks and search
-app.get('/api/vhost', async (req, res) => {
+// List all sites with file checks and search
+app.get('/api/sites', async (req, res) => {
   try {
     // Get search parameters
     const search = req.query.search || '';
@@ -47,93 +46,92 @@ app.get('/api/vhost', async (req, res) => {
     const limit = parseInt(req.query.limit) || 0;
     const offset = parseInt(req.query.offset) || 0;
     
-    const keys = await redisClient.keys('vhost:*');
-    const vhosts = [];
+    const keys = await redisClient.keys('site:*');
+    const sites = [];
     
     for (const key of keys) {
       const data = await redisClient.get(key);
       if (data) {
         try {
-          const vhost = JSON.parse(data);
+          const site = JSON.parse(data);
           
           // Check if static files exist
-          if (vhost.type === 'static') {
-            const staticPath = vhost.static_path || path.join(STATIC_ROOT, vhost.subdomain);
-            vhost.files_exist = false;
-            vhost.actual_domain = null;
+          if (site.type === 'static') {
+            // Use filesystem-friendly folder name (dots replaced with underscores)
+            const folderName = site.domain.replace(/\./g, '_');
+            const staticPath = site.static_path || path.join(STATIC_ROOT, folderName);
+            site.files_exist = false;
+            site.actual_domain = null;
             
             try {
               // Check if directory exists
               if (fs.existsSync(staticPath)) {
-                vhost.files_exist = true;
+                site.files_exist = true;
                 
                 // Check for deploy.json to get actual domain
                 const deployJsonPath = path.join(staticPath, 'deploy.json');
                 if (fs.existsSync(deployJsonPath)) {
                   try {
                     const deployData = JSON.parse(fs.readFileSync(deployJsonPath, 'utf8'));
-                    vhost.actual_domain = deployData.domain || null;
+                    site.actual_domain = deployData.domain || null;
                   } catch (e) {
-                    console.error(`Error reading deploy.json for ${vhost.subdomain}:`, e);
+                    console.error(`Error reading deploy.json for ${site.domain}:`, e);
                   }
                 }
               }
             } catch (e) {
-              console.error(`Error checking files for ${vhost.subdomain}:`, e);
+              console.error(`Error checking files for ${site.domain}:`, e);
             }
           }
-          
-          // Use actual domain from deploy.json if available, otherwise use configured domain
-          vhost.domain = vhost.actual_domain || `${vhost.subdomain}.${BASE_DOMAIN}`;
           
           // Apply search filter
           if (search) {
             const searchLower = search.toLowerCase();
             const matchesSearch = 
-              vhost.subdomain.toLowerCase().includes(searchLower) ||
-              (vhost.domain || '').toLowerCase().includes(searchLower) ||
-              (vhost.customerId || '').toLowerCase().includes(searchLower);
+              (site.domain).toLowerCase().includes(searchLower) ||
+              (site.domain || '').toLowerCase().includes(searchLower) ||
+              (site.customerId || '').toLowerCase().includes(searchLower);
             
             if (!matchesSearch) continue;
           }
           
           // Apply customer filter
-          if (customer && vhost.customerId !== customer) {
+          if (customer && site.customerId !== customer) {
             continue;
           }
           
           // Apply type filter
-          if (type && vhost.type !== type) {
+          if (type && site.type !== type) {
             continue;
           }
           
-          vhosts.push(vhost);
+          sites.push(site);
         } catch (e) {
-          console.error(`Error parsing vhost data for ${key}:`, e);
+          console.error(`Error parsing site data for ${key}:`, e);
         }
       }
     }
     
     // Sort by creation date (newest first)
-    vhosts.sort((a, b) => {
+    sites.sort((a, b) => {
       const dateA = new Date(a.created_at || a.createdAt || 0);
       const dateB = new Date(b.created_at || b.createdAt || 0);
       return dateB.getTime() - dateA.getTime();
     });
     
     // Apply pagination if requested
-    let paginatedVhosts = vhosts;
+    let paginatedSites = sites;
     if (limit > 0) {
-      paginatedVhosts = vhosts.slice(offset, offset + limit);
+      paginatedSites = sites.slice(offset, offset + limit);
     }
     
     // Return results with metadata
     res.json({
-      data: paginatedVhosts,
-      total: vhosts.length,
-      limit: limit || vhosts.length,
+      data: paginatedSites,
+      total: sites.length,
+      limit: limit || sites.length,
       offset: offset,
-      hasMore: limit > 0 && (offset + limit) < vhosts.length
+      hasMore: limit > 0 && (offset + limit) < sites.length
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -141,141 +139,126 @@ app.get('/api/vhost', async (req, res) => {
 });
 
 // Get virtual host details
-app.get('/api/vhost/:subdomain', async (req, res) => {
+app.get('/api/sites/:domain', async (req, res) => {
   try {
-    const data = await redisClient.get(`vhost:${req.params.subdomain}`);
+    const data = await redisClient.get(`site:${req.params.domain}`);
     if (!data) {
-      return res.status(404).json({ error: 'Virtual host not found' });
+      return res.status(404).json({ error: 'Site not found' });
     }
-    const vhost = JSON.parse(data);
+    const site = JSON.parse(data);
     
     // Check if static files exist
-    if (vhost.type === 'static') {
-      const staticPath = vhost.static_path || path.join(STATIC_ROOT, vhost.subdomain);
-      vhost.files_exist = false;
-      vhost.actual_domain = null;
+    if (site.type === 'static') {
+      // Use filesystem-friendly folder name (dots replaced with underscores)
+      const folderName = site.domain.replace(/\./g, '_');
+      const staticPath = site.static_path || path.join(STATIC_ROOT, folderName);
+      site.files_exist = false;
+      site.actual_domain = null;
       
       try {
         // Check if directory exists
         if (fs.existsSync(staticPath)) {
-          vhost.files_exist = true;
+          site.files_exist = true;
           
           // Check for deploy.json to get actual domain
           const deployJsonPath = path.join(staticPath, 'deploy.json');
           if (fs.existsSync(deployJsonPath)) {
             try {
               const deployData = JSON.parse(fs.readFileSync(deployJsonPath, 'utf8'));
-              vhost.actual_domain = deployData.domain || null;
+              site.actual_domain = deployData.domain || null;
             } catch (e) {
-              console.error(`Error reading deploy.json for ${vhost.subdomain}:`, e);
+              console.error(`Error reading deploy.json for ${site.domain}:`, e);
             }
           }
         }
       } catch (e) {
-        console.error(`Error checking files for ${vhost.subdomain}:`, e);
+        console.error(`Error checking files for ${site.domain}:`, e);
       }
     }
-    
-    // Use actual domain from deploy.json if available, otherwise use configured domain
-    vhost.domain = vhost.actual_domain || `${vhost.subdomain}.${BASE_DOMAIN}`;
-    res.json(vhost);
+    res.json(site);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // Create virtual host
-app.post('/api/vhost', async (req, res) => {
+app.post('/api/sites', async (req, res) => {
   try {
-    const vhost = req.body;
+    const site = req.body;
     
     // Validate required fields
-    if (!vhost.subdomain || !vhost.type) {
-      return res.status(400).json({ error: 'Subdomain and type are required' });
+    if (!site.domain || !site.type) {
+      return res.status(400).json({ error: 'Domain and type are required' });
     }
     
     // Check if exists
-    const exists = await redisClient.exists(`vhost:${vhost.subdomain}`);
+    const exists = await redisClient.exists(`site:${site.domain}`);
     if (exists) {
-      return res.status(409).json({ error: 'Virtual host already exists' });
+      return res.status(409).json({ error: 'Site already exists' });
     }
     
     // Set defaults
-    vhost.enabled = vhost.enabled !== false;
-    vhost.createdAt = new Date().toISOString();
-    vhost.updatedAt = vhost.createdAt;
-    vhost.subdomain = vhost.subdomain; // Ensure subdomain is stored
+    site.enabled = site.enabled !== false;
+    site.createdAt = new Date().toISOString();
+    site.updatedAt = site.createdAt;
     
-    // Save to Redis - this is all we need for OpenResty!
-    await redisClient.set(`vhost:${vhost.subdomain}`, JSON.stringify(vhost));
+    // Save to Redis - domain is the key!
+    await redisClient.set(`site:${site.domain}`, JSON.stringify(site));
     
-    // Create domain mappings
-    if (vhost.domain || vhost.aliases) {
-      await updateDomainMappings(vhost.subdomain, vhost.domain, vhost.aliases || []);
+    // Handle aliases - each alias points to the primary domain
+    if (site.aliases && site.aliases.length > 0) {
+      for (const alias of site.aliases) {
+        await redisClient.set(`alias:${alias}`, site.domain);
+      }
     }
     
-    // Clear route cache in OpenResty (optional - cache expires in 60s anyway)
-    await redisClient.del(`routes_cache:${vhost.subdomain}`);
-    
-    res.status(201).json({ message: 'Virtual host created', subdomain: vhost.subdomain });
+    res.status(201).json({ message: 'Site created', domain: site.domain });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Helper function to update domain mappings
-async function updateDomainMappings(subdomain, domain, aliases = []) {
-  // Clear old domain mappings for this subdomain
-  const oldDomainKeys = await redisClient.keys(`domain:*`);
-  for (const key of oldDomainKeys) {
-    const mappedSubdomain = await redisClient.get(key);
-    if (mappedSubdomain === subdomain) {
-      await redisClient.del(key);
-    }
-  }
-  
-  // Set primary domain mapping
-  if (domain) {
-    await redisClient.set(`domain:${domain}`, subdomain);
-  }
-  
-  // Set alias mappings
-  for (const alias of aliases) {
-    if (alias && alias !== domain) {
-      await redisClient.set(`domain:${alias}`, subdomain);
-    }
-  }
-}
+
 
 // Update virtual host
-app.put('/api/vhost/:subdomain', async (req, res) => {
+app.put('/api/sites/:domain', async (req, res) => {
   try {
-    const subdomain = req.params.subdomain;
+    const domain = req.params.domain;
     const updates = req.body;
     
-    // Get existing vhost
-    const data = await redisClient.get(`vhost:${subdomain}`);
+    // Get existing site
+    const data = await redisClient.get(`site:${domain}`);
     if (!data) {
-      return res.status(404).json({ error: 'Virtual host not found' });
+      return res.status(404).json({ error: 'Site not found' });
     }
     
-    const vhost = JSON.parse(data);
+    const site = JSON.parse(data);
     
     // Apply updates
-    Object.assign(vhost, updates);
-    vhost.updatedAt = new Date().toISOString();
+    Object.assign(site, updates);
+    site.updatedAt = new Date().toISOString();
     
     // Save to Redis
-    await redisClient.set(`vhost:${subdomain}`, JSON.stringify(vhost));
+    await redisClient.set(`site:${domain}`, JSON.stringify(site));
     
-    // Update domain mappings if domain or aliases changed
-    if (updates.domain !== undefined || updates.aliases !== undefined) {
-      await updateDomainMappings(subdomain, vhost.domain, vhost.aliases || []);
+    // Handle alias updates
+    if (updates.aliases !== undefined) {
+      // Clear old aliases
+      const oldAliases = JSON.parse(data).aliases || [];
+      for (const alias of oldAliases) {
+        await redisClient.del(`alias:${alias}`);
+      }
+      // Add new aliases
+      if (site.aliases && site.aliases.length > 0) {
+        for (const alias of site.aliases) {
+          await redisClient.set(`alias:${alias}`, domain);
+        }
+      }
     }
     
     // If domain/aliases were updated and this is a static site, update deploy.json
-    if ((updates.domain || updates.aliases) && vhost.type === 'static') {
-      const staticPath = vhost.static_path || path.join(STATIC_ROOT, vhost.subdomain);
+    if ((updates.domain || updates.aliases) && site.type === 'static') {
+      const staticPath = site.static_path || path.join(STATIC_ROOT, site.domain.replace(/[^a-zA-Z0-9.-]/g, '-'));
       const deployJsonPath = path.join(staticPath, 'deploy.json');
       
       try {
@@ -284,60 +267,58 @@ app.put('/api/vhost/:subdomain', async (req, res) => {
           const deployData = JSON.parse(fs.readFileSync(deployJsonPath, 'utf8'));
           // Update domain and aliases
           if (updates.domain !== undefined) {
-            deployData.domain = vhost.domain;
+            deployData.domain = site.domain;
           }
           if (updates.aliases !== undefined) {
-            deployData.aliases = vhost.aliases || [];
+            deployData.aliases = site.aliases || [];
           }
           // Write back
           fs.writeFileSync(deployJsonPath, JSON.stringify(deployData, null, 2));
-          console.log(`Updated deploy.json for ${subdomain}`);
+          console.log(`Updated deploy.json for ${domain}`);
         }
       } catch (e) {
-        console.error(`Error updating deploy.json for ${subdomain}:`, e);
+        console.error(`Error updating deploy.json for ${domain}:`, e);
         // Don't fail the whole update if deploy.json update fails
       }
     }
     
     // Clear route cache
-    await redisClient.del(`routes_cache:${subdomain}`);
     
-    res.json({ message: 'Virtual host updated', subdomain });
+    res.json({ message: 'Site updated', domain });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // Delete virtual host
-app.delete('/api/vhost/:subdomain', async (req, res) => {
+app.delete('/api/sites/:domain', async (req, res) => {
   try {
-    const subdomain = req.params.subdomain;
+    const domain = req.params.domain;
     
-    // Get vhost to clean up domain mappings
-    const data = await redisClient.get(`vhost:${subdomain}`);
+    // Get site to clean up domain mappings
+    const data = await redisClient.get(`site:${domain}`);
     if (!data) {
-      return res.status(404).json({ error: 'Virtual host not found' });
+      return res.status(404).json({ error: 'Site not found' });
     }
     
-    const vhost = JSON.parse(data);
+    const site = JSON.parse(data);
     
-    // Clear all domain mappings for this vhost
-    if (vhost.domain) {
-      await redisClient.del(`domain:${vhost.domain}`);
+    // Clear all domain mappings for this site
+    if (site.domain) {
+      await redisClient.del(`domain:${site.domain}`);
     }
-    if (vhost.aliases) {
-      for (const alias of vhost.aliases) {
+    if (site.aliases) {
+      for (const alias of site.aliases) {
         await redisClient.del(`domain:${alias}`);
       }
     }
     
     // Delete from Redis
-    await redisClient.del(`vhost:${subdomain}`);
+    await redisClient.del(`site:${domain}`);
     
     // Clear route cache
-    await redisClient.del(`routes_cache:${subdomain}`);
     
-    res.json({ message: 'Virtual host deleted', subdomain });
+    res.json({ message: 'Site deleted', domain });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -346,7 +327,7 @@ app.delete('/api/vhost/:subdomain', async (req, res) => {
 // Get statistics
 app.get('/api/stats', async (req, res) => {
   try {
-    const keys = await redisClient.keys('vhost:*');
+    const keys = await redisClient.keys('site:*');
     const stats = {
       total_sites: 0,
       static_sites: 0,
@@ -361,20 +342,20 @@ app.get('/api/stats', async (req, res) => {
       const data = await redisClient.get(key);
       if (data) {
         try {
-          const vhost = JSON.parse(data);
+          const site = JSON.parse(data);
           stats.total_sites++;
           
           // Count by type
-          if (vhost.type === 'static') stats.static_sites++;
-          else if (vhost.type === 'proxy') stats.proxy_sites++;
-          else if (vhost.type === 'container') stats.container_sites++;
-          else if (vhost.type === 'loadbalancer') stats.loadbalancer_sites++;
+          if (site.type === 'static') stats.static_sites++;
+          else if (site.type === 'proxy') stats.proxy_sites++;
+          else if (site.type === 'container') stats.container_sites++;
+          else if (site.type === 'loadbalancer') stats.loadbalancer_sites++;
           
           // Count by status
-          if (vhost.enabled !== false) stats.enabled_sites++;
+          if (site.enabled !== false) stats.enabled_sites++;
           else stats.disabled_sites++;
         } catch (e) {
-          console.error(`Error parsing vhost data for ${key}:`, e);
+          console.error(`Error parsing site data for ${key}:`, e);
         }
       }
     }
@@ -400,32 +381,32 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Get all routes (returns vhosts formatted as routes for UI compatibility)
+// Get all routes (returns sites formatted as routes for UI compatibility)
 app.get('/api/routes', async (req, res) => {
   try {
-    const keys = await redisClient.keys('vhost:*');
+    const keys = await redisClient.keys('site:*');
     const routes = [];
     
     for (const key of keys) {
       const data = await redisClient.get(key);
       if (data) {
         try {
-          const vhost = JSON.parse(data);
-          // Format vhost as route for UI compatibility
+          const site = JSON.parse(data);
+          // Format site as route for UI compatibility
           routes.push({
-            domain: `${vhost.subdomain}.${BASE_DOMAIN}`,
-            customerId: vhost.customerId || 'unknown',
-            spinletId: vhost.subdomain, // Use subdomain as ID
-            buildPath: vhost.static_path || '/',
-            framework: vhost.type,
+            domain: site.domain || '',
+            customerId: site.customerId || 'unknown',
+            spinletId: site.domain, // Use id as primary
+            buildPath: site.static_path || '/',
+            framework: site.type,
             config: {
-              type: vhost.type,
-              target: vhost.target,
-              enabled: vhost.enabled !== false
+              type: site.type,
+              target: site.target,
+              enabled: site.enabled !== false
             }
           });
         } catch (e) {
-          console.error(`Error parsing vhost data for ${key}:`, e);
+          console.error(`Error parsing site data for ${key}:`, e);
         }
       }
     }
@@ -436,21 +417,21 @@ app.get('/api/routes', async (req, res) => {
   }
 });
 
-// Get hosting metrics for a specific vhost
-app.get('/api/vhost/:subdomain/metrics', async (req, res) => {
+// Get hosting metrics for a specific site
+app.get('/api/sites/:domain/metrics', async (req, res) => {
   try {
-    const { subdomain } = req.params;
+    const { domain } = req.params;
     const timeRange = req.query.range || '24h'; // 1h, 24h, 7d, 30d
     
     // Get metrics from Redis
-    const metricsKey = `metrics:${subdomain}`;
-    const logsKey = `logs:${subdomain}`;
+    const metricsKey = `metrics:${domain}`;
+    const logsKey = `logs:${domain}`;
     
     // Get current metrics
-    const currentMetrics = await redisClient.hgetall(metricsKey);
+    const currentMetrics = await redisClient.hGetAll(metricsKey);
     
     // Get recent access logs (last 100)
-    const logs = await redisClient.lrange(logsKey, 0, 99);
+    const logs = await redisClient.lRange(logsKey, 0, 99);
     const parsedLogs = logs.map(log => {
       try {
         return JSON.parse(log);
@@ -485,7 +466,7 @@ app.get('/api/vhost/:subdomain/metrics', async (req, res) => {
       : 0;
     
     res.json({
-      subdomain,
+      domain,
       timeRange,
       lastAccessed: currentMetrics.lastAccessed || null,
       totalRequests: parseInt(currentMetrics.totalRequests || '0'),
@@ -505,14 +486,14 @@ app.get('/api/vhost/:subdomain/metrics', async (req, res) => {
   }
 });
 
-// Get request logs for a specific vhost
-app.get('/api/vhost/:subdomain/logs', async (req, res) => {
+// Get request logs for a specific site
+app.get('/api/sites/:domain/logs', async (req, res) => {
   try {
-    const { subdomain } = req.params;
+    const { domain } = req.params;
     const { limit = 100, offset = 0, status, search } = req.query;
     
-    const logsKey = `logs:${subdomain}`;
-    const logs = await redisClient.lrange(logsKey, 0, -1);
+    const logsKey = `logs:${domain}`;
+    const logs = await redisClient.lRange(logsKey, 0, -1);
     
     let parsedLogs = logs.map(log => {
       try {
@@ -556,15 +537,15 @@ app.get('/api/vhost/:subdomain/logs', async (req, res) => {
 // Metrics endpoint (compatible with UI expectations)
 app.get('/api/metrics', async (req, res) => {
   try {
-    // Get all vhosts for metrics
-    const keys = await redisClient.keys('vhost:*');
-    const vhosts = [];
+    // Get all sites for metrics
+    const keys = await redisClient.keys('site:*');
+    const sites = [];
     
     for (const key of keys) {
       const data = await redisClient.get(key);
       if (data) {
         try {
-          vhosts.push(JSON.parse(data));
+          sites.push(JSON.parse(data));
         } catch (e) {
           // Skip invalid entries
         }
@@ -572,22 +553,22 @@ app.get('/api/metrics', async (req, res) => {
     }
     
     // Calculate metrics
-    const activeCount = vhosts.filter(v => v.enabled !== false).length;
+    const activeCount = sites.filter(v => v.enabled !== false).length;
     
     res.json({
       // Basic metrics for UI compatibility
       activeSpinlets: activeCount,
-      totalSpinlets: vhosts.length,
+      totalSpinlets: sites.length,
       allocatedPorts: 0, // Not applicable for static hosting
       availablePorts: 1000, // Arbitrary number
       memoryUsage: 0,
       cpuUsage: 0,
       
       // Additional hosting-specific metrics
-      totalSites: vhosts.length,
+      totalSites: sites.length,
       activeSites: activeCount,
-      staticSites: vhosts.filter(v => v.type === 'static').length,
-      proxySites: vhosts.filter(v => v.type === 'proxy').length
+      staticSites: sites.filter(v => v.type === 'static').length,
+      proxySites: sites.filter(v => v.type === 'proxy').length
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -98,7 +98,7 @@ export default function Settings() {
   const [portRangeStart, setPortRangeStart] = useState("10000");
   const [portRangeEnd, setPortRangeEnd] = useState("20000");
   const [defaultDomainSuffix, setDefaultDomainSuffix] =
-    useState(".spinforge.local");
+    useState("");
 
   // Security settings
   const [enableRateLimit, setEnableRateLimit] = useState(true);
@@ -566,7 +566,7 @@ export default function Settings() {
                 value={defaultDomainSuffix}
                 onChange={(e) => setDefaultDomainSuffix(e.target.value)}
                 className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder=".spinforge.localhost"
+                placeholder="example.com"
               />
               <p className="mt-2 text-sm text-gray-500">
                 Used when auto-generating domain names
@@ -580,7 +580,7 @@ export default function Settings() {
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                  <span>Wildcard DNS configured for *.spinforge.local</span>
+                  <span>Wildcard DNS configured</span>
                 </div>
                 <div className="flex items-center">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2" />

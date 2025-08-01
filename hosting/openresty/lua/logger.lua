@@ -8,10 +8,29 @@ local function get_redis_connection()
     local red = redis:new()
     red:set_timeouts(1000, 1000, 1000) -- 1 second timeout
     
-    local ok, err = red:connect("keydb", 6379)
+    -- Use the same connection settings as router.lua
+    local ok, err = red:connect("172.18.0.2", redis_port or 16378)
     if not ok then
         ngx.log(ngx.ERR, "Failed to connect to Redis: ", err)
         return nil, err
+    end
+    
+    -- Authenticate if password is set
+    if redis_password and redis_password ~= "" then
+        local ok, err = red:auth(redis_password)
+        if not ok then
+            ngx.log(ngx.ERR, "Failed to authenticate: ", err)
+            return nil, err
+        end
+    end
+    
+    -- Select database
+    if redis_db and redis_db ~= 0 then
+        local ok, err = red:select(redis_db)
+        if not ok then
+            ngx.log(ngx.ERR, "Failed to select DB: ", err)
+            return nil, err
+        end
     end
     
     return red
@@ -25,28 +44,33 @@ local function return_redis_connection(red)
     end
 end
 
--- Log request to Redis
-function _M.log_request(subdomain)
-    if not subdomain then
+-- Log request to Redis using pre-captured data
+function _M.log_request_data(request_data)
+    if not request_data or not request_data.domain then
+        ngx.log(ngx.ERR, "Logger: No request data or domain provided")
         return
     end
     
+    local domain = request_data.domain
+    ngx.log(ngx.DEBUG, "Logger: Logging request for domain: ", domain)
+    
     local red, err = get_redis_connection()
     if not red then
+        ngx.log(ngx.ERR, "Logger: Failed to get Redis connection: ", err)
         return
     end
     
     -- Prepare log entry
     local log_entry = {
         timestamp = ngx.now() * 1000, -- milliseconds
-        method = ngx.var.request_method,
-        path = ngx.var.uri,
-        status = ngx.var.status,
-        bytes = tonumber(ngx.var.body_bytes_sent) or 0,
-        responseTime = (ngx.now() - ngx.req.start_time()) * 1000, -- milliseconds
-        ip = ngx.var.remote_addr,
-        userAgent = ngx.var.http_user_agent,
-        referer = ngx.var.http_referer
+        method = request_data.method,
+        path = request_data.uri,
+        status = request_data.status,
+        bytes = request_data.bytes,
+        responseTime = (ngx.now() - request_data.start_time) * 1000, -- milliseconds
+        ip = request_data.remote_addr,
+        userAgent = request_data.user_agent,
+        referer = request_data.referer
     }
     
     -- Convert to JSON
@@ -58,24 +82,26 @@ function _M.log_request(subdomain)
     end
     
     -- Store in Redis list (keep last 1000 entries)
-    local logs_key = "logs:" .. subdomain
+    local logs_key = "logs:" .. domain
     red:lpush(logs_key, json_log)
     red:ltrim(logs_key, 0, 999)
     
     -- Update metrics
-    local metrics_key = "metrics:" .. subdomain
+    local metrics_key = "metrics:" .. domain
     red:hincrby(metrics_key, "totalRequests", 1)
     red:hincrby(metrics_key, "totalBandwidth", log_entry.bytes)
     red:hset(metrics_key, "lastAccessed", ngx.now() * 1000)
     
     -- Track unique visitors (simple IP-based)
-    local visitors_key = "visitors:" .. subdomain .. ":" .. os.date("%Y%m%d")
+    local visitors_key = "visitors:" .. domain .. ":" .. os.date("%Y%m%d")
     red:sadd(visitors_key, ngx.var.remote_addr)
     red:expire(visitors_key, 86400 * 7) -- Keep for 7 days
     
     -- Update unique visitor count
     local visitor_count = red:scard(visitors_key)
     red:hset(metrics_key, "uniqueVisitors", visitor_count)
+    
+    ngx.log(ngx.DEBUG, "Logger: Successfully logged metrics for domain: ", domain)
     
     return_redis_connection(red)
 end

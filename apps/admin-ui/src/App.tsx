@@ -25,7 +25,6 @@ import ActiveSpinlets from "./pages/ActiveSpinlets";
 import DeploymentManagement from "./pages/DeploymentManagement";
 import CustomerManagement from "./pages/CustomerManagement";
 import AdminUserManagement from "./pages/AdminUserManagement";
-import HostingManagement from "./pages/HostingManagement";
 import { AdminLogin } from "./components/AdminLogin";
 import { api } from "./services/api";
 
@@ -99,7 +98,6 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/applications" element={<Applications />} />
-          <Route path="/hosting" element={<HostingManagement />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/modern-dashboard" element={<ModernDashboard />} />
           <Route path="/system-dashboard" element={<SystemDashboard />} />
