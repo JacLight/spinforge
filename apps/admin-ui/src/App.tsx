@@ -13,7 +13,7 @@ import ModernDashboard from "./pages/ModernDashboard";
 import SystemDashboard from "./pages/SystemDashboard";
 import Applications from "./pages/Applications";
 import ApplicationDetailHosting from "./pages/ApplicationDetailHosting";
-import DeployForm from "./pages/DeployForm";
+import Deploy from "./pages/Deploy";
 import Metrics from "./pages/Metrics";
 import Settings from "./pages/Settings";
 import DynamicUIDemo from "./components/DynamicUIDemo";
@@ -103,7 +103,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/modern-dashboard" element={<ModernDashboard />} />
           <Route path="/system-dashboard" element={<SystemDashboard />} />
-          <Route path="/deploy" element={<DeployForm />} />
+          <Route path="/deploy" element={<Deploy />} />
           <Route path="/metrics" element={<Metrics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/dynamic-ui" element={<DynamicUIDemo />} />
