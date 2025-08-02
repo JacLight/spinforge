@@ -130,6 +130,105 @@ if ngx.ctx.route_processed then
     return
 end
 
+-- Special diagnostic endpoint for load balancers
+if ngx.var.uri == "/_spinforge/diagnostic" then
+    ngx.header["Content-Type"] = "application/json"
+    
+    local site, err = get_site_config(host)
+    if not site then
+        ngx.status = 404
+        ngx.say(cjson.encode({error = "Site not found", host = host}))
+        return ngx.exit(404)
+    end
+    
+    if site.type ~= "loadbalancer" then
+        ngx.status = 400
+        ngx.say(cjson.encode({error = "Not a load balancer", type = site.type}))
+        return ngx.exit(400)
+    end
+    
+    local backends = site.backendConfigs or site.backends or site.upstreams or {}
+    local diagnostic = {
+        host = host,
+        type = site.type,
+        backend_count = #backends,
+        backends = {},
+        routing_rules = site.routingRules or {},
+        sticky_cookie_name = "spinforge_backend_" .. host:gsub("%.", "_")
+    }
+    
+    for i, backend in ipairs(backends) do
+        if type(backend) == "table" then
+            table.insert(diagnostic.backends, {
+                index = i,
+                url = backend.url,
+                label = backend.label,
+                isLocal = backend.isLocal,
+                healthCheck = backend.healthCheck
+            })
+        else
+            table.insert(diagnostic.backends, {
+                index = i,
+                url = backend
+            })
+        end
+    end
+    
+    ngx.status = 200
+    ngx.say(cjson.encode(diagnostic))
+    return ngx.exit(200)
+end
+
+-- Test routing endpoint
+if ngx.var.uri == "/_spinforge/test-routing" then
+    ngx.header["Content-Type"] = "application/json"
+    
+    local site, err = get_site_config(host)
+    if not site or site.type ~= "loadbalancer" then
+        ngx.status = 400
+        ngx.say(cjson.encode({error = "Not a load balancer"}))
+        return ngx.exit(400)
+    end
+    
+    -- Test with current request parameters
+    local test_result = {
+        host = host,
+        cookies = {},
+        query_params = {},
+        headers = {},
+        matched_rule = nil,
+        routing_decision = nil
+    }
+    
+    -- Collect request info
+    local headers = ngx.req.get_headers()
+    for k, v in pairs(headers) do
+        if k:lower():match("^x%-") or k:lower() == "cookie" then
+            test_result.headers[k] = v
+        end
+    end
+    
+    local args = ngx.req.get_uri_args()
+    for k, v in pairs(args) do
+        test_result.query_params[k] = v
+    end
+    
+    -- Parse cookies
+    local cookie_header = ngx.var.http_cookie
+    if cookie_header then
+        for cookie in cookie_header:gmatch("([^;]+)") do
+            local name, value = cookie:match("^%s*([^=]+)=(.+)%s*$")
+            if name then
+                test_result.cookies[name] = value
+            end
+        end
+    end
+    
+    ngx.status = 200
+    ngx.say(cjson.encode(test_result))
+    return ngx.exit(200)
+end
+
 -- Log the incoming request
 ngx.log(ngx.DEBUG, "Router: Processing request for host: ", host)
 
@@ -176,6 +275,190 @@ elseif site.type == "proxy" then
     ngx.var.route_type = "proxy"
     ngx.var.proxy_target = site.target or site.upstream
     ngx.log(ngx.INFO, "Proxying to: ", ngx.var.proxy_target)
+elseif site.type == "loadbalancer" then
+    ngx.var.route_type = "proxy"  -- Use proxy type for handling
+    
+    -- Get backend URLs from various possible fields
+    local backends = site.backendConfigs or site.backends or site.upstreams
+    
+    if not backends or #backends == 0 then
+        ngx.log(ngx.ERR, "No backends configured for load balancer")
+        ngx.var.route_type = ""
+        return
+    end
+    
+    local selected_backend
+    local backend_index
+    local backend_config
+    
+    -- Define sticky cookie name once for the entire request
+    local sticky_cookie_name = "spinforge_backend_" .. host:gsub("%.", "_")
+    
+    -- First, check routing rules for A/B testing
+    if site.routingRules and #site.routingRules > 0 then
+        -- Sort rules by priority (higher priority first)
+        local sorted_rules = {}
+        for _, rule in ipairs(site.routingRules) do
+            table.insert(sorted_rules, rule)
+        end
+        table.sort(sorted_rules, function(a, b)
+            return (a.priority or 0) > (b.priority or 0)
+        end)
+        
+        -- Evaluate each rule
+        for _, rule in ipairs(sorted_rules) do
+            local value_to_check
+            
+            -- Get the value based on rule type
+            if rule.type == "cookie" then
+                value_to_check = ngx.var["cookie_" .. rule.name]
+            elseif rule.type == "query" then
+                value_to_check = ngx.var["arg_" .. rule.name]
+            elseif rule.type == "header" then
+                value_to_check = ngx.var["http_" .. rule.name:gsub("-", "_"):lower()]
+            end
+            
+            if value_to_check then
+                local matches = false
+                
+                -- Check if value matches based on match type
+                if rule.matchType == "exact" then
+                    matches = (value_to_check == rule.value)
+                elseif rule.matchType == "prefix" then
+                    matches = value_to_check:sub(1, #rule.value) == rule.value
+                elseif rule.matchType == "regex" then
+                    matches = ngx.re.match(value_to_check, rule.value, "jo") ~= nil
+                end
+                
+                if matches then
+                    -- Find backend with matching label
+                    for idx, backend in ipairs(backends) do
+                        if type(backend) == "table" and backend.label == rule.targetLabel then
+                            backend_index = idx
+                            ngx.log(ngx.INFO, "ROUTING DECISION: Rule matched! ", 
+                                    "Type=", rule.type, 
+                                    " Name=", rule.name, 
+                                    " Value=", value_to_check,
+                                    " Pattern=", rule.value,
+                                    " MatchType=", rule.matchType,
+                                    " -> Backend #", idx, " (", rule.targetLabel, ")")
+                            
+                            -- Set a header to track which rule matched (useful for debugging)
+                            ngx.header["X-SpinForge-Route-Rule"] = rule.type .. ":" .. rule.name
+                            ngx.header["X-SpinForge-Route-Backend"] = rule.targetLabel
+                            break
+                        end
+                    end
+                    
+                    if backend_index then
+                        break -- Stop evaluating rules once we have a match
+                    else
+                        ngx.log(ngx.WARN, "ROUTING WARNING: Rule matched but no backend with label '", 
+                                rule.targetLabel, "' found")
+                    end
+                end
+            end
+        end
+    end
+    
+    -- If no routing rule matched, check for sticky session cookie
+    if not backend_index then
+        local cookie_value = ngx.var["cookie_" .. sticky_cookie_name]
+        
+        if cookie_value and tonumber(cookie_value) then
+            -- Use sticky session if cookie exists and is valid
+            local sticky_index = tonumber(cookie_value)
+            if sticky_index >= 1 and sticky_index <= #backends then
+                backend_index = sticky_index
+                ngx.log(ngx.INFO, "ROUTING DECISION: Using sticky session backend #", backend_index)
+                ngx.header["X-SpinForge-Route-Method"] = "sticky-session"
+                ngx.header["X-SpinForge-Route-Backend-Index"] = tostring(backend_index)
+            else
+                -- Invalid cookie value, fall back to round-robin
+                cookie_value = nil
+                ngx.log(ngx.WARN, "ROUTING WARNING: Invalid sticky session cookie value: ", cookie_value)
+            end
+        end
+    end
+    
+    if not backend_index then
+        -- No routing rule or sticky session, use round-robin
+        local lb_counter = ngx.shared.routes_cache
+        local counter_key = "lb:" .. host
+        local current = lb_counter:incr(counter_key, 1, 0)
+        backend_index = (current % #backends) + 1
+        
+        ngx.log(ngx.INFO, "ROUTING DECISION: Using round-robin, selected backend #", backend_index)
+        ngx.header["X-SpinForge-Route-Method"] = "round-robin"
+        ngx.header["X-SpinForge-Route-Backend-Index"] = tostring(backend_index)
+        
+        -- Set sticky session cookie (expires in 1 hour)
+        ngx.header["Set-Cookie"] = sticky_cookie_name .. "=" .. backend_index .. 
+            "; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax"
+    end
+    
+    -- Handle both simple array and backendConfigs format
+    local backend_config
+    if type(backends[backend_index]) == "string" then
+        selected_backend = backends[backend_index]
+        backend_config = { url = selected_backend, isLocal = false }
+    elseif type(backends[backend_index]) == "table" and backends[backend_index].url then
+        backend_config = backends[backend_index]
+        selected_backend = backend_config.url
+    else
+        ngx.log(ngx.ERR, "Invalid backend configuration at index ", backend_index)
+        ngx.var.route_type = ""
+        return
+    end
+    
+    -- Handle local backends differently
+    if backend_config.isLocal then
+        ngx.log(ngx.INFO, "Load balancing to LOCAL backend #", backend_index, ": ", selected_backend)
+        
+        -- For local backends, we need to internally redirect to that domain
+        -- Set the Host header to the local domain
+        ngx.req.set_header("Host", selected_backend)
+        
+        -- Clear the proxy_target and route_type to trigger a new lookup
+        ngx.var.route_type = ""
+        ngx.ctx.route_processed = false
+        
+        -- Re-run the router for the new host
+        host = selected_backend
+        site, err = get_site_config(host)
+        
+        if not site then
+            ngx.log(ngx.ERR, "Local backend not found: ", host)
+            ngx.status = 502
+            ngx.say("Local backend not available")
+            return ngx.exit(502)
+        end
+        
+        -- Process the local site normally
+        if site.type == "static" then
+            if site.static_path and site.static_path ~= ngx.null then
+                ngx.var.target_root = site.static_path
+            else
+                local folder_name = site.domain:gsub("%.", "_")
+                ngx.var.target_root = "/var/www/static/" .. folder_name
+            end
+            ngx.var.route_type = "static"
+        elseif site.type == "proxy" then
+            ngx.var.route_type = "proxy"
+            ngx.var.proxy_target = site.target or site.upstream
+        else
+            ngx.log(ngx.ERR, "Local backend has unsupported type: ", site.type)
+            ngx.status = 502
+            ngx.say("Local backend configuration error")
+            return ngx.exit(502)
+        end
+        
+        ngx.log(ngx.INFO, "Routed to local backend: ", host, " type: ", site.type)
+    else
+        -- External backend - use normal proxy
+        ngx.var.proxy_target = selected_backend
+        ngx.log(ngx.INFO, "Load balancing to EXTERNAL backend #", backend_index, ": ", selected_backend)
+    end
 else
     ngx.log(ngx.WARN, "Unknown site type: ", site.type)
     ngx.var.route_type = ""

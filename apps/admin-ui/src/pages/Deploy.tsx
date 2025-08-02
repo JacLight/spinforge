@@ -49,21 +49,65 @@ const hostingTypes = [
     value: "loadbalancer", 
     label: "Load Balancer", 
     icon: Server,
-    description: "Distribute traffic across servers (coming soon)",
+    description: "Distribute traffic across multiple backend servers",
     color: "orange",
-    disabled: true
+    disabled: false
   },
 ];
 
 export default function Deploy() {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string>("static");
+  interface BackendConfig {
+    url: string;
+    isLocal?: boolean;
+    label?: string;
+    healthCheck: {
+      path: string;
+      interval: number;
+      timeout: number;
+      unhealthyThreshold: number;
+      healthyThreshold: number;
+    };
+  }
+  
+  interface RoutingRule {
+    type: 'cookie' | 'query' | 'header';
+    name: string;
+    matchType: 'exact' | 'regex' | 'prefix';
+    value: string;
+    targetLabel: string;
+    priority?: number;
+  }
+
   const [formData, setFormData] = useState({
     domain: "",
     customerId: "",
     target: "",
     aliases: [] as string[],
     newAlias: "",
+    backendConfigs: [] as BackendConfig[],
+    newBackend: {
+      url: "",
+      isLocal: false,
+      label: "",
+      healthCheck: {
+        path: "/health",
+        interval: 10,
+        timeout: 5,
+        unhealthyThreshold: 3,
+        healthyThreshold: 2,
+      }
+    },
+    routingRules: [] as RoutingRule[],
+    newRule: {
+      type: 'cookie' as 'cookie' | 'query' | 'header',
+      name: '',
+      matchType: 'exact' as 'exact' | 'regex' | 'prefix',
+      value: '',
+      targetLabel: '',
+      priority: 1,
+    },
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -109,6 +153,11 @@ export default function Deploy() {
       newErrors.target = "Target URL is required for proxy sites";
     }
 
+    // Validate load balancer backends
+    if (selectedType === "loadbalancer" && formData.backendConfigs.length === 0) {
+      newErrors.backends = "At least one backend server is required for load balancer";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -133,6 +182,13 @@ export default function Deploy() {
 
     if (selectedType === "proxy" && formData.target) {
       data.target = formData.target;
+    }
+
+    if (selectedType === "loadbalancer" && formData.backendConfigs.length > 0) {
+      data.backendConfigs = formData.backendConfigs;
+      if (formData.routingRules.length > 0) {
+        data.routingRules = formData.routingRules;
+      }
     }
 
     deployMutation.mutate(data);
@@ -171,6 +227,74 @@ export default function Deploy() {
     setFormData({
       ...formData,
       aliases: formData.aliases.filter(a => a !== alias),
+    });
+  };
+
+  const handleAddBackend = () => {
+    if (!formData.newBackend.url) return;
+
+    // Different validation for local vs external backends
+    if (formData.newBackend.isLocal) {
+      // For local backends, validate it's a valid domain and exists in the system
+      if (!formData.newBackend.url.match(/^[a-zA-Z0-9][a-zA-Z0-9-_.]*$/)) {
+        setErrors({ ...errors, newBackendUrl: "Please enter a valid domain name" });
+        return;
+      }
+      
+      // Check if the domain exists in the SpinForge system
+      const domainExists = allVhosts.some(v => 
+        v.domain === formData.newBackend.url || 
+        v.aliases?.includes(formData.newBackend.url)
+      );
+      
+      if (!domainExists) {
+        setErrors({ ...errors, newBackendUrl: `Domain "${formData.newBackend.url}" not found in SpinForge` });
+        return;
+      }
+    } else {
+      // For external backends, validate full URL
+      try {
+        new URL(formData.newBackend.url);
+      } catch {
+        setErrors({ ...errors, newBackendUrl: "Please enter a valid URL" });
+        return;
+      }
+    }
+
+    if (formData.backendConfigs.some(b => b.url === formData.newBackend.url)) {
+      setErrors({ ...errors, newBackendUrl: "This backend is already added" });
+      return;
+    }
+
+    // Validate health check settings
+    if (!formData.newBackend.healthCheck.path.startsWith('/')) {
+      setErrors({ ...errors, newBackendPath: "Health check path must start with /" });
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      backendConfigs: [...formData.backendConfigs, { ...formData.newBackend }],
+      newBackend: {
+        url: "",
+        isLocal: false,
+        label: "",
+        healthCheck: {
+          path: "/health",
+          interval: 10,
+          timeout: 5,
+          unhealthyThreshold: 3,
+          healthyThreshold: 2,
+        }
+      },
+    });
+    setErrors({ ...errors, newBackendUrl: "", newBackendPath: "" });
+  };
+
+  const handleRemoveBackend = (index: number) => {
+    setFormData({
+      ...formData,
+      backendConfigs: formData.backendConfigs.filter((_, i) => i !== index),
     });
   };
 
@@ -370,6 +494,517 @@ export default function Deploy() {
                   <p className="mt-1 text-xs text-gray-500">
                     The URL where requests will be forwarded
                   </p>
+                </div>
+              )}
+
+              {/* Load Balancer Backends */}
+              {selectedType === "loadbalancer" && (
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Backend Servers <span className="text-red-500">*</span>
+                    </label>
+                    
+                    {/* Existing backends */}
+                    <div className="space-y-3 mb-4">
+                      {formData.backendConfigs.map((backend, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Server className="h-4 w-4 text-gray-500" />
+                              <div className="flex items-center gap-2">
+                                <code className="text-sm font-medium">{backend.url}</code>
+                                {backend.isLocal && (
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
+                                )}
+                                {backend.label && (
+                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBackend(index)}
+                              className="text-red-600 hover:bg-red-50 rounded p-1"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-xs">
+                            <div>
+                              <span className="text-gray-600">Health Check:</span>
+                              <code className="ml-1">{backend.healthCheck.path}</code>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Interval:</span>
+                              <span className="ml-1">{backend.healthCheck.interval}s</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Timeout:</span>
+                              <span className="ml-1">{backend.healthCheck.timeout}s</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Failures to unhealthy:</span>
+                              <span className="ml-1">{backend.healthCheck.unhealthyThreshold}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add new backend form */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 space-y-4">
+                      <h4 className="text-sm font-medium text-gray-700">Add Backend Server</h4>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="isLocal"
+                            checked={formData.newBackend.isLocal}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                newBackend: { ...formData.newBackend, isLocal: e.target.checked, url: "" }
+                              });
+                              setErrors({ ...errors, newBackendUrl: "" });
+                            }}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="isLocal" className="text-sm font-medium text-gray-700">
+                            This is a local SpinForge service
+                          </label>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            {formData.newBackend.isLocal ? "Domain Name" : "Backend URL"}
+                          </label>
+                          <input
+                            type={formData.newBackend.isLocal ? "text" : "url"}
+                            value={formData.newBackend.url}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                newBackend: { ...formData.newBackend, url: e.target.value }
+                              });
+                              if (errors.newBackendUrl) setErrors({ ...errors, newBackendUrl: "" });
+                            }}
+                            className={`block w-full rounded-md border ${
+                              errors.newBackendUrl ? "border-red-300" : "border-gray-300"
+                            } py-2 px-3 text-sm font-mono focus:ring-2 focus:ring-blue-500`}
+                            placeholder={formData.newBackend.isLocal ? "test-shop.localhost" : "http://backend1.example.com:8080"}
+                          />
+                          {errors.newBackendUrl && (
+                            <p className="text-xs text-red-600 mt-1">{errors.newBackendUrl}</p>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Backend Label (for routing rules)
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.newBackend.label}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              newBackend: { ...formData.newBackend, label: e.target.value }
+                            })}
+                            className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                            placeholder="e.g., variant-a, beta, v2"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Optional: Used for A/B testing routing rules</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Health Check Path
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.newBackend.healthCheck.path}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              newBackend: {
+                                ...formData.newBackend,
+                                healthCheck: { ...formData.newBackend.healthCheck, path: e.target.value }
+                              }
+                            })}
+                            className={`block w-full rounded-md border ${
+                              errors.newBackendPath ? "border-red-300" : "border-gray-300"
+                            } py-1.5 px-2 text-sm`}
+                            placeholder="/health"
+                          />
+                          {errors.newBackendPath && (
+                            <p className="text-xs text-red-600 mt-1">{errors.newBackendPath}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Check Interval (seconds)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="300"
+                            value={formData.newBackend.healthCheck.interval}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              newBackend: {
+                                ...formData.newBackend,
+                                healthCheck: { ...formData.newBackend.healthCheck, interval: parseInt(e.target.value) || 10 }
+                              }
+                            })}
+                            className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Timeout (seconds)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="60"
+                            value={formData.newBackend.healthCheck.timeout}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              newBackend: {
+                                ...formData.newBackend,
+                                healthCheck: { ...formData.newBackend.healthCheck, timeout: parseInt(e.target.value) || 5 }
+                              }
+                            })}
+                            className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Failures to mark unhealthy
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={formData.newBackend.healthCheck.unhealthyThreshold}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              newBackend: {
+                                ...formData.newBackend,
+                                healthCheck: { ...formData.newBackend.healthCheck, unhealthyThreshold: parseInt(e.target.value) || 3 }
+                              }
+                            })}
+                            className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddBackend}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                      >
+                        Add Backend Server
+                      </button>
+                    </div>
+
+                    {errors.backends && (
+                      <p className="text-sm text-red-600 mt-2">{errors.backends}</p>
+                    )}
+                    
+                    <p className="mt-3 text-xs text-gray-500">
+                      Each backend server will be monitored with its own health check configuration. 
+                      Unhealthy backends are automatically removed from the load balancer rotation.
+                    </p>
+                  </div>
+
+                  {/* Routing Rules for A/B Testing */}
+                  {formData.backendConfigs.length > 0 && (
+                    <div className="mt-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        A/B Testing Routing Rules (Optional)
+                      </label>
+                      
+                      {/* Existing rules */}
+                      <div className="space-y-3 mb-4">
+                        {formData.routingRules.map((rule, index) => (
+                          <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-xs font-semibold text-gray-700 uppercase">{rule.type}</span>
+                                  <code className="text-sm">{rule.name}</code>
+                                  <span className="text-xs text-gray-500">{rule.matchType}</span>
+                                  <code className="text-sm font-mono bg-white px-1 py-0.5 rounded">{rule.value}</code>
+                                  <span className="text-xs text-gray-500">→</span>
+                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{rule.targetLabel}</span>
+                                  {rule.priority && rule.priority > 1 && (
+                                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Priority: {rule.priority}</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  <span className="font-medium">Example: </span>
+                                  {rule.type === 'cookie' && <span>Cookie: {rule.name}={rule.value}</span>}
+                                  {rule.type === 'query' && <span>URL: ?{rule.name}={rule.value}</span>}
+                                  {rule.type === 'header' && <span>Header: {rule.name}: {rule.value}</span>}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData({
+                                    ...formData,
+                                    routingRules: formData.routingRules.filter((_, i) => i !== index)
+                                  });
+                                }}
+                                className="text-red-600 hover:bg-red-50 rounded p-1"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Add new rule form */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 space-y-4">
+                        <h4 className="text-sm font-medium text-gray-700">Add Routing Rule</h4>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Rule Type</label>
+                            <select
+                              value={formData.newRule.type}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                newRule: { ...formData.newRule, type: e.target.value as 'cookie' | 'query' | 'header' }
+                              })}
+                              className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                            >
+                              <option value="cookie">Cookie</option>
+                              <option value="query">Query Parameter</option>
+                              <option value="header">Header</option>
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {formData.newRule.type === 'cookie' ? 'Cookie Name' : 
+                               formData.newRule.type === 'query' ? 'Parameter Name' : 'Header Name'}
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.newRule.name}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                newRule: { ...formData.newRule, name: e.target.value }
+                              })}
+                              className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                              placeholder={formData.newRule.type === 'cookie' ? 'session_variant' : 
+                                         formData.newRule.type === 'query' ? 'variant' : 'X-Variant'}
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Match Type</label>
+                            <select
+                              value={formData.newRule.matchType}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                newRule: { ...formData.newRule, matchType: e.target.value as 'exact' | 'regex' | 'prefix' }
+                              })}
+                              className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                            >
+                              <option value="exact">Exact Match</option>
+                              <option value="prefix">Prefix Match</option>
+                              <option value="regex">Regular Expression</option>
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Match Value</label>
+                            <input
+                              type="text"
+                              value={formData.newRule.value}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                newRule: { ...formData.newRule, value: e.target.value }
+                              })}
+                              className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm font-mono"
+                              placeholder={formData.newRule.matchType === 'regex' ? '^(beta|test).*' : 'beta'}
+                            />
+                            {formData.newRule.matchType === 'regex' && (
+                              <div className="mt-1">
+                                <p className="text-xs text-gray-500">Common patterns:</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {[
+                                    { pattern: '^beta.*', desc: 'Starts with beta' },
+                                    { pattern: '.*(test|beta).*', desc: 'Contains test or beta' },
+                                    { pattern: '^v[0-9]+$', desc: 'Version numbers (v1, v2...)' },
+                                    { pattern: '^[a-f0-9]{8}$', desc: '8 hex characters' },
+                                  ].map(({ pattern, desc }) => (
+                                    <button
+                                      key={pattern}
+                                      type="button"
+                                      onClick={() => setFormData({
+                                        ...formData,
+                                        newRule: { ...formData.newRule, value: pattern }
+                                      })}
+                                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded"
+                                      title={desc}
+                                    >
+                                      {pattern}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Target Backend Label</label>
+                            <select
+                              value={formData.newRule.targetLabel}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                newRule: { ...formData.newRule, targetLabel: e.target.value }
+                              })}
+                              className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                            >
+                              <option value="">Select a backend label</option>
+                              {Array.from(new Set(formData.backendConfigs.filter(b => b.label).map(b => b.label))).map(label => (
+                                <option key={label} value={label}>{label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={formData.newRule.priority}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                newRule: { ...formData.newRule, priority: parseInt(e.target.value) || 1 }
+                              })}
+                              className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Higher priority rules are evaluated first</p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (formData.newRule.name && formData.newRule.value && formData.newRule.targetLabel) {
+                              setFormData({
+                                ...formData,
+                                routingRules: [...formData.routingRules, { ...formData.newRule }],
+                                newRule: {
+                                  type: 'cookie',
+                                  name: '',
+                                  matchType: 'exact',
+                                  value: '',
+                                  targetLabel: '',
+                                  priority: 1,
+                                }
+                              });
+                            }
+                          }}
+                          disabled={!formData.newRule.name || !formData.newRule.value || !formData.newRule.targetLabel}
+                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Add Routing Rule
+                        </button>
+                      </div>
+                      
+                      <div className="mt-4 space-y-4">
+                        {/* Test Your Rules */}
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <Zap className="h-5 w-5 text-yellow-600 mt-0.5" />
+                            <div className="ml-3 flex-1">
+                              <h4 className="text-sm font-medium text-yellow-900">Test Your Routing Rules</h4>
+                              <div className="mt-2 space-y-2">
+                                <p className="text-xs text-yellow-700">Test how your rules will route traffic:</p>
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                  <div>
+                                    <span className="font-medium">Cookie test:</span>
+                                    <code className="block mt-1 bg-yellow-100 p-1 rounded">
+                                      curl -H "Cookie: variant=beta" {formData.domain || 'your-domain.com'}
+                                    </code>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Query test:</span>
+                                    <code className="block mt-1 bg-yellow-100 p-1 rounded">
+                                      curl {formData.domain || 'your-domain.com'}?variant=beta
+                                    </code>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Header test:</span>
+                                    <code className="block mt-1 bg-yellow-100 p-1 rounded">
+                                      curl -H "X-Variant: beta" {formData.domain || 'your-domain.com'}
+                                    </code>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="mt-3 pt-3 border-t border-yellow-300">
+                                <p className="text-xs font-medium text-yellow-800 mb-1">Diagnostic Endpoints:</p>
+                                <div className="space-y-1">
+                                  <code className="block text-xs bg-yellow-100 p-1 rounded">
+                                    curl {formData.domain || 'your-domain.com'}/_spinforge/diagnostic
+                                  </code>
+                                  <p className="text-xs text-yellow-700 ml-2">→ Shows backend configuration and routing rules</p>
+                                  <code className="block text-xs bg-yellow-100 p-1 rounded">
+                                    curl {formData.domain || 'your-domain.com'}/_spinforge/test-routing
+                                  </code>
+                                  <p className="text-xs text-yellow-700 ml-2">→ Shows current request's cookies, headers, and params</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Info Box */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                            <div className="ml-3">
+                              <h4 className="text-sm font-medium text-blue-900">How A/B Testing Works</h4>
+                              <div className="mt-2 grid grid-cols-2 gap-4">
+                                <div>
+                                  <h5 className="text-xs font-semibold text-blue-800 mb-1">Routing Order:</h5>
+                                  <ol className="text-xs text-blue-700 space-y-1">
+                                    <li>1. Check routing rules (by priority)</li>
+                                    <li>2. Check sticky session cookie</li>
+                                    <li>3. Use round-robin if no match</li>
+                                    <li>4. Set sticky session for consistency</li>
+                                  </ol>
+                                </div>
+                                <div>
+                                  <h5 className="text-xs font-semibold text-blue-800 mb-1">Common Use Cases:</h5>
+                                  <ul className="text-xs text-blue-700 space-y-1">
+                                    <li>• Feature flags: <code>?feature=new-ui</code></li>
+                                    <li>• A/B tests: <code>Cookie: test_group=a</code></li>
+                                    <li>• Beta access: <code>X-Beta-User: true</code></li>
+                                    <li>• Canary deploys: Route 10% to new version</li>
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

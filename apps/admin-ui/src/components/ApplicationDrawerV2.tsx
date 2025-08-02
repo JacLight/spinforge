@@ -228,6 +228,19 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   
+  interface BackendConfig {
+    url: string;
+    isLocal?: boolean;
+    label?: string;
+    healthCheck?: {
+      path: string;
+      interval: number;
+      timeout: number;
+      unhealthyThreshold: number;
+      healthyThreshold: number;
+    };
+  }
+
   // Form states
   const [domain, setDomain] = useState('');
   const [aliases, setAliases] = useState<string[]>([]);
@@ -235,12 +248,47 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   const [customerId, setCustomerId] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [target, setTarget] = useState('');
+  const [backendConfigs, setBackendConfigs] = useState<BackendConfig[]>([]);
+  
+  interface RoutingRule {
+    type: 'cookie' | 'query' | 'header';
+    name: string;
+    matchType: 'exact' | 'regex' | 'prefix';
+    value: string;
+    targetLabel: string;
+    priority?: number;
+  }
+  
+  const [routingRules, setRoutingRules] = useState<RoutingRule[]>([]);
+  const [newRule, setNewRule] = useState<RoutingRule>({
+    type: 'cookie',
+    name: '',
+    matchType: 'exact',
+    value: '',
+    targetLabel: '',
+    priority: 1,
+  });
+  
+  const [newBackend, setNewBackend] = useState<BackendConfig>({
+    url: '',
+    isLocal: false,
+    label: '',
+    healthCheck: {
+      path: '/health',
+      interval: 10,
+      timeout: 5,
+      unhealthyThreshold: 3,
+      healthyThreshold: 2,
+    }
+  });
   
   // Validation errors
   const [domainError, setDomainError] = useState('');
   const [aliasErrors, setAliasErrors] = useState<Record<number, string>>({});
   const [newAliasError, setNewAliasError] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  const [backendErrors, setBackendErrors] = useState<Record<number, string>>({});
+  const [newBackendError, setNewBackendError] = useState('');
 
   // Initialize form when vhost changes
   React.useEffect(() => {
@@ -250,11 +298,35 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
       setCustomerId(vhost.customerId || '');
       setEnabled(vhost.enabled !== false);
       setTarget(vhost.target || '');
+      
+      // Convert old format to new format
+      if (vhost.backendConfigs) {
+        setBackendConfigs(vhost.backendConfigs);
+      } else if (vhost.backends) {
+        setBackendConfigs(vhost.backends.map((url: string) => ({
+          url,
+          healthCheck: {
+            path: '/health',
+            interval: 10,
+            timeout: 5,
+            unhealthyThreshold: 3,
+            healthyThreshold: 2,
+          }
+        })));
+      } else {
+        setBackendConfigs([]);
+      }
+      
+      // Set routing rules
+      setRoutingRules(vhost.routingRules || []);
+      
       // Clear errors
       setDomainError('');
       setAliasErrors({});
       setNewAliasError('');
       setDeleteError('');
+      setBackendErrors({});
+      setNewBackendError('');
     }
   }, [vhost]);
 
@@ -350,13 +422,25 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
       return;
     }
 
-    updateMutation.mutate({
+    const updateData: any = {
       domain,
       aliases,
       customerId,
       enabled,
-      target,
-    });
+    };
+
+    if (vhost.type === 'proxy') {
+      updateData.target = target;
+    }
+
+    if (vhost.type === 'loadbalancer') {
+      updateData.backendConfigs = backendConfigs;
+      if (routingRules.length > 0) {
+        updateData.routingRules = routingRules;
+      }
+    }
+
+    updateMutation.mutate(updateData);
   };
 
   const handleCopy = (text: string) => {
@@ -409,6 +493,68 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
 
   const handleRemoveAlias = (aliasToRemove: string) => {
     setAliases(aliases.filter(alias => alias !== aliasToRemove));
+  };
+
+  const handleAddBackend = () => {
+    if (!newBackend.url) return;
+
+    // Different validation for local vs external backends
+    if (newBackend.isLocal) {
+      // For local backends, validate it's a valid domain and exists in the system
+      if (!newBackend.url.match(/^[a-zA-Z0-9][a-zA-Z0-9-_.]*$/)) {
+        setNewBackendError('Please enter a valid domain name');
+        return;
+      }
+      
+      // Check if the domain exists in the SpinForge system
+      const domainExists = allVhosts.some(v => 
+        v.domain === newBackend.url || 
+        v.aliases?.includes(newBackend.url)
+      );
+      
+      if (!domainExists) {
+        setNewBackendError(`Domain "${newBackend.url}" not found in SpinForge`);
+        return;
+      }
+    } else {
+      // For external backends, validate full URL
+      try {
+        new URL(newBackend.url);
+      } catch {
+        setNewBackendError('Please enter a valid URL');
+        return;
+      }
+    }
+
+    if (backendConfigs.some(b => b.url === newBackend.url)) {
+      setNewBackendError('This backend is already added');
+      return;
+    }
+
+    // Validate health check path
+    if (!newBackend.healthCheck?.path.startsWith('/')) {
+      setNewBackendError('Health check path must start with /');
+      return;
+    }
+
+    setBackendConfigs([...backendConfigs, { ...newBackend }]);
+    setNewBackend({
+      url: '',
+      isLocal: false,
+      label: '',
+      healthCheck: {
+        path: '/health',
+        interval: 10,
+        timeout: 5,
+        unhealthyThreshold: 3,
+        healthyThreshold: 2,
+      }
+    });
+    setNewBackendError('');
+  };
+
+  const handleRemoveBackend = (index: number) => {
+    setBackendConfigs(backendConfigs.filter((_, i) => i !== index));
   };
 
   const getTypeIcon = (type: string) => {
@@ -534,6 +680,47 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                   setCustomerId(vhost.customerId || '');
                                   setEnabled(vhost.enabled !== false);
                                   setTarget(vhost.target || '');
+                                  
+                                  // Reset backend configs
+                                  if (vhost.backendConfigs) {
+                                    setBackendConfigs(vhost.backendConfigs);
+                                  } else if (vhost.backends) {
+                                    setBackendConfigs(vhost.backends.map((url: string) => ({
+                                      url,
+                                      healthCheck: {
+                                        path: '/health',
+                                        interval: 10,
+                                        timeout: 5,
+                                        unhealthyThreshold: 3,
+                                        healthyThreshold: 2,
+                                      }
+                                    })));
+                                  } else {
+                                    setBackendConfigs([]);
+                                  }
+                                  
+                                  setNewBackend({
+                                    url: '',
+                                    isLocal: false,
+                                    label: '',
+                                    healthCheck: {
+                                      path: '/health',
+                                      interval: 10,
+                                      timeout: 5,
+                                      unhealthyThreshold: 3,
+                                      healthyThreshold: 2,
+                                    }
+                                  });
+                                  setNewBackendError('');
+                                  setRoutingRules(vhost.routingRules || []);
+                                  setNewRule({
+                                    type: 'cookie',
+                                    name: '',
+                                    matchType: 'exact',
+                                    value: '',
+                                    targetLabel: '',
+                                    priority: 1,
+                                  });
                                 }}
                                 className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium"
                               >
@@ -699,6 +886,61 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                   {vhost.target || 'Not configured'}
                                 </code>
                               </div>
+                            </div>
+                          )}
+
+                          {vhost.type === 'loadbalancer' && (
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <h4 className="text-sm font-medium text-gray-900 mb-3">Load Balancer Configuration</h4>
+                              {(() => {
+                                const backends = vhost.backendConfigs || (vhost.backends?.map((url: string) => ({ url }))) || [];
+                                return backends.length > 0 ? (
+                                  <div className="space-y-3">
+                                    <p className="text-sm text-gray-600">
+                                      {backends.length} backend server{backends.length !== 1 ? 's' : ''} configured
+                                    </p>
+                                    <div className="space-y-2">
+                                      {backends.map((backend: any, index: number) => (
+                                        <div key={index} className="bg-white rounded border border-gray-200 p-3">
+                                          <div className="flex items-start justify-between mb-2">
+                                            <div className="flex items-center space-x-2">
+                                              <Server className="h-4 w-4 text-gray-400" />
+                                              <div className="flex items-center gap-2">
+                                                <code className="text-sm font-medium">{backend.url}</code>
+                                                {backend.isLocal && (
+                                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {backend.healthCheck && (
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                              <div>
+                                                <span className="text-gray-500">Health check:</span>
+                                                <code className="ml-1">{backend.healthCheck.path}</code>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-500">Interval:</span>
+                                                <span className="ml-1">{backend.healthCheck.interval}s</span>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-500">Timeout:</span>
+                                                <span className="ml-1">{backend.healthCheck.timeout}s</span>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-500">Unhealthy threshold:</span>
+                                                <span className="ml-1">{backend.healthCheck.unhealthyThreshold}</span>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-500">No backend servers configured</p>
+                                );
+                              })()}
                             </div>
                           )}
                         </section>
@@ -945,6 +1187,455 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                               ) : (
                                 <div className="p-3 bg-gray-50 rounded-lg">
                                   <code className="text-sm">{target || 'Not configured'}</code>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Load Balancer Backends (if applicable) */}
+                          {vhost.type === 'loadbalancer' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Backend Servers
+                              </label>
+                              {isEditing ? (
+                                <div className="space-y-3">
+                                  {/* Existing backends */}
+                                  {backendConfigs.map((backend, index) => (
+                                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                      <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <Server className="h-4 w-4 text-gray-500" />
+                                          <div className="flex items-center gap-2">
+                                            <code className="text-sm font-medium">{backend.url}</code>
+                                            {backend.isLocal && (
+                                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
+                                            )}
+                                            {backend.label && (
+                                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveBackend(index)}
+                                          className="text-red-600 hover:bg-red-50 rounded p-1"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                      {backend.healthCheck && (
+                                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                          <div>
+                                            <span className="text-gray-500">Health check:</span>
+                                            <code className="ml-1">{backend.healthCheck.path}</code>
+                                          </div>
+                                          <div>
+                                            <span className="text-gray-500">Interval:</span>
+                                            <span className="ml-1">{backend.healthCheck.interval}s</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-gray-500">Timeout:</span>
+                                            <span className="ml-1">{backend.healthCheck.timeout}s</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-gray-500">Unhealthy after:</span>
+                                            <span className="ml-1">{backend.healthCheck.unhealthyThreshold} failures</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {/* Add new backend form */}
+                                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 space-y-3">
+                                    <h5 className="text-xs font-medium text-gray-700">Add Backend Server</h5>
+                                    
+                                    <div className="flex items-center gap-3">
+                                      <input
+                                        type="checkbox"
+                                        id="isLocal"
+                                        checked={newBackend.isLocal}
+                                        onChange={(e) => {
+                                          setNewBackend({ ...newBackend, isLocal: e.target.checked, url: '' });
+                                          setNewBackendError('');
+                                        }}
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                      />
+                                      <label htmlFor="isLocal" className="text-sm font-medium text-gray-700">
+                                        This is a local SpinForge service
+                                      </label>
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        {newBackend.isLocal ? 'Domain Name' : 'Backend URL'}
+                                      </label>
+                                      <input
+                                        type={newBackend.isLocal ? "text" : "url"}
+                                        value={newBackend.url}
+                                        onChange={(e) => {
+                                          setNewBackend({ ...newBackend, url: e.target.value });
+                                          if (newBackendError) setNewBackendError('');
+                                        }}
+                                        className={`block w-full rounded-md border ${
+                                          newBackendError ? 'border-red-300' : 'border-gray-300'
+                                        } py-1.5 px-2 text-sm font-mono`}
+                                        placeholder={newBackend.isLocal ? "test-shop.localhost" : "http://backend.example.com:8080"}
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Backend Label (optional)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={newBackend.label || ''}
+                                        onChange={(e) => setNewBackend({
+                                          ...newBackend,
+                                          label: e.target.value
+                                        })}
+                                        className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        placeholder="e.g., variant-a, beta"
+                                      />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Health Path</label>
+                                        <input
+                                          type="text"
+                                          value={newBackend.healthCheck?.path || '/health'}
+                                          onChange={(e) => setNewBackend({
+                                            ...newBackend,
+                                            healthCheck: { ...newBackend.healthCheck!, path: e.target.value }
+                                          })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Interval (s)</label>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max="300"
+                                          value={newBackend.healthCheck?.interval || 10}
+                                          onChange={(e) => setNewBackend({
+                                            ...newBackend,
+                                            healthCheck: { ...newBackend.healthCheck!, interval: parseInt(e.target.value) || 10 }
+                                          })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Timeout (s)</label>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max="60"
+                                          value={newBackend.healthCheck?.timeout || 5}
+                                          onChange={(e) => setNewBackend({
+                                            ...newBackend,
+                                            healthCheck: { ...newBackend.healthCheck!, timeout: parseInt(e.target.value) || 5 }
+                                          })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Unhealthy After</label>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max="10"
+                                          value={newBackend.healthCheck?.unhealthyThreshold || 3}
+                                          onChange={(e) => setNewBackend({
+                                            ...newBackend,
+                                            healthCheck: { ...newBackend.healthCheck!, unhealthyThreshold: parseInt(e.target.value) || 3 }
+                                          })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={handleAddBackend}
+                                      className="w-full px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                                    >
+                                      Add Backend
+                                    </button>
+                                    
+                                    {newBackendError && (
+                                      <p className="text-xs text-red-600">{newBackendError}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {backendConfigs.length > 0 ? (
+                                    backendConfigs.map((backend, index) => (
+                                      <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center space-x-2">
+                                            <Server className="h-4 w-4 text-gray-400" />
+                                            <div className="flex items-center gap-2">
+                                              <code className="text-sm">{backend.url}</code>
+                                              {backend.isLocal && (
+                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
+                                              )}
+                                              {backend.label && (
+                                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <button
+                                            onClick={() => handleCopy(backend.url)}
+                                            className="text-gray-400 hover:text-gray-600"
+                                          >
+                                            <Copy className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                        {backend.healthCheck && (
+                                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                            <div>
+                                              <span className="text-gray-500">Health check:</span>
+                                              <code className="ml-1">{backend.healthCheck.path}</code>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-500">Interval:</span>
+                                              <span className="ml-1">{backend.healthCheck.interval}s</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-500">Timeout:</span>
+                                              <span className="ml-1">{backend.healthCheck.timeout}s</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-500">Unhealthy after:</span>
+                                              <span className="ml-1">{backend.healthCheck.unhealthyThreshold} failures</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-center py-6 bg-gray-50 rounded-lg">
+                                      <Server className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                      <p className="text-sm text-gray-500">No backend servers configured</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Routing Rules for A/B Testing (if load balancer) */}
+                          {vhost.type === 'loadbalancer' && backendConfigs.length > 0 && (
+                            <div className="mt-6">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                A/B Testing Routing Rules
+                              </label>
+                              {isEditing ? (
+                                <div className="space-y-3">
+                                  {/* Existing rules */}
+                                  {routingRules.map((rule, index) => (
+                                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 text-sm">
+                                            <span className="font-semibold uppercase text-xs">{rule.type}</span>
+                                            <code>{rule.name}</code>
+                                            <span className="text-gray-500">{rule.matchType}</span>
+                                            <code className="font-mono bg-white px-1 py-0.5 rounded text-xs">{rule.value}</code>
+                                            <span className="text-gray-500">→</span>
+                                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">{rule.targetLabel}</span>
+                                            {rule.priority && rule.priority > 1 && (
+                                              <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">Priority: {rule.priority}</span>
+                                            )}
+                                          </div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            {rule.type === 'cookie' && <span>When cookie <code>{rule.name}={rule.value}</code></span>}
+                                            {rule.type === 'query' && <span>When URL has <code>?{rule.name}={rule.value}</code></span>}
+                                            {rule.type === 'header' && <span>When header <code>{rule.name}: {rule.value}</code></span>}
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setRoutingRules(routingRules.filter((_, i) => i !== index))}
+                                          className="text-red-600 hover:bg-red-50 rounded p-1"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  
+                                  {/* Add new rule form */}
+                                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 space-y-3">
+                                    <h5 className="text-xs font-medium text-gray-700">Add Routing Rule</h5>
+                                    
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Rule Type</label>
+                                        <select
+                                          value={newRule.type}
+                                          onChange={(e) => setNewRule({ ...newRule, type: e.target.value as 'cookie' | 'query' | 'header' })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        >
+                                          <option value="cookie">Cookie</option>
+                                          <option value="query">Query Parameter</option>
+                                          <option value="header">Header</option>
+                                        </select>
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">
+                                          {newRule.type === 'cookie' ? 'Cookie Name' : 
+                                           newRule.type === 'query' ? 'Parameter Name' : 'Header Name'}
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={newRule.name}
+                                          onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                          placeholder={newRule.type === 'cookie' ? 'session_variant' : 
+                                                     newRule.type === 'query' ? 'variant' : 'X-Variant'}
+                                        />
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Match Type</label>
+                                        <select
+                                          value={newRule.matchType}
+                                          onChange={(e) => setNewRule({ ...newRule, matchType: e.target.value as 'exact' | 'regex' | 'prefix' })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        >
+                                          <option value="exact">Exact Match</option>
+                                          <option value="prefix">Prefix Match</option>
+                                          <option value="regex">Regular Expression</option>
+                                        </select>
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Match Value</label>
+                                        <input
+                                          type="text"
+                                          value={newRule.value}
+                                          onChange={(e) => setNewRule({ ...newRule, value: e.target.value })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs font-mono"
+                                          placeholder={newRule.matchType === 'regex' ? '^(beta|test).*' : 'beta'}
+                                        />
+                                        {newRule.matchType === 'regex' && (
+                                          <div className="mt-1 space-y-1">
+                                            <p className="text-xs text-gray-500">Examples:</p>
+                                            <div className="grid grid-cols-2 gap-1">
+                                              {[
+                                                { p: '^beta.*', d: 'Starts with' },
+                                                { p: '.*(a|b).*', d: 'Contains a or b' },
+                                                { p: '^v[0-9]+$', d: 'Version (v1, v2)' },
+                                                { p: '[0-9]{4}', d: '4 digits' },
+                                              ].map(({ p, d }) => (
+                                                <button
+                                                  key={p}
+                                                  type="button"
+                                                  onClick={() => setNewRule({ ...newRule, value: p })}
+                                                  className="text-xs bg-gray-100 hover:bg-gray-200 px-1 py-0.5 rounded text-left"
+                                                >
+                                                  <code>{p}</code>
+                                                  <span className="text-gray-500 ml-1">- {d}</span>
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Target Backend Label</label>
+                                        <select
+                                          value={newRule.targetLabel}
+                                          onChange={(e) => setNewRule({ ...newRule, targetLabel: e.target.value })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        >
+                                          <option value="">Select backend label</option>
+                                          {Array.from(new Set(backendConfigs.filter(b => b.label).map(b => b.label))).map(label => (
+                                            <option key={label} value={label}>{label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      
+                                      <div>
+                                        <label className="block text-xs text-gray-600 mb-0.5">Priority</label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          value={newRule.priority}
+                                          onChange={(e) => setNewRule({ ...newRule, priority: parseInt(e.target.value) || 1 })}
+                                          className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (newRule.name && newRule.value && newRule.targetLabel) {
+                                          setRoutingRules([...routingRules, { ...newRule }]);
+                                          setNewRule({
+                                            type: 'cookie',
+                                            name: '',
+                                            matchType: 'exact',
+                                            value: '',
+                                            targetLabel: '',
+                                            priority: 1,
+                                          });
+                                        }
+                                      }}
+                                      disabled={!newRule.name || !newRule.value || !newRule.targetLabel}
+                                      className="w-full px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                      Add Routing Rule
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {routingRules.length > 0 ? (
+                                    routingRules.map((rule, index) => (
+                                      <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                        <div className="flex items-center gap-2 text-sm">
+                                          <span className="font-semibold uppercase text-xs">{rule.type}</span>
+                                          <code>{rule.name}</code>
+                                          <span className="text-gray-500">{rule.matchType}</span>
+                                          <code>{rule.value}</code>
+                                          <span className="text-gray-500">→</span>
+                                          <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">{rule.targetLabel}</span>
+                                          {rule.priority && rule.priority > 1 && (
+                                            <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">Priority: {rule.priority}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-center py-6 bg-gray-50 rounded-lg">
+                                      <Info className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                      <p className="text-sm text-gray-500">No routing rules configured</p>
+                                      <p className="text-xs text-gray-400 mt-1">Add rules to enable A/B testing</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {!isEditing && (
+                                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                  <div className="flex items-start">
+                                    <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                                    <div className="ml-2">
+                                      <p className="text-xs text-blue-700">
+                                        Routing rules enable A/B testing by directing traffic based on cookies, query params, or headers.
+                                      </p>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>

@@ -94,7 +94,7 @@ function _M.log_request_data(request_data)
     
     -- Track unique visitors (simple IP-based)
     local visitors_key = "visitors:" .. domain .. ":" .. os.date("%Y%m%d")
-    red:sadd(visitors_key, ngx.var.remote_addr)
+    red:sadd(visitors_key, log_entry.remote_addr or "unknown")
     red:expire(visitors_key, 86400 * 7) -- Keep for 7 days
     
     -- Update unique visitor count

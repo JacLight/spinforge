@@ -31,6 +31,27 @@ export interface VHost {
     cookie: string;
     target: string;
   }>;
+  backends?: string[]; // Simple backend URLs (deprecated, use backendConfigs)
+  backendConfigs?: Array<{
+    url: string;
+    isLocal?: boolean;  // True if this is a local SpinForge service
+    label?: string;     // Label for routing rules (e.g., "variant-a", "beta", "v2")
+    healthCheck?: {
+      path: string;       // Health check endpoint path
+      interval: number;   // Check interval in seconds
+      timeout: number;    // Request timeout in seconds
+      unhealthyThreshold: number; // Number of failures before marking as unhealthy
+      healthyThreshold: number;   // Number of successes before marking as healthy
+    };
+  }>;
+  routingRules?: Array<{
+    type: 'cookie' | 'query' | 'header';  // Rule type
+    name: string;                         // Cookie/query param/header name
+    matchType: 'exact' | 'regex' | 'prefix'; // How to match the value
+    value: string;                        // Value to match
+    targetLabel: string;                  // Backend label to route to
+    priority?: number;                    // Rule priority (higher = evaluated first)
+  }>;
   upstreams?: Array<{
     url: string;
     weight?: number;
