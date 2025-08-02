@@ -13,11 +13,17 @@ import {
   Clock,
   MemoryStick,
   Cpu,
-  HardDrive
+  HardDrive,
+  Grid3X3,
+  Package,
+  Upload,
+  LayoutDashboard,
+  RefreshCw,
+  TrendingUp
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api, Route, Spinlet, IdleInfo } from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function ControlCenter() {
   const navigate = useNavigate();
@@ -93,34 +99,98 @@ export default function ControlCenter() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <h1 className="text-2xl font-bold text-gray-900">Control Center</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Monitor and manage all SpinForge services
-            </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Modern Header */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-lg">
+        <div className="px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                  <Grid3X3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Control Center
+                  </h1>
+                  <p className="text-sm text-gray-500">Monitor and manage all SpinForge services</p>
+                </div>
+              </div>
+              
+              {/* Enhanced Dashboard Navigation */}
+              <div className="hidden lg:flex items-center space-x-2">
+                {/* Primary Dashboard Tabs */}
+                <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm rounded-2xl p-1 border border-white/20 shadow-lg">
+                  <Link
+                    to="/"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden xl:inline">Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/applications"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span className="hidden xl:inline">Apps</span>
+                  </Link>
+                  <Link
+                    to="/deploy"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden xl:inline">Deploy</span>
+                  </Link>
+                  <Link
+                    to="/hosting"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden xl:inline">Hosting</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <button className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl">
+                <RefreshCw className="w-4 h-4" />
+                <span className="text-sm font-medium">Refresh</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* System Overview */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg shadow p-6"
-          >
+      {/* Full Width Content */}
+      <div className="px-6 lg:px-8 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-8"
+        >
+          {/* Page Header */}
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              System Control Center
+            </h2>
+            <p className="text-lg text-gray-600 mt-2">Real-time monitoring and management</p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+            >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -138,7 +208,7 @@ export default function ControlCenter() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg shadow p-6"
+            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -157,7 +227,7 @@ export default function ControlCenter() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-lg shadow p-6"
+            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -176,7 +246,7 @@ export default function ControlCenter() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white rounded-lg shadow p-6"
+            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -204,7 +274,7 @@ export default function ControlCenter() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
                 onClick={() => setSelectedService(service.id)}
               >
                 <div className="p-6">
@@ -273,7 +343,7 @@ export default function ControlCenter() {
         {allMetrics?.docker.containers && allMetrics.docker.containers.length > 0 && (
           <div className="mt-8">
             <h2 className="text-lg font-semibold mb-4">Docker Containers</h2>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -336,7 +406,7 @@ export default function ControlCenter() {
               <h2 className="text-lg font-semibold">Running Applications</h2>
               <span className="text-sm text-gray-500">{runningSpinlets.length} active</span>
             </div>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -443,6 +513,7 @@ export default function ControlCenter() {
             <span>Admin Console</span>
           </button>
         </div>
+        </motion.div>
       </div>
     </div>
   );

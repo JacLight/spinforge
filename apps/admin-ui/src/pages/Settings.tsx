@@ -21,8 +21,14 @@ import {
   Settings as SettingsIcon,
   RefreshCw,
   Hammer,
+  Grid3X3,
+  Package,
+  Upload,
+  LayoutDashboard,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 
 interface SettingSection {
   id: string;
@@ -248,8 +254,8 @@ export default function Settings() {
               >
                 Admin API Token
               </label>
-              <div className="flex rounded-lg shadow-sm">
-                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50">
+              <div className="flex rounded-xl shadow-sm">
+                <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50">
                   <Key className="h-4 w-4 text-gray-500" />
                 </span>
                 <input
@@ -257,7 +263,7 @@ export default function Settings() {
                   id="adminToken"
                   value={adminToken}
                   onChange={(e) => setAdminToken(e.target.value)}
-                  className="flex-1 block w-full min-w-0 rounded-none rounded-r-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className="flex-1 block w-full min-w-0 rounded-none rounded-r-xl border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 px-4 py-3"
                   placeholder="Enter your admin token"
                 />
               </div>
@@ -268,7 +274,7 @@ export default function Settings() {
             </div>
 
             {!adminToken && (
-              <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+              <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4">
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5" />
                   <div className="ml-3">
@@ -290,7 +296,7 @@ export default function Settings() {
               <h3 className="text-sm font-medium text-gray-900 mb-4">
                 API Key Management
               </h3>
-              <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50">
+              <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Generate New API Key
               </button>
@@ -314,7 +320,7 @@ export default function Settings() {
                     type="number"
                     value={buildTimeout}
                     onChange={(e) => setBuildTimeout(e.target.value)}
-                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full max-w-xs rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="5"
                     min="1"
                     max="60"
@@ -332,7 +338,7 @@ export default function Settings() {
                     type="number"
                     value={idleTimeout}
                     onChange={(e) => setIdleTimeout(e.target.value)}
-                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full max-w-xs rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="5"
                     min="1"
                     max="60"
@@ -350,7 +356,7 @@ export default function Settings() {
                     type="number"
                     value={maxConcurrentBuilds}
                     onChange={(e) => setMaxConcurrentBuilds(e.target.value)}
-                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full max-w-xs rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="3"
                     min="1"
                     max="10"
@@ -366,7 +372,7 @@ export default function Settings() {
                     id="enableBuildCache"
                     checked={enableBuildCache}
                     onChange={(e) => setEnableBuildCache(e.target.checked)}
-                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                   />
                   <label
                     htmlFor="enableBuildCache"
@@ -382,7 +388,7 @@ export default function Settings() {
               <h3 className="text-sm font-medium text-gray-900 mb-4">
                 Environment Variables
               </h3>
-              <div className="bg-gray-50 rounded-lg p-4">
+              <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-sm text-gray-700 mb-2">
                   Current timeout configuration:
                 </p>
@@ -395,7 +401,7 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex">
                 <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
                 <div className="ml-3">
@@ -430,7 +436,7 @@ export default function Settings() {
                     type="text"
                     value={defaultMemory}
                     onChange={(e) => setDefaultMemory(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="512MB"
                   />
                 </div>
@@ -442,7 +448,7 @@ export default function Settings() {
                     type="text"
                     value={defaultCpu}
                     onChange={(e) => setDefaultCpu(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="0.5"
                   />
                 </div>
@@ -462,7 +468,7 @@ export default function Settings() {
                     type="text"
                     value={maxMemory}
                     onChange={(e) => setMaxMemory(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="4GB"
                   />
                 </div>
@@ -474,14 +480,14 @@ export default function Settings() {
                     type="text"
                     value={maxCpu}
                     onChange={(e) => setMaxCpu(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="2"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex">
                 <Zap className="h-5 w-5 text-blue-400 mt-0.5" />
                 <div className="ml-3">
@@ -535,7 +541,7 @@ export default function Settings() {
                     type="number"
                     value={portRangeStart}
                     onChange={(e) => setPortRangeStart(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   />
                 </div>
                 <div>
@@ -546,7 +552,7 @@ export default function Settings() {
                     type="number"
                     value={portRangeEnd}
                     onChange={(e) => setPortRangeEnd(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   />
                 </div>
               </div>
@@ -565,7 +571,7 @@ export default function Settings() {
                 type="text"
                 value={defaultDomainSuffix}
                 onChange={(e) => setDefaultDomainSuffix(e.target.value)}
-                className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                 placeholder="example.com"
               />
               <p className="mt-2 text-sm text-gray-500">
@@ -606,7 +612,7 @@ export default function Settings() {
                   id="enableRateLimit"
                   checked={enableRateLimit}
                   onChange={(e) => setEnableRateLimit(e.target.checked)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                 />
                 <label
                   htmlFor="enableRateLimit"
@@ -624,7 +630,7 @@ export default function Settings() {
                     type="number"
                     value={rateLimit}
                     onChange={(e) => setRateLimit(e.target.value)}
-                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full max-w-xs rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   />
                 </div>
               )}
@@ -640,7 +646,7 @@ export default function Settings() {
                   id="enableSSL"
                   checked={enableSSL}
                   onChange={(e) => setEnableSSL(e.target.checked)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                 />
                 <label
                   htmlFor="enableSSL"
@@ -675,7 +681,7 @@ export default function Settings() {
                             );
                           }
                         }}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                       />
                       <label
                         htmlFor={framework}
@@ -704,7 +710,7 @@ export default function Settings() {
                   id="emailNotifications"
                   checked={emailNotifications}
                   onChange={(e) => setEmailNotifications(e.target.checked)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                 />
                 <label
                   htmlFor="emailNotifications"
@@ -722,7 +728,7 @@ export default function Settings() {
                     type="email"
                     value={notificationEmail}
                     onChange={(e) => setNotificationEmail(e.target.value)}
-                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                     placeholder="admin@example.com"
                   />
                 </div>
@@ -740,7 +746,7 @@ export default function Settings() {
                 type="text"
                 value={slackWebhook}
                 onChange={(e) => setSlackWebhook(e.target.value)}
-                className="block w-full rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="block w-full rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                 placeholder="https://hooks.slack.com/services/..."
               />
             </div>
@@ -761,7 +767,7 @@ export default function Settings() {
                       type="checkbox"
                       id={event}
                       defaultChecked
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                     />
                     <label
                       htmlFor={event}
@@ -789,7 +795,7 @@ export default function Settings() {
                   id="autoBackup"
                   checked={autoBackup}
                   onChange={(e) => setAutoBackup(e.target.checked)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                 />
                 <label
                   htmlFor="autoBackup"
@@ -806,7 +812,7 @@ export default function Settings() {
                   <select
                     value={backupInterval}
                     onChange={(e) => setBackupInterval(e.target.value)}
-                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full max-w-xs rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   >
                     <option value="hourly">Hourly</option>
                     <option value="daily">Daily</option>
@@ -826,7 +832,7 @@ export default function Settings() {
                   id="autoCleanup"
                   checked={autoCleanup}
                   onChange={(e) => setAutoCleanup(e.target.checked)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-md"
                 />
                 <label
                   htmlFor="autoCleanup"
@@ -844,7 +850,7 @@ export default function Settings() {
                     type="number"
                     value={cleanupAge}
                     onChange={(e) => setCleanupAge(e.target.value)}
-                    className="block w-full max-w-xs rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full max-w-xs rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   />
                 </div>
               )}
@@ -855,11 +861,11 @@ export default function Settings() {
                 Maintenance Actions
               </h3>
               <div className="space-y-2">
-                <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50">
+                <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200">
                   <Database className="h-4 w-4 mr-2" />
                   Backup Now
                 </button>
-                <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 ml-2">
+                <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 ml-2 transition-all duration-200">
                   <HardDrive className="h-4 w-4 mr-2" />
                   Clean Up Storage
                 </button>
@@ -875,9 +881,9 @@ export default function Settings() {
 
   if (isLoadingSettings) {
     return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="bg-white shadow-sm rounded-lg p-6">
-          <div className="flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-8">
+          <div className="flex items-center">
             <RefreshCw className="h-8 w-8 text-gray-400 animate-spin" />
             <span className="ml-3 text-gray-600">Loading settings...</span>
           </div>
@@ -887,114 +893,169 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex">
-          <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">
-              Server Configuration
-            </h3>
-            <p className="mt-1 text-sm text-blue-700">
-              These settings are stored on the server and will take effect immediately. Some changes may require 
-              restarting individual services or containers to fully apply.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Header */}
-      <div className="bg-white shadow-sm rounded-lg p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <SettingsIcon className="h-8 w-8 text-gray-700 mr-3" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                System Settings
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Configure SpinForge platform settings
-              </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Modern Header */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-lg">
+        <div className="px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                  <SettingsIcon className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    System Settings
+                  </h1>
+                  <p className="text-sm text-gray-500">Configure SpinForge platform settings</p>
+                </div>
+              </div>
+              
+              {/* Enhanced Dashboard Navigation */}
+              <div className="hidden lg:flex items-center space-x-2">
+                {/* Primary Dashboard Tabs */}
+                <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm rounded-2xl p-1 border border-white/20 shadow-lg">
+                  <Link
+                    to="/"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden xl:inline">Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/applications"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span className="hidden xl:inline">Apps</span>
+                  </Link>
+                  <Link
+                    to="/deploy"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden xl:inline">Deploy</span>
+                  </Link>
+                  <Link
+                    to="/hosting"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden xl:inline">Hosting</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleReset}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl text-sm font-medium text-gray-700 hover:bg-white/80 transition-all duration-200"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reset to Defaults</span>
+              </button>
+              <button
+                onClick={handleSave}
+                className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all duration-200 shadow-lg hover:shadow-xl ${
+                  saved
+                    ? "bg-gradient-to-r from-green-600 to-emerald-600"
+                    : "bg-gradient-to-r from-blue-600 to-purple-600"
+                }`}
+              >
+                {saved ? (
+                  <>
+                    <CheckCircle className="w-4 w-4" />
+                    <span>Saved</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 w-4" />
+                    <span>Save All Settings</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleReset}
-              className="inline-flex items-center px-4 py-2 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-all"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reset to Defaults
-            </button>
-            <button
-              onClick={handleSave}
-              className={`inline-flex items-center px-4 py-2 rounded-lg shadow-sm text-sm font-medium text-white transition-all ${
-                saved
-                  ? "bg-green-600 hover:bg-green-700"
-                  : "bg-indigo-600 hover:bg-indigo-700"
-              }`}
-            >
-              {saved ? (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Saved
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save All Settings
-                </>
-              )}
-            </button>
-          </div>
         </div>
       </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <div className="w-64 flex-shrink-0">
-          <nav className="space-y-1">
-            {settingSections.map((section) => {
-              const Icon = section.icon;
-              const isActive = activeSection === section.id;
+      {/* Full Width Content */}
+      <div className="px-6 lg:px-8 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-8"
+        >
+          {/* Info Banner */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">
+                  Server Configuration
+                </h3>
+                <p className="mt-1 text-sm text-blue-700">
+                  These settings are stored on the server and will take effect immediately. Some changes may require 
+                  restarting individual services or containers to fully apply.
+                </p>
+              </div>
+            </div>
+          </div>
 
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveSection(section.id)}
-                  className={`w-full flex items-start px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-indigo-50 border-indigo-500 text-indigo-700 border-l-4"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent border-l-4"
-                  }`}
-                >
-                  <Icon
-                    className={`flex-shrink-0 h-5 w-5 mr-3 ${
-                      isActive ? "text-indigo-600" : "text-gray-400"
-                    }`}
-                  />
-                  <div className="text-left">
-                    <div>{section.title}</div>
-                    <div
-                      className={`text-xs ${
-                        isActive ? "text-indigo-600" : "text-gray-500"
+          <div className="flex gap-6">
+            {/* Sidebar */}
+            <div className="w-72 flex-shrink-0">
+              <nav className="space-y-1 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-2">
+                {settingSections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeSection === section.id;
+
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => setActiveSection(section.id)}
+                      className={`w-full flex items-start px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                        isActive
+                          ? "bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 text-blue-700"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent border-l-4"
                       }`}
                     >
-                      {section.description}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+                      <Icon
+                        className={`flex-shrink-0 h-5 w-5 mr-3 ${
+                          isActive ? "text-blue-600" : "text-gray-400"
+                        }`}
+                      />
+                      <div className="text-left">
+                        <div>{section.title}</div>
+                        <div
+                          className={`text-xs ${
+                            isActive ? "text-blue-600" : "text-gray-500"
+                          }`}
+                        >
+                          {section.description}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
 
-        {/* Content */}
-        <div className="flex-1">
-          <div className="bg-white shadow-sm rounded-lg p-6">
-            {renderSectionContent()}
+            {/* Content */}
+            <div className="flex-1">
+              <motion.div 
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+              >
+                {renderSectionContent()}
+              </motion.div>
+            </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

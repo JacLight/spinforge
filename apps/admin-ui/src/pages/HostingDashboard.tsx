@@ -11,8 +11,19 @@ import {
   Plus,
   Edit,
   AlertCircle,
+  Grid3X3,
+  Package,
+  Upload,
+  LayoutDashboard,
+  X,
+  FolderOpen,
+  Network,
+  Container,
+  LoaderIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function HostingDashboard() {
   const [selectedSite, setSelectedSite] = useState<VHost | null>(null);
@@ -74,8 +85,8 @@ export default function HostingDashboard() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-8">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Failed to load hosting data</h2>
           <p className="text-gray-600 mb-4">
@@ -83,7 +94,7 @@ export default function HostingDashboard() {
           </p>
           <button
             onClick={() => refetch()}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
           >
             Retry
           </button>
@@ -93,89 +104,193 @@ export default function HostingDashboard() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Hosting Dashboard</h1>
-        <p className="text-gray-600">Manage your SpinForge hosted sites</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Modern Header */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-lg">
+        <div className="px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                  <Globe className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Hosting Dashboard
+                  </h1>
+                  <p className="text-sm text-gray-500">Manage your SpinForge hosted sites</p>
+                </div>
+              </div>
+              
+              {/* Enhanced Dashboard Navigation */}
+              <div className="hidden lg:flex items-center space-x-2">
+                {/* Primary Dashboard Tabs */}
+                <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm rounded-2xl p-1 border border-white/20 shadow-lg">
+                  <Link
+                    to="/"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden xl:inline">Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/applications"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span className="hidden xl:inline">Apps</span>
+                  </Link>
+                  <Link
+                    to="/deploy"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden xl:inline">Deploy</span>
+                  </Link>
+                  <Link
+                    to="/hosting"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-lg"></div>
+                    <Globe className="w-4 h-4 relative z-10" />
+                    <span className="hidden xl:inline relative z-10">Hosting</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-sm font-medium">Add Site</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Statistics */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Sites</p>
-                <p className="text-2xl font-bold">{stats.total_sites}</p>
-              </div>
-              <Globe className="h-8 w-8 text-gray-400" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Static Sites</p>
-                <p className="text-2xl font-bold">{stats.static_sites}</p>
-              </div>
-              <div className="h-8 w-8 rounded bg-blue-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Proxy Sites</p>
-                <p className="text-2xl font-bold">{stats.proxy_sites}</p>
-              </div>
-              <div className="h-8 w-8 rounded bg-green-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Container Sites</p>
-                <p className="text-2xl font-bold">{stats.container_sites}</p>
-              </div>
-              <div className="h-8 w-8 rounded bg-purple-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Load Balancers</p>
-                <p className="text-2xl font-bold">{stats.loadbalancer_sites}</p>
-              </div>
-              <div className="h-8 w-8 rounded bg-orange-500" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Actions Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+      {/* Full Width Content */}
+      <div className="px-6 lg:px-8 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-8"
         >
-          <Plus className="h-4 w-4" />
-          Add Site
-        </button>
-      </div>
 
-      {/* Sites List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-50">
+          {/* Statistics */}
+          {stats && (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+              <motion.div 
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Sites</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">{stats.total_sites}</p>
+                  </div>
+                  <div className="p-3 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl">
+                    <Globe className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Static Sites</p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.static_sites}</p>
+                  </div>
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <FolderOpen className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Proxy Sites</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.proxy_sites}</p>
+                  </div>
+                  <div className="p-3 bg-green-100 rounded-xl">
+                    <Network className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Container Sites</p>
+                    <p className="text-2xl font-bold text-purple-600">{stats.container_sites}</p>
+                  </div>
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <Container className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div 
+                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Load Balancers</p>
+                    <p className="text-2xl font-bold text-orange-600">{stats.loadbalancer_sites}</p>
+                  </div>
+                  <div className="p-3 bg-orange-100 rounded-xl">
+                    <Server className="h-6 w-6 text-orange-600" />
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Actions Bar */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-900">All Sites</h2>
+              <button
+                onClick={() => refetch()}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-white/60 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="text-sm font-medium">Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sites List */}
+          <motion.div 
+            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
+          >
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Domain
@@ -225,7 +340,7 @@ export default function HostingDashboard() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${getTypeColor(
+                      className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium text-white ${getTypeColor(
                         vhost.type
                       )}`}
                     >
@@ -269,29 +384,52 @@ export default function HostingDashboard() {
               ))
             )}
           </tbody>
-        </table>
+            </table>
+          </motion.div>
+        </motion.div>
       </div>
 
-      {/* Site Details Modal */}
-      {selectedSite && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-2xl font-bold">{selectedSite.domain || selectedSite.id}</h2>
-                <button
-                  onClick={() => setSelectedSite(null)}
-                  className="text-gray-500 hover:text-gray-700"
+      {/* Site Details Modal - Custom Tailwind Implementation */}
+      <AnimatePresence>
+        {selectedSite && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 z-[60]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedSite(null)}
+            />
+            <motion.div
+              className="fixed inset-0 z-[61] overflow-y-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="flex min-h-full items-center justify-center p-4">
+                <motion.div
+                  className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-auto"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  ×
-                </button>
-              </div>
+                  <div className="p-8">
+                    <div className="flex justify-between items-start mb-6">
+                      <h2 className="text-2xl font-bold text-gray-900">{selectedSite.domain || selectedSite.id}</h2>
+                      <button
+                        onClick={() => setSelectedSite(null)}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <X className="h-5 w-5 text-gray-500" />
+                      </button>
+                    </div>
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Type</label>
                   <p className="mt-1">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${getTypeColor(
+                      className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium text-white ${getTypeColor(
                         selectedSite.type
                       )}`}
                     >
@@ -327,29 +465,31 @@ export default function HostingDashboard() {
                     </p>
                   </div>
                 )}
-                <div className="flex justify-end gap-2 mt-6">
-                  <a
-                    href={getSiteUrl(selectedSite.domain || '')}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Visit Site
-                  </a>
-                  <button
-                    onClick={() => handleDelete(selectedSite.id)}
-                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 flex items-center gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
-                </div>
+                    <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+                      <a
+                        href={getSiteUrl(selectedSite.domain || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Visit Site
+                      </a>
+                      <button
+                        onClick={() => handleDelete(selectedSite.id)}
+                        className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

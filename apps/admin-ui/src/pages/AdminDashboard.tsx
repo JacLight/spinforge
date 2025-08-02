@@ -24,7 +24,13 @@ import {
   Globe,
   FolderOpen,
   ExternalLink,
+  Grid3X3,
+  RefreshCw,
+  ArrowRight,
+  Upload,
+  LayoutDashboard,
 } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface SystemMetric {
   label: string;
@@ -138,185 +144,242 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-lg shadow-lg p-8 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center mb-2">
-              <Shield className="h-8 w-8 mr-3" />
-              <h1 className="text-3xl font-bold">
-                SpinForge Hosting Dashboard
-              </h1>
-            </div>
-            <p className="text-gray-300">
-              Manage your static sites and proxy configurations
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-400">Platform</p>
-            <p className="text-2xl font-semibold">OpenResty + KeyDB</p>
-          </div>
-        </div>
-      </div>
-
-      {/* System Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {systemMetrics.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <div
-              key={metric.label}
-              className="bg-white rounded-lg shadow-sm p-6 border border-gray-200"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${getStatusBg(metric.status)}`}>
-                  <Icon
-                    className={`h-6 w-6 ${getStatusColor(metric.status)}`}
-                  />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Modern Header */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-lg">
+        <div className="px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                  <Grid3X3 className="w-6 h-6 text-white" />
                 </div>
-                <span
-                  className={`text-2xl font-bold ${getStatusColor(
-                    metric.status
-                  )}`}
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Analytics Command Center
+                  </h1>
+                  <p className="text-sm text-gray-500">Real-time business intelligence</p>
+                </div>
+              </div>
+              
+              {/* Enhanced Dashboard Navigation */}
+              <div className="hidden lg:flex items-center space-x-2">
+                {/* Primary Dashboard Tabs */}
+                <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm rounded-2xl p-1 border border-white/20 shadow-lg">
+                  <Link
+                    to="/"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden xl:inline">Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/applications"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span className="hidden xl:inline">Apps</span>
+                  </Link>
+                  <Link
+                    to="/deploy"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden xl:inline">Deploy</span>
+                  </Link>
+                  <Link
+                    to="/hosting"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-lg"></div>
+                    <Globe className="w-4 h-4 relative z-10" />
+                    <span className="hidden xl:inline relative z-10">Hosting</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <button className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl">
+                <RefreshCw className="w-4 h-4" />
+                <span className="text-sm font-medium">Refresh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Full Width Content */}
+      <div className="px-6 lg:px-8 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-8"
+        >
+
+          {/* System Status Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {systemMetrics.map((metric, index) => {
+              const Icon = metric.icon;
+              return (
+                <motion.div
+                  key={metric.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
                 >
-                  {metric.value}
-                </span>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600">
-                {metric.label}
-              </h3>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-lg mr-4">
-              <Package className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Domains</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats?.total_sites || 0}
-              </p>
-            </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">{metric.label}</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-1">
+                        {metric.value}
+                      </p>
+                      <div className="flex items-center mt-2">
+                        <div className={`w-2 h-2 rounded-full mr-2 ${
+                          metric.status === 'good' ? 'bg-green-500' : 
+                          metric.status === 'warning' ? 'bg-orange-500' : 'bg-red-500'
+                        }`}></div>
+                        <span className={`text-sm font-medium ${getStatusColor(metric.status)}`}>
+                          {metric.status === 'good' ? 'Healthy' : 
+                           metric.status === 'warning' ? 'Warning' : 'Critical'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`p-3 rounded-xl ${getStatusBg(metric.status)}`}>
+                      <Icon className={`w-6 h-6 ${getStatusColor(metric.status)}`} />
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-lg mr-4">
-              <Activity className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Enabled Sites</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats?.enabled_sites || 0}
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-3 bg-purple-100 rounded-lg mr-4">
-              <Users className="h-6 w-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Customers</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {uniqueCustomers}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-3 bg-orange-100 rounded-lg mr-4">
-              <Server className="h-6 w-6 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Load Balancers</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats?.loadbalancer_sites || 0}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Traffic Metrics */}
-      {globalMetrics && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Traffic Overview (Last 24 Hours)
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-700">
-                  Total Requests
-                </span>
-                <BarChart3 className="h-4 w-4 text-blue-500" />
+          {/* Traffic Metrics */}
+          {globalMetrics && (
+            <motion.div 
+              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Traffic Overview
+                  </h2>
+                  <p className="text-gray-600 mt-1">Last 24 hours performance metrics</p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-blue-900">
-                {formatNumber(globalMetrics.totalRequests)}
-              </p>
-            </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <motion.div 
+                  className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-blue-700">
+                      Total Requests
+                    </span>
+                    <BarChart3 className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <p className="text-3xl font-bold text-blue-900">
+                    {formatNumber(globalMetrics.totalRequests)}
+                  </p>
+                  <div className="flex items-center mt-2">
+                    <TrendingUp className="w-4 h-4 text-blue-500 mr-1" />
+                    <span className="text-sm text-blue-600">Active</span>
+                  </div>
+                </motion.div>
 
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-green-700">
-                  Total Bandwidth
-                </span>
-                <TrendingUp className="h-4 w-4 text-green-500" />
+                <motion.div 
+                  className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.7 }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-green-700">
+                      Total Bandwidth
+                    </span>
+                    <TrendingUp className="h-5 w-5 text-green-500" />
+                  </div>
+                  <p className="text-3xl font-bold text-green-900">
+                    {formatBytes(globalMetrics.totalBandwidth)}
+                  </p>
+                  <div className="flex items-center mt-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-green-600">Flowing</span>
+                  </div>
+                </motion.div>
+
+                <motion.div 
+                  className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.8 }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-purple-700">
+                      Avg Response
+                    </span>
+                    <Zap className="h-5 w-5 text-purple-500" />
+                  </div>
+                  <p className="text-3xl font-bold text-purple-900">
+                    {globalMetrics.avgResponseTime.toFixed(0)}ms
+                  </p>
+                  <div className="flex items-center mt-2">
+                    <Zap className="w-4 h-4 text-purple-500 mr-1" />
+                    <span className="text-sm text-purple-600">Fast</span>
+                  </div>
+                </motion.div>
+
+                <motion.div 
+                  className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.9 }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-orange-700">
+                      Error Rate
+                    </span>
+                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                  </div>
+                  <p className="text-3xl font-bold text-orange-900">
+                    {globalMetrics.totalRequests > 0
+                      ? (
+                          (((globalMetrics.requestsByStatus["4xx"] || 0) +
+                            (globalMetrics.requestsByStatus["5xx"] || 0)) /
+                            globalMetrics.totalRequests) *
+                          100
+                        ).toFixed(2)
+                      : "0.00"}
+                    %
+                  </p>
+                  <div className="flex items-center mt-2">
+                    <div className={`w-2 h-2 rounded-full mr-2 ${
+                      parseFloat(globalMetrics.totalRequests > 0
+                        ? (
+                            (((globalMetrics.requestsByStatus["4xx"] || 0) +
+                              (globalMetrics.requestsByStatus["5xx"] || 0)) /
+                              globalMetrics.totalRequests) *
+                            100
+                          ).toFixed(2)
+                        : "0.00") < 1 ? 'bg-green-500' : 'bg-orange-500'
+                    }`}></div>
+                    <span className="text-sm text-orange-600">Monitored</span>
+                  </div>
+                </motion.div>
               </div>
-              <p className="text-2xl font-bold text-green-900">
-                {formatBytes(globalMetrics.totalBandwidth)}
-              </p>
-            </div>
+            </motion.div>
+          )}
 
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-purple-700">
-                  Avg Response Time
-                </span>
-                <Zap className="h-4 w-4 text-purple-500" />
-              </div>
-              <p className="text-2xl font-bold text-purple-900">
-                {globalMetrics.avgResponseTime.toFixed(0)}ms
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-orange-700">
-                  Error Rate
-                </span>
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              </div>
-              <p className="text-2xl font-bold text-orange-900">
-                {globalMetrics.totalRequests > 0
-                  ? (
-                      (((globalMetrics.requestsByStatus["4xx"] || 0) +
-                        (globalMetrics.requestsByStatus["5xx"] || 0)) /
-                        globalMetrics.totalRequests) *
-                      100
-                    ).toFixed(2)
-                  : "0.00"}
-                %
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex space-x-6">
+          <div className="flex space-x-6">
         {/* Top Routes */}
         {globalMetrics && globalMetrics.topRoutes.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-full">
@@ -453,10 +516,10 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
-      </div>
+          </div>
 
-      {/* Admin Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Admin Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link
           to="/hosting"
           className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow"
@@ -593,7 +656,6 @@ export default function AdminDashboard() {
                     globalMetrics.totalRequests > 0
                       ? ((count / globalMetrics.totalRequests) * 100).toFixed(1)
                       : "0.0";
-                  const isError = parseInt(status) >= 400;
 
                   return (
                     <div
@@ -625,6 +687,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+          </div>
+        </motion.div>
       </div>
     </div>
   );

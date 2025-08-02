@@ -34,7 +34,8 @@
       "Bash(/Users/imzee/projects/spinforge/update-static-paths.sh:*)",
       "Bash(npm run build:*)",
       "Bash(find:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

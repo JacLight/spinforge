@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { hostingAPI, VHost } from "../services/hosting-api";
 import { toast } from "sonner";
-import { Rocket } from "lucide-react";
+import { 
+  Rocket, 
+  Grid3X3, 
+  Package, 
+  Upload, 
+  LayoutDashboard, 
+  Globe,
+  ArrowLeft 
+} from "lucide-react";
+import { motion } from "framer-motion";
 
 // Import deploy components
 import HostingTypeSelector from "../components/deploy/HostingTypeSelector";
@@ -127,23 +136,88 @@ export default function Deploy() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <Rocket className="h-8 w-8 text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Deploy New Application</h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Modern Header */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-lg">
+        <div className="px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                  <Grid3X3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    Deploy New Application
+                  </h1>
+                  <p className="text-sm text-gray-500">Deploy and configure your applications</p>
+                </div>
+              </div>
+              
+              {/* Enhanced Dashboard Navigation */}
+              <div className="hidden lg:flex items-center space-x-2">
+                {/* Primary Dashboard Tabs */}
+                <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm rounded-2xl p-1 border border-white/20 shadow-lg">
+                  <Link
+                    to="/"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden xl:inline">Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/applications"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span className="hidden xl:inline">Apps</span>
+                  </Link>
+                  <Link
+                    to="/deploy"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-lg"></div>
+                    <Upload className="w-4 h-4 relative z-10" />
+                    <span className="hidden xl:inline relative z-10">Deploy</span>
+                  </Link>
+                  <Link
+                    to="/hosting"
+                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden xl:inline">Hosting</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <Link
+                to="/applications"
+                className="flex items-center space-x-2 px-4 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl text-sm font-medium text-gray-700 hover:bg-white/80 transition-all duration-200"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Apps</span>
+              </Link>
+            </div>
+          </div>
         </div>
-        <p className="text-gray-600">
-          Choose a hosting type and configure your application deployment
-        </p>
       </div>
 
-      {/* Configuration Form */}
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-8">
+      {/* Full Width Content */}
+      <div className="px-6 lg:px-8 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className=""
+        >
+
+          {/* Configuration Form */}
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-8">
           {/* Hosting Type Selection */}
-          <div className="bg-white shadow-sm ring-1 ring-gray-900/5 rounded-xl p-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
             <HostingTypeSelector
               selectedType={selectedType}
               onSelectType={setSelectedType}
@@ -152,7 +226,7 @@ export default function Deploy() {
 
           {/* Domain Configuration */}
           {selectedType && (
-            <div className="bg-white shadow-sm ring-1 ring-gray-900/5 rounded-xl">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg">
               <div className="px-6 py-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Domain Configuration</h2>
                 <DomainAliasesConfig
@@ -167,7 +241,7 @@ export default function Deploy() {
 
           {/* Type-specific Configuration */}
           {selectedType && (
-            <div className="bg-white shadow-sm ring-1 ring-gray-900/5 rounded-xl">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg">
               <div className="px-6 py-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">
                   {selectedType === 'static' && 'Static Site Configuration'}
@@ -225,8 +299,10 @@ export default function Deploy() {
               <DeployActions isSubmitting={deployMutation.isPending} />
             </div>
           )}
-        </div>
-      </form>
+            </div>
+          </form>
+        </motion.div>
+      </div>
     </div>
   );
 }
