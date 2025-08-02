@@ -62,6 +62,7 @@ export default function Deploy() {
     url: string;
     isLocal?: boolean;
     label?: string;
+    enabled?: boolean;
     healthCheck: {
       path: string;
       interval: number;
@@ -108,6 +109,7 @@ export default function Deploy() {
       targetLabel: '',
       priority: 1,
     },
+    stickySessionDuration: 3600, // 1 hour default
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -189,6 +191,7 @@ export default function Deploy() {
       if (formData.routingRules.length > 0) {
         data.routingRules = formData.routingRules;
       }
+      data.stickySessionDuration = formData.stickySessionDuration;
     }
 
     deployMutation.mutate(data);
@@ -279,6 +282,7 @@ export default function Deploy() {
         url: "",
         isLocal: false,
         label: "",
+        enabled: true,
         healthCheck: {
           path: "/health",
           interval: 10,
@@ -508,27 +512,47 @@ export default function Deploy() {
                     {/* Existing backends */}
                     <div className="space-y-3 mb-4">
                       {formData.backendConfigs.map((backend, index) => (
-                        <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div key={index} className={`rounded-lg p-4 border ${backend.enabled === false ? 'bg-gray-100 border-gray-300 opacity-60' : 'bg-gray-50 border-gray-200'}`}>
                           <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <Server className="h-4 w-4 text-gray-500" />
-                              <div className="flex items-center gap-2">
-                                <code className="text-sm font-medium">{backend.url}</code>
+                            <div className="flex items-center gap-2 flex-1">
+                              <Server className={`h-4 w-4 ${backend.enabled === false ? 'text-gray-400' : 'text-gray-500'}`} />
+                              <div className="flex items-center gap-2 flex-1">
+                                <code className={`text-sm font-medium ${backend.enabled === false ? 'text-gray-500' : ''}`}>{backend.url}</code>
                                 {backend.isLocal && (
                                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
                                 )}
                                 {backend.label && (
                                   <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
                                 )}
+                                {backend.enabled === false && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Disabled</span>
+                                )}
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveBackend(index)}
-                              className="text-red-600 hover:bg-red-50 rounded p-1"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updatedBackends = [...formData.backendConfigs];
+                                  updatedBackends[index] = { ...backend, enabled: backend.enabled === false };
+                                  setFormData({ ...formData, backendConfigs: updatedBackends });
+                                }}
+                                className={`px-3 py-1 text-xs rounded ${
+                                  backend.enabled === false 
+                                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                                    : 'bg-gray-600 text-white hover:bg-gray-700'
+                                }`}
+                              >
+                                {backend.enabled === false ? 'Enable' : 'Disable'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBackend(index)}
+                                className="text-red-600 hover:bg-red-50 rounded p-1"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 gap-3 text-xs">
                             <div>
@@ -614,7 +638,7 @@ export default function Deploy() {
                             className="block w-full rounded-md border border-gray-300 py-1.5 px-2 text-sm"
                             placeholder="e.g., variant-a, beta, v2"
                           />
-                          <p className="text-xs text-gray-500 mt-1">Optional: Used for A/B testing routing rules</p>
+                          <p className="text-xs text-gray-500 mt-1">Optional: Use for direct routing (?label=xyz) or routing rules</p>
                         </div>
                       </div>
 
@@ -720,6 +744,60 @@ export default function Deploy() {
                     <p className="mt-3 text-xs text-gray-500">
                       Each backend server will be monitored with its own health check configuration. 
                       Unhealthy backends are automatically removed from the load balancer rotation.
+                    </p>
+                  </div>
+
+                  {/* Sticky Session Settings */}
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sticky Session Duration
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="0"
+                        max="86400"
+                        value={formData.stickySessionDuration}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          stickySessionDuration: parseInt(e.target.value) || 3600
+                        })}
+                        className="w-32 rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                      />
+                      <span className="text-sm text-gray-600">seconds</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, stickySessionDuration: 300 })}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                        >
+                          5 min
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, stickySessionDuration: 1800 })}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                        >
+                          30 min
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, stickySessionDuration: 3600 })}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                        >
+                          1 hour
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, stickySessionDuration: 86400 })}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                        >
+                          24 hours
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      How long users stay on the same backend server. Set to 0 to disable sticky sessions.
                     </p>
                   </div>
 
@@ -957,12 +1035,18 @@ export default function Deploy() {
                               </div>
                               
                               <div className="mt-3 pt-3 border-t border-yellow-300">
+                                <p className="text-xs font-medium text-yellow-800 mb-1">Direct Label Routing:</p>
+                                <code className="block text-xs bg-yellow-100 p-1 rounded mb-1">
+                                  curl "{formData.domain || 'your-domain.com'}?label=beta"
+                                </code>
+                                <p className="text-xs text-yellow-700 ml-2 mb-2">→ Routes directly to backend with label "beta"</p>
+                                
                                 <p className="text-xs font-medium text-yellow-800 mb-1">Diagnostic Endpoints:</p>
                                 <div className="space-y-1">
                                   <code className="block text-xs bg-yellow-100 p-1 rounded">
                                     curl {formData.domain || 'your-domain.com'}/_spinforge/diagnostic
                                   </code>
-                                  <p className="text-xs text-yellow-700 ml-2">→ Shows backend configuration and routing rules</p>
+                                  <p className="text-xs text-yellow-700 ml-2">→ Shows backends with labels and routing rules</p>
                                   <code className="block text-xs bg-yellow-100 p-1 rounded">
                                     curl {formData.domain || 'your-domain.com'}/_spinforge/test-routing
                                   </code>

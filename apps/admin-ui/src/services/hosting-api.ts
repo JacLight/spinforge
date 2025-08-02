@@ -36,6 +36,7 @@ export interface VHost {
     url: string;
     isLocal?: boolean;  // True if this is a local SpinForge service
     label?: string;     // Label for routing rules (e.g., "variant-a", "beta", "v2")
+    enabled?: boolean;  // Whether this backend is active (default: true)
     healthCheck?: {
       path: string;       // Health check endpoint path
       interval: number;   // Check interval in seconds
@@ -52,6 +53,7 @@ export interface VHost {
     targetLabel: string;                  // Backend label to route to
     priority?: number;                    // Rule priority (higher = evaluated first)
   }>;
+  stickySessionDuration?: number;         // Duration in seconds (default: 3600 = 1 hour)
   upstreams?: Array<{
     url: string;
     weight?: number;

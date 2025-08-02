@@ -232,6 +232,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
     url: string;
     isLocal?: boolean;
     label?: string;
+    enabled?: boolean;
     healthCheck?: {
       path: string;
       interval: number;
@@ -249,6 +250,8 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
   const [enabled, setEnabled] = useState(true);
   const [target, setTarget] = useState('');
   const [backendConfigs, setBackendConfigs] = useState<BackendConfig[]>([]);
+  const [editingBackendIndex, setEditingBackendIndex] = useState<number | null>(null);
+  const [confirmDeleteBackend, setConfirmDeleteBackend] = useState<number | null>(null);
   
   interface RoutingRule {
     type: 'cookie' | 'query' | 'header';
@@ -268,6 +271,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
     targetLabel: '',
     priority: 1,
   });
+  const [stickySessionDuration, setStickySessionDuration] = useState<number>(3600);
   
   const [newBackend, setNewBackend] = useState<BackendConfig>({
     url: '',
@@ -301,7 +305,17 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
       
       // Convert old format to new format
       if (vhost.backendConfigs) {
-        setBackendConfigs(vhost.backendConfigs);
+        // Ensure all backends have healthCheck initialized
+        setBackendConfigs(vhost.backendConfigs.map((backend: BackendConfig) => ({
+          ...backend,
+          healthCheck: backend.healthCheck || {
+            path: '/health',
+            interval: 10,
+            timeout: 5,
+            unhealthyThreshold: 3,
+            healthyThreshold: 2,
+          }
+        })));
       } else if (vhost.backends) {
         setBackendConfigs(vhost.backends.map((url: string) => ({
           url,
@@ -319,6 +333,9 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
       
       // Set routing rules
       setRoutingRules(vhost.routingRules || []);
+      
+      // Set sticky session duration
+      setStickySessionDuration(vhost.stickySessionDuration || 3600);
       
       // Clear errors
       setDomainError('');
@@ -435,9 +452,8 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
 
     if (vhost.type === 'loadbalancer') {
       updateData.backendConfigs = backendConfigs;
-      if (routingRules.length > 0) {
-        updateData.routingRules = routingRules;
-      }
+      updateData.routingRules = routingRules; // Always send routing rules, even if empty
+      updateData.stickySessionDuration = stickySessionDuration;
     }
 
     updateMutation.mutate(updateData);
@@ -683,7 +699,16 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                   
                                   // Reset backend configs
                                   if (vhost.backendConfigs) {
-                                    setBackendConfigs(vhost.backendConfigs);
+                                    setBackendConfigs(vhost.backendConfigs.map((backend: BackendConfig) => ({
+                                      ...backend,
+                                      healthCheck: backend.healthCheck || {
+                                        path: '/health',
+                                        interval: 10,
+                                        timeout: 5,
+                                        unhealthyThreshold: 3,
+                                        healthyThreshold: 2,
+                                      }
+                                    })));
                                   } else if (vhost.backends) {
                                     setBackendConfigs(vhost.backends.map((url: string) => ({
                                       url,
@@ -721,6 +746,10 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                     targetLabel: '',
                                     priority: 1,
                                   });
+                                  setStickySessionDuration(vhost.stickySessionDuration || 3600);
+                                  // Reset backend editing states
+                                  setEditingBackendIndex(null);
+                                  setConfirmDeleteBackend(null);
                                 }}
                                 className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium"
                               >
@@ -906,9 +935,17 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                             <div className="flex items-center space-x-2">
                                               <Server className="h-4 w-4 text-gray-400" />
                                               <div className="flex items-center gap-2">
-                                                <code className="text-sm font-medium">{backend.url}</code>
+                                                <code className={`text-sm font-medium ${backend.enabled === false ? 'text-gray-400 line-through' : ''}`}>
+                                                  {backend.url}
+                                                </code>
                                                 {backend.isLocal && (
                                                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
+                                                )}
+                                                {backend.label && (
+                                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
+                                                )}
+                                                {backend.enabled === false && (
+                                                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Disabled</span>
                                                 )}
                                               </div>
                                             </div>
@@ -1202,47 +1239,309 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                 <div className="space-y-3">
                                   {/* Existing backends */}
                                   {backendConfigs.map((backend, index) => (
-                                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                                      <div className="flex items-start justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <Server className="h-4 w-4 text-gray-500" />
+                                    <div key={index} className={`bg-gray-50 rounded-lg p-3 border ${backend.enabled === false ? 'border-gray-300 opacity-75' : 'border-gray-200'}`}>
+                                      {confirmDeleteBackend === index ? (
+                                        // Delete confirmation
+                                        <div className="space-y-3">
+                                          <p className="text-sm text-red-600 font-medium">Are you sure you want to delete this backend?</p>
                                           <div className="flex items-center gap-2">
-                                            <code className="text-sm font-medium">{backend.url}</code>
-                                            {backend.isLocal && (
-                                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
-                                            )}
-                                            {backend.label && (
-                                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
-                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                handleRemoveBackend(index);
+                                                setConfirmDeleteBackend(null);
+                                              }}
+                                              className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                            >
+                                              Yes, Delete
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmDeleteBackend(null)}
+                                              className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700"
+                                            >
+                                              Cancel
+                                            </button>
                                           </div>
                                         </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRemoveBackend(index)}
-                                          className="text-red-600 hover:bg-red-50 rounded p-1"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
-                                      </div>
-                                      {backend.healthCheck && (
-                                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                                          <div>
-                                            <span className="text-gray-500">Health check:</span>
-                                            <code className="ml-1">{backend.healthCheck.path}</code>
+                                      ) : editingBackendIndex === index ? (
+                                        // Edit mode for this backend
+                                        <>
+                                          <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                              <Server className="h-4 w-4 text-gray-500" />
+                                              Backend #{index + 1} - Editing
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingBackendIndex(null);
+                                                  // Clear any errors for this backend
+                                                  const newErrors = { ...backendErrors };
+                                                  delete newErrors[index];
+                                                  setBackendErrors(newErrors);
+                                                }}
+                                                className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                              >
+                                                Done
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  // Reset to original values (from vhost)
+                                                  if (vhost.backendConfigs) {
+                                                    setBackendConfigs(vhost.backendConfigs);
+                                                  }
+                                                  setEditingBackendIndex(null);
+                                                  const newErrors = { ...backendErrors };
+                                                  delete newErrors[index];
+                                                  setBackendErrors(newErrors);
+                                                }}
+                                                className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <span className="text-gray-500">Interval:</span>
-                                            <span className="ml-1">{backend.healthCheck.interval}s</span>
+                                          
+                                          <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                              <input
+                                                type="checkbox"
+                                                id={`isLocal-${index}`}
+                                                checked={backend.isLocal || false}
+                                                onChange={(e) => {
+                                                  const updatedBackends = [...backendConfigs];
+                                                  updatedBackends[index] = { ...backend, isLocal: e.target.checked, url: '' };
+                                                  setBackendConfigs(updatedBackends);
+                                                  const newErrors = { ...backendErrors };
+                                                  delete newErrors[index];
+                                                  setBackendErrors(newErrors);
+                                                }}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                              />
+                                              <label htmlFor={`isLocal-${index}`} className="text-xs font-medium text-gray-700">
+                                                This is a local SpinForge service
+                                              </label>
+                                            </div>
+                                            
+                                            <div>
+                                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                                {backend.isLocal ? 'Domain Name' : 'Backend URL'}
+                                              </label>
+                                              <input
+                                                type={backend.isLocal ? "text" : "url"}
+                                                value={backend.url}
+                                                onChange={(e) => {
+                                                  const updatedBackends = [...backendConfigs];
+                                                  updatedBackends[index] = { ...backend, url: e.target.value };
+                                                  setBackendConfigs(updatedBackends);
+                                                  if (backendErrors[index]) {
+                                                    const newErrors = { ...backendErrors };
+                                                    delete newErrors[index];
+                                                    setBackendErrors(newErrors);
+                                                  }
+                                                }}
+                                                onBlur={() => {
+                                                  if (backend.isLocal) {
+                                                    if (!backend.url.match(/^[a-zA-Z0-9][a-zA-Z0-9-_.]*$/)) {
+                                                      setBackendErrors({ ...backendErrors, [index]: 'Please enter a valid domain name' });
+                                                      return;
+                                                    }
+                                                    const domainExists = allVhosts.some(v => 
+                                                      v.domain === backend.url || 
+                                                      v.aliases?.includes(backend.url)
+                                                    );
+                                                    if (!domainExists) {
+                                                      setBackendErrors({ ...backendErrors, [index]: `Domain "${backend.url}" not found in SpinForge` });
+                                                    }
+                                                  } else {
+                                                    try {
+                                                      new URL(backend.url);
+                                                    } catch {
+                                                      setBackendErrors({ ...backendErrors, [index]: 'Please enter a valid URL' });
+                                                    }
+                                                  }
+                                                }}
+                                                className={`block w-full rounded-md border ${
+                                                  backendErrors[index] ? 'border-red-300' : 'border-gray-300'
+                                                } py-1.5 px-2 text-sm font-mono`}
+                                                placeholder={backend.isLocal ? "test-shop.localhost" : "http://backend.example.com:8080"}
+                                              />
+                                              {backendErrors[index] && (
+                                                <p className="text-xs text-red-600 mt-1">{backendErrors[index]}</p>
+                                              )}
+                                            </div>
+                                            
+                                            <div>
+                                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                                Backend Label (optional)
+                                              </label>
+                                              <input
+                                                type="text"
+                                                value={backend.label || ''}
+                                                onChange={(e) => {
+                                                  const updatedBackends = [...backendConfigs];
+                                                  updatedBackends[index] = { ...backend, label: e.target.value };
+                                                  setBackendConfigs(updatedBackends);
+                                                }}
+                                                className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                                placeholder="e.g., variant-a, beta"
+                                              />
+                                            </div>
+
+                                            <div className="border-t pt-3">
+                                              <h6 className="text-xs font-medium text-gray-700 mb-2">Health Check Configuration</h6>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                  <label className="block text-xs text-gray-600 mb-0.5">Health Path</label>
+                                                  <input
+                                                    type="text"
+                                                    value={backend.healthCheck?.path || '/health'}
+                                                    onChange={(e) => {
+                                                      const updatedBackends = [...backendConfigs];
+                                                      updatedBackends[index] = {
+                                                        ...backend,
+                                                        healthCheck: { ...backend.healthCheck!, path: e.target.value }
+                                                      };
+                                                      setBackendConfigs(updatedBackends);
+                                                    }}
+                                                    className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs text-gray-600 mb-0.5">Interval (s)</label>
+                                                  <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="300"
+                                                    value={backend.healthCheck?.interval || 10}
+                                                    onChange={(e) => {
+                                                      const updatedBackends = [...backendConfigs];
+                                                      updatedBackends[index] = {
+                                                        ...backend,
+                                                        healthCheck: { ...backend.healthCheck!, interval: parseInt(e.target.value) || 10 }
+                                                      };
+                                                      setBackendConfigs(updatedBackends);
+                                                    }}
+                                                    className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs text-gray-600 mb-0.5">Timeout (s)</label>
+                                                  <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="60"
+                                                    value={backend.healthCheck?.timeout || 5}
+                                                    onChange={(e) => {
+                                                      const updatedBackends = [...backendConfigs];
+                                                      updatedBackends[index] = {
+                                                        ...backend,
+                                                        healthCheck: { ...backend.healthCheck!, timeout: parseInt(e.target.value) || 5 }
+                                                      };
+                                                      setBackendConfigs(updatedBackends);
+                                                    }}
+                                                    className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="block text-xs text-gray-600 mb-0.5">Unhealthy After</label>
+                                                  <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="10"
+                                                    value={backend.healthCheck?.unhealthyThreshold || 3}
+                                                    onChange={(e) => {
+                                                      const updatedBackends = [...backendConfigs];
+                                                      updatedBackends[index] = {
+                                                        ...backend,
+                                                        healthCheck: { ...backend.healthCheck!, unhealthyThreshold: parseInt(e.target.value) || 3 }
+                                                      };
+                                                      setBackendConfigs(updatedBackends);
+                                                    }}
+                                                    className="block w-full rounded border border-gray-300 py-1 px-1.5 text-xs"
+                                                  />
+                                                </div>
+                                              </div>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <span className="text-gray-500">Timeout:</span>
-                                            <span className="ml-1">{backend.healthCheck.timeout}s</span>
+                                        </>
+                                      ) : (
+                                        // Read-only view for this backend
+                                        <>
+                                          <div className="flex items-start justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                              <Server className="h-4 w-4 text-gray-500" />
+                                              <div className="flex items-center gap-2">
+                                                <code className={`text-sm font-medium ${backend.enabled === false ? 'text-gray-400 line-through' : ''}`}>
+                                                  {backend.url}
+                                                </code>
+                                                {backend.isLocal && (
+                                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
+                                                )}
+                                                {backend.label && (
+                                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
+                                                )}
+                                                {backend.enabled === false && (
+                                                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Disabled</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditingBackendIndex(index)}
+                                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                              >
+                                                <Edit2 className="h-3 w-3" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedBackends = [...backendConfigs];
+                                                  updatedBackends[index] = { ...backend, enabled: !(backend.enabled !== false) };
+                                                  setBackendConfigs(updatedBackends);
+                                                }}
+                                                className={`px-2 py-1 text-xs rounded ${
+                                                  backend.enabled === false 
+                                                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                                                    : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                }`}
+                                              >
+                                                {backend.enabled === false ? 'Enable' : 'Disable'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setConfirmDeleteBackend(index)}
+                                                className="text-red-600 hover:bg-red-50 rounded p-1"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </button>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <span className="text-gray-500">Unhealthy after:</span>
-                                            <span className="ml-1">{backend.healthCheck.unhealthyThreshold} failures</span>
-                                          </div>
-                                        </div>
+                                          {backend.healthCheck && (
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                              <div>
+                                                <span className="text-gray-500">Health check:</span>
+                                                <code className="ml-1">{backend.healthCheck.path}</code>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-500">Interval:</span>
+                                                <span className="ml-1">{backend.healthCheck.interval}s</span>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-500">Timeout:</span>
+                                                <span className="ml-1">{backend.healthCheck.timeout}s</span>
+                                              </div>
+                                              <div>
+                                                <span className="text-gray-500">Unhealthy after:</span>
+                                                <span className="ml-1">{backend.healthCheck.unhealthyThreshold} failures</span>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </>
                                       )}
                                     </div>
                                   ))}
@@ -1374,17 +1673,22 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                 <div className="space-y-2">
                                   {backendConfigs.length > 0 ? (
                                     backendConfigs.map((backend, index) => (
-                                      <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                      <div key={index} className={`bg-gray-50 rounded-lg p-3 border ${backend.enabled === false ? 'border-gray-300 opacity-60' : 'border-gray-200'}`}>
                                         <div className="flex items-center justify-between mb-2">
                                           <div className="flex items-center space-x-2">
                                             <Server className="h-4 w-4 text-gray-400" />
                                             <div className="flex items-center gap-2">
-                                              <code className="text-sm">{backend.url}</code>
+                                              <code className={`text-sm ${backend.enabled === false ? 'text-gray-400 line-through' : ''}`}>
+                                                {backend.url}
+                                              </code>
                                               {backend.isLocal && (
                                                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Local</span>
                                               )}
                                               {backend.label && (
                                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{backend.label}</span>
+                                              )}
+                                              {backend.enabled === false && (
+                                                <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Disabled</span>
                                               )}
                                             </div>
                                           </div>
@@ -1423,6 +1727,73 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                       <p className="text-sm text-gray-500">No backend servers configured</p>
                                     </div>
                                   )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Sticky Session Duration (if load balancer) */}
+                          {vhost.type === 'loadbalancer' && (
+                            <div className="mt-6">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Sticky Session Duration
+                              </label>
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-3">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="86400"
+                                      value={stickySessionDuration}
+                                      onChange={(e) => setStickySessionDuration(parseInt(e.target.value) || 3600)}
+                                      className="w-32 rounded-md border border-gray-300 py-1.5 px-2 text-sm"
+                                    />
+                                    <span className="text-sm text-gray-600">seconds</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setStickySessionDuration(300)}
+                                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                                    >
+                                      5 min
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setStickySessionDuration(1800)}
+                                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                                    >
+                                      30 min
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setStickySessionDuration(3600)}
+                                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                                    >
+                                      1 hour
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setStickySessionDuration(86400)}
+                                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                                    >
+                                      24 hours
+                                    </button>
+                                  </div>
+                                  <p className="text-xs text-gray-500">
+                                    How long users stay on the same backend server. Set to 0 to disable sticky sessions.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <span className="text-sm">
+                                    {stickySessionDuration === 0 ? 'Disabled' : 
+                                     stickySessionDuration < 3600 ? `${Math.floor(stickySessionDuration / 60)} minutes` :
+                                     stickySessionDuration < 86400 ? `${Math.floor(stickySessionDuration / 3600)} hour${stickySessionDuration >= 7200 ? 's' : ''}` :
+                                     `${Math.floor(stickySessionDuration / 86400)} day${stickySessionDuration >= 172800 ? 's' : ''}`
+                                    }
+                                  </span>
                                 </div>
                               )}
                             </div>

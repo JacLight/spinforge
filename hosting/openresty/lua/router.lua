@@ -279,10 +279,31 @@ elseif site.type == "loadbalancer" then
     ngx.var.route_type = "proxy"  -- Use proxy type for handling
     
     -- Get backend URLs from various possible fields
-    local backends = site.backendConfigs or site.backends or site.upstreams
+    local all_backends = site.backendConfigs or site.backends or site.upstreams
     
-    if not backends or #backends == 0 then
+    if not all_backends or #all_backends == 0 then
         ngx.log(ngx.ERR, "No backends configured for load balancer")
+        ngx.var.route_type = ""
+        return
+    end
+    
+    -- Filter out disabled backends
+    local backends = {}
+    for i, backend in ipairs(all_backends) do
+        local is_enabled = true
+        if type(backend) == "table" and backend.enabled == false then
+            is_enabled = false
+        end
+        
+        if is_enabled then
+            table.insert(backends, backend)
+        else
+            ngx.log(ngx.INFO, "Backend #", i, " is disabled, skipping")
+        end
+    end
+    
+    if #backends == 0 then
+        ngx.log(ngx.ERR, "All backends are disabled for load balancer")
         ngx.var.route_type = ""
         return
     end
@@ -294,7 +315,27 @@ elseif site.type == "loadbalancer" then
     -- Define sticky cookie name once for the entire request
     local sticky_cookie_name = "spinforge_backend_" .. host:gsub("%.", "_")
     
-    -- First, check routing rules for A/B testing
+    -- First, check for explicit label parameter (for testing/debugging)
+    local label_param = ngx.var.arg_label
+    if label_param then
+        -- Try to route to backend with matching label
+        for idx, backend in ipairs(backends) do
+            if type(backend) == "table" and backend.label == label_param then
+                backend_index = idx
+                ngx.log(ngx.INFO, "ROUTING DECISION: Direct label routing to '", label_param, "' -> Backend #", idx)
+                ngx.header["X-SpinForge-Route-Method"] = "label-parameter"
+                ngx.header["X-SpinForge-Route-Backend"] = label_param
+                ngx.header["X-SpinForge-Route-Backend-Index"] = tostring(idx)
+            end
+        end
+        
+        if not backend_index then
+            ngx.log(ngx.WARN, "ROUTING WARNING: Label parameter '", label_param, "' not found")
+            -- Continue with normal routing
+        end
+    end
+    
+    -- Next, check routing rules for A/B testing (if no label parameter matched)
     if site.routingRules and #site.routingRules > 0 then
         -- Sort rules by priority (higher priority first)
         local sorted_rules = {}
@@ -361,8 +402,8 @@ elseif site.type == "loadbalancer" then
         end
     end
     
-    -- If no routing rule matched, check for sticky session cookie
-    if not backend_index then
+    -- If no routing rule or label parameter matched, check for sticky session cookie
+    if not backend_index and not label_param then
         local cookie_value = ngx.var["cookie_" .. sticky_cookie_name]
         
         if cookie_value and tonumber(cookie_value) then
@@ -392,9 +433,12 @@ elseif site.type == "loadbalancer" then
         ngx.header["X-SpinForge-Route-Method"] = "round-robin"
         ngx.header["X-SpinForge-Route-Backend-Index"] = tostring(backend_index)
         
-        -- Set sticky session cookie (expires in 1 hour)
-        ngx.header["Set-Cookie"] = sticky_cookie_name .. "=" .. backend_index .. 
-            "; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax"
+        -- Set sticky session cookie (default 1 hour, configurable)
+        local sticky_duration = site.stickySessionDuration or 3600
+        if sticky_duration > 0 then
+            ngx.header["Set-Cookie"] = sticky_cookie_name .. "=" .. backend_index .. 
+                "; Path=/; Max-Age=" .. sticky_duration .. "; HttpOnly; SameSite=Lax"
+        end
     end
     
     -- Handle both simple array and backendConfigs format
