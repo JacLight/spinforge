@@ -534,6 +534,124 @@ app.get('/api/sites/:domain/logs', async (req, res) => {
   }
 });
 
+// Global metrics across all sites
+app.get('/api/metrics/global', async (req, res) => {
+  try {
+    const timeRange = req.query.range || '24h';
+    
+    // Get all site keys
+    const siteKeys = await redisClient.keys('site:*');
+    
+    let totalRequests = 0;
+    let totalBandwidth = 0;
+    let totalResponseTime = 0;
+    let responseTimeCount = 0;
+    const topRoutes = [];
+    const requestsByStatus = {};
+    const requestsByType = {};
+    
+    // Calculate time filter based on range
+    const now = Date.now();
+    let timeFilter = now - (24 * 60 * 60 * 1000); // Default 24h
+    
+    if (timeRange === '1h') {
+      timeFilter = now - (60 * 60 * 1000);
+    } else if (timeRange === '7d') {
+      timeFilter = now - (7 * 24 * 60 * 60 * 1000);
+    } else if (timeRange === '30d') {
+      timeFilter = now - (30 * 24 * 60 * 60 * 1000);
+    }
+    
+    // Process each site
+    for (const siteKey of siteKeys) {
+      const domain = siteKey.replace('site:', '');
+      const siteData = await redisClient.get(siteKey);
+      
+      if (!siteData) continue;
+      
+      const site = JSON.parse(siteData);
+      const logsKey = `logs:${domain}`;
+      
+      // Get recent logs for this site
+      const logs = await redisClient.lRange(logsKey, 0, 999);
+      let siteRequests = 0;
+      let siteBandwidth = 0;
+      let siteResponseTime = 0;
+      let siteResponseCount = 0;
+      const siteStatusCodes = {};
+      
+      for (const log of logs) {
+        try {
+          const logEntry = JSON.parse(log);
+          
+          // Filter by time range
+          if (logEntry.timestamp < timeFilter) continue;
+          
+          siteRequests++;
+          siteBandwidth += logEntry.bytes || 0;
+          
+          if (logEntry.responseTime > 0) {
+            siteResponseTime += logEntry.responseTime;
+            siteResponseCount++;
+          }
+          
+          // Count status codes
+          const statusGroup = Math.floor(logEntry.status / 100) + 'xx';
+          siteStatusCodes[statusGroup] = (siteStatusCodes[statusGroup] || 0) + 1;
+          requestsByStatus[statusGroup] = (requestsByStatus[statusGroup] || 0) + 1;
+        } catch (e) {
+          // Skip invalid log entries
+        }
+      }
+      
+      // Add to totals
+      totalRequests += siteRequests;
+      totalBandwidth += siteBandwidth;
+      
+      if (siteResponseCount > 0) {
+        totalResponseTime += siteResponseTime;
+        responseTimeCount += siteResponseCount;
+      }
+      
+      // Count by type
+      const type = site.type || 'unknown';
+      requestsByType[type] = (requestsByType[type] || 0) + siteRequests;
+      
+      // Add to top routes if has traffic
+      if (siteRequests > 0) {
+        const avgResponseTime = siteResponseCount > 0 ? siteResponseTime / siteResponseCount : 0;
+        const errorCount = (siteStatusCodes['4xx'] || 0) + (siteStatusCodes['5xx'] || 0);
+        
+        topRoutes.push({
+          domain,
+          requests: siteRequests,
+          bandwidth: siteBandwidth,
+          avgResponseTime,
+          errorRate: siteRequests > 0 ? errorCount / siteRequests : 0
+        });
+      }
+    }
+    
+    // Calculate average response time
+    const avgResponseTime = responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0;
+    
+    // Sort and limit top routes
+    topRoutes.sort((a, b) => b.requests - a.requests);
+    
+    res.json({
+      totalRequests,
+      totalBandwidth,
+      avgResponseTime,
+      topRoutes: topRoutes.slice(0, 10),
+      requestsByStatus,
+      requestsByType
+    });
+  } catch (error) {
+    console.error('Error in global metrics:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Metrics endpoint (compatible with UI expectations)
 app.get('/api/metrics', async (req, res) => {
   try {

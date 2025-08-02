@@ -253,8 +253,9 @@ end
 
 ngx.log(ngx.DEBUG, "Router: Found site config: ", cjson.encode(site))
 
--- Store the domain for logging
+-- Store the domain for logging (in both ctx and var for persistence across internal redirects)
 ngx.ctx.domain = host
+ngx.var.request_domain = host
 ngx.ctx.route_processed = true
 ngx.log(ngx.DEBUG, "Router: Set ngx.ctx.domain to: ", host)
 
@@ -509,28 +510,3 @@ else
 end
 
 update_metrics(host, ngx.var.route_type == "" and 404 or 200)
-
--- Log the request asynchronously
-local logger = require "logger"
-local request_data = {
-    domain = host,
-    method = ngx.var.request_method,
-    uri = ngx.var.uri,
-    status = ngx.var.route_type == "" and 404 or 200,
-    bytes = 0, -- Will be updated in log phase
-    start_time = ngx.req.start_time(),
-    remote_addr = ngx.var.remote_addr,
-    user_agent = ngx.var.http_user_agent,
-    referer = ngx.var.http_referer
-}
-
--- Use a timer to log asynchronously
-local ok, err = ngx.timer.at(0, function(premature)
-    if not premature then
-        logger.log_request_data(request_data)
-    end
-end)
-
-if not ok then
-    ngx.log(ngx.ERR, "Failed to create logging timer: ", err)
-end

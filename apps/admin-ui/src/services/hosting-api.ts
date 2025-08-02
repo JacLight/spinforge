@@ -72,6 +72,21 @@ export interface HostingStats {
   loadbalancer_sites: number;
 }
 
+export interface GlobalMetrics {
+  totalRequests: number;
+  totalBandwidth: number;
+  avgResponseTime: number;
+  topRoutes: Array<{
+    domain: string;
+    requests: number;
+    bandwidth: number;
+    avgResponseTime: number;
+    errorRate: number;
+  }>;
+  requestsByStatus: Record<string, number>;
+  requestsByType: Record<string, number>;
+}
+
 export interface VHostSearchParams {
   search?: string;
   customer?: string;
@@ -218,5 +233,74 @@ export const hostingAPI = {
     const domain = domainOrId;
     const response = await apiClient.get(`/api/sites/${domain}/logs`, { params });
     return response.data;
+  },
+
+  // Get global metrics across all sites
+  async getGlobalMetrics(timeRange?: string): Promise<GlobalMetrics> {
+    try {
+      const response = await apiClient.get('/api/metrics/global', {
+        params: { range: timeRange }
+      });
+      return response.data;
+    } catch (error) {
+      // If endpoint doesn't exist yet, calculate from individual metrics
+      const vhosts = await this.listVHosts();
+      const metrics: GlobalMetrics = {
+        totalRequests: 0,
+        totalBandwidth: 0,
+        avgResponseTime: 0,
+        topRoutes: [],
+        requestsByStatus: {},
+        requestsByType: {}
+      };
+
+      // Aggregate metrics from all vhosts
+      const routeMetrics = [];
+      let totalResponseTime = 0;
+      let responseTimeCount = 0;
+
+      for (const vhost of vhosts) {
+        try {
+          const vhostMetrics = await this.getVHostMetrics(vhost.domain, timeRange);
+          metrics.totalRequests += vhostMetrics.totalRequests;
+          metrics.totalBandwidth += vhostMetrics.totalBandwidth;
+          
+          if (vhostMetrics.metrics.avgResponseTime > 0) {
+            totalResponseTime += vhostMetrics.metrics.avgResponseTime * vhostMetrics.metrics.requests;
+            responseTimeCount += vhostMetrics.metrics.requests;
+          }
+
+          // Add to top routes
+          routeMetrics.push({
+            domain: vhost.domain,
+            requests: vhostMetrics.metrics.requests,
+            bandwidth: vhostMetrics.metrics.bandwidth,
+            avgResponseTime: vhostMetrics.metrics.avgResponseTime,
+            errorRate: vhostMetrics.metrics.errorRate
+          });
+
+          // Aggregate status codes
+          for (const [status, count] of Object.entries(vhostMetrics.metrics.statusCodes || {})) {
+            metrics.requestsByStatus[status] = (metrics.requestsByStatus[status] || 0) + (count as number);
+          }
+
+          // Count by type
+          const type = vhost.type;
+          metrics.requestsByType[type] = (metrics.requestsByType[type] || 0) + vhostMetrics.metrics.requests;
+        } catch (err) {
+          // Skip if metrics not available for this vhost
+        }
+      }
+
+      // Calculate average response time
+      metrics.avgResponseTime = responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0;
+
+      // Sort and get top 10 routes
+      metrics.topRoutes = routeMetrics
+        .sort((a, b) => b.requests - a.requests)
+        .slice(0, 10);
+
+      return metrics;
+    }
   }
 };
