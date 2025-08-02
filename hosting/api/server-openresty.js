@@ -37,13 +37,13 @@ const { exec, execSync } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 const yaml = require('js-yaml');
-const ComposeManager = require('./compose-manager');
+// const ComposeManager = require('./compose-manager');
 
 // Static root for file storage
 const STATIC_ROOT = process.env.STATIC_ROOT || '/var/www/static';
 
 // Initialize compose manager
-const composeManager = new ComposeManager(redisClient);
+// const composeManager = new ComposeManager(redisClient);
 
 // List all sites with file checks and search
 app.get('/api/sites', async (req, res) => {
@@ -219,12 +219,12 @@ app.post('/api/sites', async (req, res) => {
         const composeData = yaml.load(composeYaml);
         
         // Deploy using compose manager
-        const result = await composeManager.deployCompose(site.domain, composeData);
+        // const result = await composeManager.deployCompose(site.domain, composeData);
         
         // Store the result in the site object
-        site.composeProject = result.projectName;
-        site.containers = result.containers;
-        site.services = result.services;
+        // site.composeProject = result.projectName;
+        // site.containers = result.containers;
+        // site.services = result.services;
         
         console.log(`Compose deployment successful for ${site.domain}`);
       } catch (error) {
@@ -430,7 +430,7 @@ app.delete('/api/sites/:domain', async (req, res) => {
       if (site.composeProject) {
         try {
           console.log(`Stopping compose project: ${site.composeProject}`);
-          await composeManager.stopCompose(domain);
+          // await composeManager.stopCompose(domain);
         } catch (error) {
           console.error('Compose cleanup failed:', error);
           // Continue with deletion even if cleanup fails
@@ -1496,24 +1496,34 @@ app.get('/api/sites/:domain/container/logs', async (req, res) => {
   }
 });
 
+// Get stats for all containers
+app.get('/api/containers/stats', async (req, res) => {
+  try {
+    // Get all running containers
+    const { stdout } = await execAsync('docker stats --no-stream --format "json" --all');
+    const lines = stdout.trim().split('\n').filter(line => line.trim());
+    const stats = lines.map(line => JSON.parse(line));
+    res.json(stats);
+  } catch (error) {
+    res.json({ error: error.message, stats: [] });
+  }
+});
+
+// Get stats for single container
 app.get('/api/sites/:domain/container/stats', async (req, res) => {
   try {
     const domain = req.params.domain;
-    const data = await redisClient.get(`site:${domain}`);
-    if (!data) {
-      return res.status(404).json({ error: 'Site not found' });
-    }
     
-    const site = JSON.parse(data);
-    if (site.type !== 'container' || !site.containerName) {
-      return res.status(400).json({ error: 'Not a container site' });
-    }
+    // Just find any container that matches the domain pattern
+    const containerName = `spinforge-${domain.replace(/\./g, '-')}`;
     
-    const { stdout } = await execAsync(`docker stats ${site.containerName} --no-stream --format "json"`);
+    // Try direct docker stats
+    const { stdout } = await execAsync(`docker stats ${containerName} --no-stream --format "json"`);
     const stats = JSON.parse(stdout);
     res.json(stats);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // Container doesn't exist or is stopped
+    res.json({ error: error.message, status: 'stopped' });
   }
 });
 

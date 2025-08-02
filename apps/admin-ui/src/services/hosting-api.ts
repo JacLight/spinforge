@@ -16,7 +16,7 @@ export interface VHost {
   aliases?: string[];
   actual_domain?: string;
   files_exist?: boolean;
-  type: 'static' | 'proxy' | 'container' | 'loadbalancer';
+  type: 'static' | 'proxy' | 'container' | 'loadbalancer' | 'compose';
   target?: string;
   static_path?: string;
   enabled?: boolean;
@@ -62,6 +62,17 @@ export interface VHost {
   createdAt?: string;
   updated_at?: string;
   updatedAt?: string;
+  // Container-specific fields
+  containerConfig?: {
+    image: string;
+    port: number;
+    env?: Array<{ key: string; value: string }>;
+    restartPolicy?: string;
+    volumes?: Array<{ source: string; target: string }>;
+    networks?: string[];
+    command?: string[];
+  };
+  composeConfig?: string; // Docker Compose YAML
 }
 
 export interface HostingStats {
@@ -301,6 +312,77 @@ export const hostingAPI = {
         .slice(0, 10);
 
       return metrics;
+    }
+  },
+
+  // Container-specific methods
+  async getAllContainerStats(): Promise<any[]> {
+    try {
+      const response = await apiClient.get('/api/containers/stats');
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to get all container stats:', error);
+      return [];
+    }
+  },
+
+  async getContainerStats(domain: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`/api/sites/${domain}/container/stats`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get container stats:', error);
+      return null;
+    }
+  },
+
+  async getContainerInfo(domain: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`/api/sites/${domain}/container/info`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get container info:', error);
+      return null;
+    }
+  },
+
+  async execInContainer(domain: string, command: string): Promise<any> {
+    try {
+      const response = await apiClient.post(`/api/sites/${domain}/container/exec`, { command });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to exec in container:', error);
+      throw error;
+    }
+  },
+
+  async getContainerFiles(domain: string, path: string = '/'): Promise<any> {
+    try {
+      const response = await apiClient.get(`/api/sites/${domain}/container/files`, { 
+        params: { path }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get container files:', error);
+      return [];
+    }
+  },
+
+  async getContainerLogs(domain: string, params?: {
+    tail?: number;
+    since?: string;
+    follow?: boolean;
+  }): Promise<string> {
+    try {
+      const response = await apiClient.get(`/api/sites/${domain}/container/logs`, { 
+        params,
+        // Use text response type for logs
+        responseType: 'text'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get container logs:', error);
+      return 'Failed to fetch logs';
     }
   }
 };

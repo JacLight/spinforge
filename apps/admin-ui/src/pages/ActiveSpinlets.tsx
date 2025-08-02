@@ -1,100 +1,139 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { hostingAPI, VHost } from '../services/hosting-api';
+import { toast } from 'sonner';
 import { 
-  Activity,
-  Server,
-  Clock,
-  Timer,
-  Cpu,
-  HardDrive,
-  Hash,
-  Globe,
-  AlertCircle,
   RefreshCw,
-  TrendingUp,
-  Zap,
   Grid3X3,
+  LayoutDashboard,
+  ChevronRight,
+  ChevronDown,
+  Container,
+  Layers,
+  Search,
+  CheckCircle,
+  XCircle,
   Package,
-  Upload,
-  LayoutDashboard
+  Terminal
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ContainerSlideoutPanel, SpinForgeContainer } from '../components/containers/ContainerSlideoutPanel';
+import { ContainerRow } from '../components/containers/ContainerRow';
 
-function formatUptime(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  
-  if (days > 0) {
-    return `${days}d ${hours % 24}h`;
-  } else if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  } else {
-    return `${seconds}s`;
-  }
-}
-
-function formatMemory(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(1)} MB`;
-}
-
-function formatLastAccess(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  
-  if (hours > 0) {
-    return `${hours}h ago`;
-  } else if (minutes > 0) {
-    return `${minutes}m ago`;
-  } else {
-    return `${seconds}s ago`;
-  }
+interface ContainerGroup {
+  name: string;
+  customerId: string;
+  containers: SpinForgeContainer[];
+  isCompose: boolean;
+  totalCpu: number;
+  totalMemory: number;
+  totalMemoryLimit: number;
+  totalNetworkRx: number;
+  totalNetworkTx: number;
+  status: 'all-running' | 'all-stopped' | 'partial-running' | 'mixed';
 }
 
 export default function ActiveSpinlets() {
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showOnlyRunning, setShowOnlyRunning] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [viewMode, setViewMode] = useState<'grouped' | 'flat'>('grouped');
+  const [selectedContainer, setSelectedContainer] = useState<SpinForgeContainer | null>(null);
+  const [showLogs, setShowLogs] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const { data: routesWithStates = [], isLoading, error } = useQuery({
-    queryKey: ['active-spinlets'],
-    queryFn: async () => {
-      const routes = await api.getRoutesWithStates();
-      // Filter only running spinlets
-      return routes.filter(r => r.spinletState?.state === 'running');
+  const queryClient = useQueryClient();
+
+  // Fetch SpinForge containers (VHosts of type container or compose)
+  const { data: vhosts = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['spinforge-containers'],
+    queryFn: async (): Promise<SpinForgeContainer[]> => {
+      try {
+        // Get all VHosts and all container stats in parallel
+        const [allVhosts, allStats] = await Promise.all([
+          hostingAPI.listVHosts(),
+          hostingAPI.getAllContainerStats()
+        ]);
+        
+        const containerVhosts = allVhosts.filter(v => v.type === 'container' || v.type === 'compose');
+        
+        // Match stats to containers by name pattern
+        const containersWithStats = containerVhosts.map((vhost) => {
+          const containerName = `spinforge-${vhost.domain.replace(/\./g, '-')}`;
+          const stats = allStats.find(s => s.Name === containerName || s.Container === containerName);
+          
+          if (!stats) {
+            // No stats found = container is stopped
+            return { ...vhost, containerStats: { error: 'Container not running', status: 'stopped' } } as SpinForgeContainer;
+          }
+          
+          return { ...vhost, containerStats: stats } as SpinForgeContainer;
+        });
+        
+        return containersWithStats;
+      } catch (error) {
+        console.error('Failed to fetch SpinForge containers:', error);
+        return [];
+      }
     },
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
-  const totalActive = routesWithStates.length;
-  const totalRequests = routesWithStates.reduce((sum, r) => sum + (r.spinletState?.requests || 0), 0);
-  const totalErrors = routesWithStates.reduce((sum, r) => sum + (r.spinletState?.errors || 0), 0);
-  const totalMemory = routesWithStates.reduce((sum, r) => sum + (r.spinletState?.memory || 0), 0);
+  // Group containers by customer or compose project
+  const containerGroups = groupSpinForgeContainers(vhosts);
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-red-400 mt-0.5" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error loading active spinlets</h3>
-                <p className="mt-2 text-sm text-red-700">{error instanceof Error ? error.message : 'Unknown error'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Filter containers based on search and status
+  const filteredGroups = filterGroups(containerGroups, searchTerm, showOnlyRunning);
+
+  // Container actions
+  const actionMutation = useMutation({
+    mutationFn: async ({ domain, action }: { domain: string; action: string }) => {
+      const vhost = vhosts.find(v => v.domain === domain);
+      if (!vhost) throw new Error('Container not found');
+      
+      switch (action) {
+        case 'start':
+        case 'stop':
+        case 'restart':
+          return hostingAPI.updateVHost(domain, { enabled: action === 'start' ? true : false });
+        case 'remove':
+          return hostingAPI.deleteVHost(domain);
+        case 'logs':
+          return hostingAPI.getContainerLogs(domain);
+        default:
+          throw new Error(`Unknown action: ${action}`);
+      }
+    },
+    onSuccess: (_, { action }) => {
+      toast.success(`Container ${action} completed successfully`);
+      queryClient.invalidateQueries({ queryKey: ['spinforge-containers'] });
+    },
+    onError: (error: any, { action }) => {
+      toast.error(`Failed to ${action} container: ${error.message}`);
+    },
+  });
+
+  const handleContainerAction = (id: string, action: string) => {
+    actionMutation.mutate({ domain: id, action });
+  };
+
+  const handleViewLogs = (container: SpinForgeContainer) => {
+    setSelectedContainer(container);
+    setShowLogs(true);
+  };
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupName)) {
+        newSet.delete(groupName);
+      } else {
+        newSet.add(groupName);
+      }
+      return newSet;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -105,19 +144,18 @@ export default function ActiveSpinlets() {
             <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                  <Grid3X3 className="w-6 h-6 text-white" />
+                  <Container className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                    Active Spinlets
+                    Container Management
                   </h1>
-                  <p className="text-sm text-gray-500">Real-time monitoring of running processes</p>
+                  <p className="text-sm text-gray-500">SpinForge hosted containers and services</p>
                 </div>
               </div>
               
-              {/* Enhanced Dashboard Navigation */}
+              {/* Dashboard Navigation */}
               <div className="hidden lg:flex items-center space-x-2">
-                {/* Primary Dashboard Tabs */}
                 <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm rounded-2xl p-1 border border-white/20 shadow-lg">
                   <Link
                     to="/"
@@ -133,37 +171,19 @@ export default function ActiveSpinlets() {
                     <Package className="w-4 h-4" />
                     <span className="hidden xl:inline">Apps</span>
                   </Link>
-                  <Link
-                    to="/deploy"
-                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span className="hidden xl:inline">Deploy</span>
-                  </Link>
-                  <Link
-                    to="/hosting"
-                    className="group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/70"
-                  >
-                    <Globe className="w-4 h-4" />
-                    <span className="hidden xl:inline">Hosting</span>
-                  </Link>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              <label className="flex items-center space-x-2 px-4 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl">
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">Auto-refresh (5s)</span>
-              </label>
-              {isLoading && (
-                <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
-              )}
+              <button
+                onClick={() => refetch()}
+                disabled={isLoading}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/80 border border-gray-200 text-gray-700 rounded-xl hover:bg-white transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="text-sm font-medium">Refresh</span>
+              </button>
             </div>
           </div>
         </div>
@@ -177,289 +197,312 @@ export default function ActiveSpinlets() {
           transition={{ duration: 0.5 }}
           className="space-y-8"
         >
+          {/* Filters and Controls */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search containers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+                  />
+                </div>
+                
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyRunning}
+                    onChange={(e) => setShowOnlyRunning(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Running only</span>
+                </label>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Auto-refresh</span>
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('grouped')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      viewMode === 'grouped'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 inline mr-1" />
+                    Grouped
+                  </button>
+                  <button
+                    onClick={() => setViewMode('flat')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      viewMode === 'flat'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Grid3X3 className="w-4 h-4 inline mr-1" />
+                    Flat
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Container List */}
+          {isLoading && vhosts.length === 0 ? (
+            <div className="flex items-center justify-center p-12">
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-lg p-12">
+              <div className="text-center">
+                <Container className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No containers found</h3>
+                <p className="text-gray-600">
+                  {searchTerm || showOnlyRunning
+                    ? "Try adjusting your filters"
+                    : "Deploy your first container to get started"}
+                </p>
+              </div>
+            </div>
+          ) : viewMode === 'grouped' ? (
+            // Grouped View
+            <div className="space-y-4">
+              {filteredGroups.map((group) => (
+                <motion.div
+                  key={group.name}
+                  className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {/* Group Header */}
+                  <div
+                    className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 cursor-pointer hover:from-gray-100 hover:to-gray-150 transition-colors"
+                    onClick={() => toggleGroup(group.name)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {expandedGroups.has(group.name) ? (
+                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-500" />
+                        )}
+                        <h3 className="font-semibold text-gray-900">{group.name}</h3>
+                        <span className="text-sm text-gray-500">
+                          {group.containers.length} container{group.containers.length > 1 ? 's' : ''}
+                        </span>
+                        {group.isCompose && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                            Compose
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            group.status === 'all-running' ? 'bg-green-500' :
+                            group.status === 'partial-running' ? 'bg-yellow-500' : 'bg-red-500'
+                          }`} />
+                          <span className="text-sm text-gray-600 capitalize">
+                            {group.status.replace('-', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Group Containers */}
+                  <AnimatePresence>
+                    {expandedGroups.has(group.name) && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="divide-y divide-gray-200"
+                      >
+                        {group.containers.map((container) => (
+                          <ContainerRow
+                            key={container.id}
+                            container={container}
+                            onAction={handleContainerAction}
+                            onSelect={setSelectedContainer}
+                            onViewLogs={handleViewLogs}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            // Flat Table View
             <motion.div 
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <Activity className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active Spinlets</p>
-                  <p className="text-2xl font-semibold text-gray-900">{totalActive}</p>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div 
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                  <p className="text-2xl font-semibold text-gray-900">{totalRequests.toLocaleString()}</p>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div 
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <div className="flex items-center">
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <AlertCircle className="h-6 w-6 text-red-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Errors</p>
-                  <p className="text-2xl font-semibold text-gray-900">{totalErrors}</p>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div 
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6 hover:shadow-xl transition-all duration-300"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-            >
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <HardDrive className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Memory Usage</p>
-                  <p className="text-2xl font-semibold text-gray-900">{formatMemory(totalMemory)}</p>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Active Spinlets Table */}
-          <motion.div 
-            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-          >
-            {isLoading && routesWithStates.length === 0 ? (
-              <div className="flex items-center justify-center p-12">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-              </div>
-            ) : routesWithStates.length === 0 ? (
-              <div className="text-center p-12">
-                <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
-                  <Zap className="h-12 w-12 text-gray-400" />
-                </div>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">No active spinlets</h3>
-                <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto">
-                  All spinlets are currently idle or stopped. They will automatically start when accessed.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Spinlet ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Domain
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Process
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Uptime
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Last Access
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        TTL
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Requests
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Resources
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {routesWithStates.map((route) => {
-                      const spinlet = route.spinletState!;
-                      const idleInfo = route.idleInfo;
-                      const uptime = Date.now() - spinlet.startTime;
-                      
-                      return (
-                        <tr key={route.spinletId} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <Hash className="h-4 w-4 text-gray-400 mr-2" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-900 font-mono">
-                                  {spinlet.spinletId}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {route.customerId}
-                                </div>
-                                {spinlet.mode && (
-                                  <span className={`mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    spinlet.mode === 'development' 
-                                      ? 'bg-purple-100 text-purple-700' 
-                                      : 'bg-gray-100 text-gray-700'
-                                  }`}>
-                                    {spinlet.mode === 'development' ? 'DEV' : 'PROD'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <Globe className="h-4 w-4 text-gray-400 mr-2" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {route.domain}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {route.framework}
-                                  {spinlet.packageVersion && (
-                                    <span className="ml-2">v{spinlet.packageVersion}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm">
-                              <div className="flex items-center">
-                                <Server className="h-4 w-4 text-gray-400 mr-1" />
-                                <span className="font-medium text-gray-900">Port: {spinlet.port}</span>
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                PID: {spinlet.pid}
-                              </div>
-                              {spinlet.runCommand && (
-                                <div className="text-xs text-gray-400 mt-1 font-mono truncate max-w-xs" title={spinlet.runCommand}>
-                                  {spinlet.runCommand}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
-                              <span className="text-sm text-gray-900">
-                                {formatUptime(uptime)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {formatLastAccess(spinlet.lastAccess)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(spinlet.lastAccess).toLocaleTimeString()}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {idleInfo ? (
-                              <div className="flex items-center">
-                                <Timer className="h-4 w-4 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {idleInfo.timeRemainingFormatted}
-                                  </div>
-                                  {idleInfo.ttl < 60 && (
-                                    <div className="text-xs text-red-600 font-medium">
-                                      Expires soon
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm">
-                              <div className="flex items-center">
-                                <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                                <span className="text-gray-900">{spinlet.requests.toLocaleString()}</span>
-                              </div>
-                              {spinlet.errors > 0 && (
-                                <div className="flex items-center mt-1">
-                                  <AlertCircle className="h-4 w-4 text-red-500 mr-1" />
-                                  <span className="text-red-600 text-xs">{spinlet.errors} errors</span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm">
-                              <div className="flex items-center">
-                                <HardDrive className="h-4 w-4 text-gray-400 mr-1" />
-                                <span className="text-gray-900">{formatMemory(spinlet.memory)}</span>
-                              </div>
-                              <div className="flex items-center mt-1">
-                                <Cpu className="h-4 w-4 text-gray-400 mr-1" />
-                                <span className="text-xs text-gray-500">{spinlet.cpu.toFixed(1)}%</span>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </motion.div>
-
-          {/* Additional Info */}
-          {routesWithStates.length > 0 && (
-            <motion.div 
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-            >
-              <div className="flex">
-                <Activity className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="ml-3">
-                  <h3 className="text-sm font-semibold text-gray-900">Process Information</h3>
-                  <div className="mt-2 text-sm text-gray-600">
-                    <p>This page shows real-time information about running spinlet processes.</p>
-                    <ul className="mt-1 list-disc list-inside space-y-1">
-                      <li>PID: Process ID assigned by the operating system</li>
-                      <li>Port: Network port the spinlet is listening on</li>
-                      <li>TTL: Time To Live - remaining idle timeout before automatic shutdown</li>
-                      <li>Memory/CPU: Real-time resource usage metrics</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Container ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Image
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      CPU
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Memory
+                    </th>
+                    <th className="relative px-6 py-3">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredGroups.flatMap(g => g.containers).map((container) => (
+                    <ContainerRow
+                      key={container.id}
+                      container={container}
+                      onAction={handleContainerAction}
+                      onSelect={setSelectedContainer}
+                      onViewLogs={handleViewLogs}
+                      tableView={true}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </motion.div>
           )}
         </motion.div>
       </div>
+
+      {/* Container Details Slide-out Panel */}
+      <ContainerSlideoutPanel
+        container={selectedContainer}
+        isOpen={!!selectedContainer && !showLogs}
+        onClose={() => setSelectedContainer(null)}
+        onAction={handleContainerAction}
+      />
     </div>
   );
+}
+
+// Helper Functions
+function groupSpinForgeContainers(containers: SpinForgeContainer[]): ContainerGroup[] {
+  const groups = new Map<string, ContainerGroup>();
+  
+  containers.forEach(container => {
+    const customerId = container.customerId || 'unknown';
+    // Only group containers if they are actual compose deployments
+    // Single containers should each be their own group
+    const groupName = container.type === 'compose' ? 
+      `${customerId}-compose-${container.domain}` : `${customerId}-single-${container.domain}`;
+    
+    if (!groups.has(groupName)) {
+      // Display name: for compose show domain, for single containers show domain too
+      const displayName = container.type === 'compose' ? 
+        `${container.domain} (Compose)` : container.domain;
+        
+      groups.set(groupName, {
+        name: displayName,
+        customerId: customerId,
+        containers: [],
+        isCompose: container.type === 'compose',
+        totalCpu: 0,
+        totalMemory: 0,
+        totalMemoryLimit: 0,
+        totalNetworkRx: 0,
+        totalNetworkTx: 0,
+        status: 'all-stopped'
+      });
+    }
+    
+    const group = groups.get(groupName)!;
+    group.containers.push(container);
+    
+    if (container.containerStats) {
+      group.totalCpu += container.containerStats.cpuUsage || 0;
+      group.totalMemory += container.containerStats.memoryUsage || 0;
+      group.totalMemoryLimit += container.containerStats.memoryLimit || 0;
+      group.totalNetworkRx += container.containerStats.networkRx || 0;
+      group.totalNetworkTx += container.containerStats.networkTx || 0;
+    }
+  });
+  
+  // Calculate group status
+  groups.forEach(group => {
+    const running = group.containers.filter(c => {
+      // For SpinForge containers, if enabled is not false and no stats error, consider it running
+      if (c.enabled === false) return false;
+      
+      // If we have container stats, check actual status
+      if (c.containerStats?.state?.status) {
+        return c.containerStats.state.status === 'running';
+      }
+      
+      // If container is enabled but we don't have stats, assume it's running
+      // (This handles cases where the container is running but stats fetch failed)
+      return c.enabled === true;
+    }).length;
+    const total = group.containers.length;
+    
+    if (running === total) {
+      group.status = 'all-running';
+    } else if (running === 0) {
+      group.status = 'all-stopped';
+    } else if (running > 0) {
+      group.status = 'partial-running';
+    } else {
+      group.status = 'mixed';
+    }
+  });
+  
+  return Array.from(groups.values());
+}
+
+function filterGroups(groups: ContainerGroup[], searchTerm: string, showOnlyRunning: boolean): ContainerGroup[] {
+  return groups
+    .map(group => ({
+      ...group,
+      containers: group.containers.filter(container => {
+        const matchesSearch = !searchTerm || 
+          container.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (container.containerConfig?.image || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          container.id.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesStatus = !showOnlyRunning || 
+          (container.enabled && container.containerStats?.state?.status === 'running');
+        
+        return matchesSearch && matchesStatus;
+      })
+    }))
+    .filter(group => group.containers.length > 0);
 }

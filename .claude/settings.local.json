@@ -35,7 +35,11 @@
       "Bash(npm run build:*)",
       "Bash(find:*)",
       "Bash(open:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(mv:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(sed:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

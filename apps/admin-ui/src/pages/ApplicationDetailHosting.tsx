@@ -132,7 +132,7 @@ export default function ApplicationDetailHosting() {
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Application not found</h2>
           <p className="text-gray-600 mb-4">
-            {error instanceof Error ? error.message : `No application found for: ${domain}`}
+            {error instanceof Error ? error.message : `No application found for: ${id}`}
           </p>
           <button
             onClick={() => navigate("/applications")}
@@ -149,33 +149,33 @@ export default function ApplicationDetailHosting() {
   const siteUrl = vhost.domain ? `http://${vhost.domain}` : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
+      <div className="backdrop-blur-xl bg-white/10 border-b border-white/20">
+        <div className="w-full px-8">
+          <div className="py-8">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-6">
                 <button
                   onClick={() => navigate("/applications")}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white"
                 >
-                  <ArrowLeft className="h-5 w-5" />
+                  <ArrowLeft className="h-6 w-6" />
                 </button>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{vhost.domain || vhost.id}</h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(vhost.type)}`}>
-                      <Icon className="h-3 w-3 mr-1" />
+                  <h1 className="text-3xl font-bold text-white">{vhost.domain || vhost.id}</h1>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium ${getTypeColor(vhost.type)} bg-white/20 backdrop-blur-sm`}>
+                      <Icon className="h-4 w-4 mr-2" />
                       {vhost.type}
                     </span>
                     {vhost.enabled === false && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                      <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-red-500/20 text-red-200 backdrop-blur-sm">
                         Disabled
                       </span>
                     )}
                     {vhost.type === 'static' && vhost.files_exist === false && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                      <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-yellow-500/20 text-yellow-200 backdrop-blur-sm">
                         Files Missing
                       </span>
                     )}
@@ -184,21 +184,23 @@ export default function ApplicationDetailHosting() {
               </div>
 
               <div className="flex items-center space-x-3">
-                <a
-                  href={siteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Visit Site
-                </a>
+                {siteUrl && (
+                  <a
+                    href={siteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    <ExternalLink className="h-5 w-5" />
+                    Visit Site
+                  </a>
+                )}
                 {!editMode ? (
                   <button
                     onClick={handleEdit}
-                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="flex items-center gap-2 px-6 py-3 backdrop-blur-sm bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors font-medium border border-white/20"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-5 w-5" />
                     Edit
                   </button>
                 ) : (
@@ -206,9 +208,9 @@ export default function ApplicationDetailHosting() {
                     <button
                       onClick={handleSave}
                       disabled={updateMutation.isPending}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
                     >
-                      <Save className="h-4 w-4" />
+                      <Save className="h-5 w-5" />
                       Save
                     </button>
                     <button
@@ -216,9 +218,9 @@ export default function ApplicationDetailHosting() {
                         setEditMode(false);
                         setEditData({});
                       }}
-                      className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      className="flex items-center gap-2 px-6 py-3 backdrop-blur-sm bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors font-medium border border-white/20"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-5 w-5" />
                       Cancel
                     </button>
                   </>
@@ -230,51 +232,51 @@ export default function ApplicationDetailHosting() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="w-full px-8 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             {/* Overview */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Overview</h2>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 p-8">
+              <h2 className="text-xl font-semibold mb-6 text-white">Overview</h2>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <dt className="text-sm text-gray-500">Domain</dt>
-                  <dd className="mt-1 flex items-center gap-2">
-                    <span className="font-medium">{vhost.domain || ''}</span>
+                  <dt className="text-sm text-white/70">Domain</dt>
+                  <dd className="mt-2 flex items-center gap-2">
+                    <span className="font-medium text-white">{vhost.domain || ''}</span>
                     <button
                       onClick={() => handleCopy(vhost.domain || '')}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-white/60 hover:text-white transition-colors"
                     >
                       <Copy className="h-4 w-4" />
                     </button>
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm text-gray-500">Customer ID</dt>
-                  <dd className="mt-1">
+                  <dt className="text-sm text-white/70">Customer ID</dt>
+                  <dd className="mt-2">
                     {editMode ? (
                       <input
                         type="text"
                         value={editData.customerId}
                         onChange={(e) => setEditData({ ...editData, customerId: e.target.value })}
-                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-4 py-2 backdrop-blur-sm bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-white/50"
                       />
                     ) : (
-                      <span className="font-medium">{vhost.customerId || 'Unknown'}</span>
+                      <span className="font-medium text-white">{vhost.customerId || 'Unknown'}</span>
                     )}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm text-gray-500">Status</dt>
-                  <dd className="mt-1">
+                  <dt className="text-sm text-white/70">Status</dt>
+                  <dd className="mt-2">
                     {editMode ? (
-                      <label className="flex items-center">
+                      <label className="flex items-center text-white">
                         <input
                           type="checkbox"
                           checked={editData.enabled}
                           onChange={(e) => setEditData({ ...editData, enabled: e.target.checked })}
-                          className="mr-2"
+                          className="mr-3 w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500"
                         />
                         Enabled
                       </label>
@@ -282,13 +284,13 @@ export default function ApplicationDetailHosting() {
                       <div className="flex items-center">
                         {vhost.enabled !== false ? (
                           <>
-                            <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-                            <span className="text-green-700 font-medium">Enabled</span>
+                            <CheckCircle className="h-5 w-5 text-green-400 mr-2" />
+                            <span className="text-green-300 font-medium">Enabled</span>
                           </>
                         ) : (
                           <>
-                            <AlertCircle className="h-4 w-4 text-gray-400 mr-1" />
-                            <span className="text-gray-500 font-medium">Disabled</span>
+                            <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+                            <span className="text-red-300 font-medium">Disabled</span>
                           </>
                         )}
                       </div>
@@ -296,8 +298,8 @@ export default function ApplicationDetailHosting() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm text-gray-500">Created</dt>
-                  <dd className="mt-1 font-medium">
+                  <dt className="text-sm text-white/70">Created</dt>
+                  <dd className="mt-2 font-medium text-white">
                     {new Date(vhost.created_at || vhost.createdAt || '').toLocaleDateString()}
                   </dd>
                 </div>
