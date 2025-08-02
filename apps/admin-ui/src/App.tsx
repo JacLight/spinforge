@@ -9,24 +9,23 @@ import { Toaster } from "sonner";
 import ModernLayout from "./components/ModernLayout";
 import Welcome from "./pages/Welcome";
 import Dashboard from "./pages/Dashboard";
-import ModernDashboard from "./pages/ModernDashboard";
+import UnifiedDashboard from "./pages/UnifiedDashboard";
 import SystemDashboard from "./pages/SystemDashboard";
 import Applications from "./pages/Applications";
 import ApplicationDetailHosting from "./pages/ApplicationDetailHosting";
 import Deploy from "./pages/Deploy";
-import Metrics from "./pages/Metrics";
 import Settings from "./pages/Settings";
 import DynamicUIDemo from "./components/DynamicUIDemo";
 import { DialogManager } from "./components/view-manager/dialog-manager";
 import AdminDashboard from "./pages/AdminDashboard";
 import ControlCenter from "./pages/ControlCenter";
-import Analytics from "./pages/Analytics";
 import ActiveSpinlets from "./pages/ActiveSpinlets";
-import DeploymentManagement from "./pages/DeploymentManagement";
 import CustomerManagement from "./pages/CustomerManagement";
 import AdminUserManagement from "./pages/AdminUserManagement";
+import ContainerDashboard from "./pages/ContainerDashboard";
 import { AdminLogin } from "./components/AdminLogin";
 import { api } from "./services/api";
+import SystemHealthAlert from "./components/SystemHealthAlert";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -92,26 +91,25 @@ function App() {
         }}
       />
       <DialogManager />
+      <SystemHealthAlert />
       <ModernLayout>
         <Routes>
           <Route path="/" element={<Navigate to="/admin" replace />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/applications" element={<Applications />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/modern-dashboard" element={<ModernDashboard />} />
+          <Route path="/dashboard" element={<UnifiedDashboard />} />
+          <Route path="/old-dashboard" element={<Dashboard />} />
           <Route path="/system-dashboard" element={<SystemDashboard />} />
           <Route path="/deploy" element={<Deploy />} />
-          <Route path="/metrics" element={<Metrics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/dynamic-ui" element={<DynamicUIDemo />} />
           <Route path="/control-center" element={<ControlCenter />} />
-          <Route path="/analytics" element={<Analytics />} />
           <Route path="/active-spinlets" element={<ActiveSpinlets />} />
-          <Route path="/deployments" element={<DeploymentManagement />} />
           <Route path="/customers" element={<CustomerManagement />} />
           <Route path="/admin-users" element={<AdminUserManagement />} />
           <Route path="/applications/:domain" element={<ApplicationDetailHosting />} />
+          <Route path="/dashboard/containers/:domain" element={<ContainerDashboard />} />
         </Routes>
       </ModernLayout>
     </Router>

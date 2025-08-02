@@ -215,6 +215,179 @@ function MetricsSection({ domain }: { domain?: string }) {
   );
 }
 
+// Container Management Component
+function ContainerManagement({ vhost }: { vhost: any }) {
+  const [logs, setLogs] = useState<string>('');
+  const [showLogs, setShowLogs] = useState(false);
+  const [containerStatus, setContainerStatus] = useState<'running' | 'stopped' | 'unknown'>('unknown');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Check container health
+  const { data: health, refetch: refetchHealth } = useQuery({
+    queryKey: ['container-health', vhost.domain],
+    queryFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/health`);
+      if (!response.ok) throw new Error('Failed to get container health');
+      return response.json();
+    },
+    refetchInterval: 30000, // Check every 30 seconds
+  });
+
+  React.useEffect(() => {
+    if (health) {
+      setContainerStatus(health.status === 'running' ? 'running' : 'stopped');
+    }
+  }, [health]);
+
+  const handleContainerAction = async (action: 'start' | 'stop' | 'restart') => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/${action}`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to ${action} container`);
+      }
+      
+      toast.success(`Container ${action}ed successfully`);
+      
+      // Refetch health status after action
+      setTimeout(() => {
+        refetchHealth();
+      }, 2000);
+    } catch (error) {
+      toast.error(`Failed to ${action} container: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchLogs = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/logs?lines=200`);
+      if (!response.ok) throw new Error('Failed to fetch logs');
+      const data = await response.json();
+      setLogs(data.logs);
+      setShowLogs(true);
+    } catch (error) {
+      toast.error('Failed to fetch container logs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+          Container Management
+        </label>
+        
+        {/* Container Status */}
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Container Status</p>
+              <div className="flex items-center mt-1">
+                {containerStatus === 'running' ? (
+                  <>
+                    <div className="h-2 w-2 bg-green-500 rounded-full mr-2 animate-pulse" />
+                    <span className="text-sm text-green-700">Running</span>
+                  </>
+                ) : containerStatus === 'stopped' ? (
+                  <>
+                    <div className="h-2 w-2 bg-red-500 rounded-full mr-2" />
+                    <span className="text-sm text-red-700">Stopped</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="h-2 w-2 bg-gray-500 rounded-full mr-2" />
+                    <span className="text-sm text-gray-700">Unknown</span>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {health && health.health && health.health !== 'no healthcheck' && (
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-700">Health Check</p>
+                <p className="text-sm text-gray-600 mt-1">{health.health}</p>
+              </div>
+            )}
+          </div>
+          
+          {/* Container Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleContainerAction('start')}
+              disabled={isLoading || containerStatus === 'running'}
+              className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              Start
+            </button>
+            <button
+              onClick={() => handleContainerAction('stop')}
+              disabled={isLoading || containerStatus === 'stopped'}
+              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              Stop
+            </button>
+            <button
+              onClick={() => handleContainerAction('restart')}
+              disabled={isLoading || containerStatus !== 'running'}
+              className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              <RefreshCw className="h-4 w-4 inline mr-1" />
+              Restart
+            </button>
+          </div>
+        </div>
+        
+        {/* View Logs Button */}
+        <button
+          onClick={fetchLogs}
+          disabled={isLoading}
+          className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+        >
+          View Container Logs
+        </button>
+      </div>
+      
+      {/* Logs Modal */}
+      {showLogs && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Container Logs</h3>
+              <button
+                onClick={() => setShowLogs(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <pre className="text-xs font-mono bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                {logs || 'No logs available'}
+              </pre>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowLogs(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ApplicationDrawerProps {
   vhost: any | null;
   isOpen: boolean;
@@ -624,7 +797,7 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                 leaveFrom="translate-x-0"
                 leaveTo="translate-x-full"
               >
-                <Dialog.Panel className="pointer-events-auto w-screen max-w-3xl">
+                <Dialog.Panel className="pointer-events-auto w-screen max-w-4xl">
                   <div className="flex h-full flex-col bg-white shadow-2xl">
                     {/* Header */}
                     <div className="bg-white px-6 py-5 border-b border-gray-200">
@@ -915,6 +1088,46 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                   {vhost.target || 'Not configured'}
                                 </code>
                               </div>
+                            </div>
+                          )}
+
+                          {vhost.type === 'container' && (
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <h4 className="text-sm font-medium text-gray-900 mb-3">Container Configuration</h4>
+                              {vhost.containerConfig && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-700">Image</p>
+                                      <code className="text-sm text-gray-600">{vhost.containerConfig.image}</code>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-sm font-medium text-gray-700">Port</p>
+                                      <code className="text-sm text-gray-600">{vhost.containerConfig.port}</code>
+                                    </div>
+                                  </div>
+                                  
+                                  {vhost.containerName && (
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-700">Container Name</p>
+                                      <code className="text-sm text-gray-600">{vhost.containerName}</code>
+                                    </div>
+                                  )}
+                                  
+                                  {vhost.containerConfig.env && vhost.containerConfig.env.length > 0 && (
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-700 mb-1">Environment Variables</p>
+                                      <div className="space-y-1">
+                                        {vhost.containerConfig.env.map((env: any, index: number) => (
+                                          <div key={index} className="text-xs font-mono bg-white px-2 py-1 rounded border border-gray-200">
+                                            {env.key}={env.value}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -1227,6 +1440,11 @@ export default function ApplicationDrawerV2({ vhost, isOpen, onClose, onRefresh 
                                 </div>
                               )}
                             </div>
+                          )}
+
+                          {/* Container Management (if applicable) */}
+                          {vhost.type === 'container' && (
+                            <ContainerManagement vhost={vhost} />
                           )}
 
                           {/* Load Balancer Backends (if applicable) */}

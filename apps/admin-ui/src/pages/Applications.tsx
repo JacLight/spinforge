@@ -26,6 +26,8 @@ import {
   XCircle,
   AlertTriangle,
   Link,
+  Container,
+  Activity,
 } from "lucide-react";
 
 function formatDate(dateStr: string | undefined): string {
@@ -444,6 +446,15 @@ export default function Applications() {
                             <ExternalLink className="h-4 w-4" />
                           </span>
                         )}
+                        {(vhost.type === 'container' || vhost.type === 'compose') && (
+                          <button
+                            onClick={() => navigate(`/dashboard/containers/${vhost.domain}`)}
+                            className="text-purple-600 hover:text-purple-900"
+                            title="Container Monitor"
+                          >
+                            <Activity className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setSelectedVhost(vhost);
@@ -539,6 +550,15 @@ export default function Applications() {
                     <span className="text-gray-400" title="No domain configured">
                       <ExternalLink className="h-4 w-4" />
                     </span>
+                  )}
+                  {(vhost.type === 'container' || vhost.type === 'compose') && (
+                    <button
+                      onClick={() => navigate(`/dashboard/containers/${vhost.domain}`)}
+                      className="text-purple-600 hover:text-purple-800"
+                      title="Container Monitor"
+                    >
+                      <Activity className="h-4 w-4" />
+                    </button>
                   )}
                   <button
                     onClick={() => {

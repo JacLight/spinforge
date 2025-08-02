@@ -32,7 +32,9 @@
       "Bash(/Users/imzee/projects/spinforge/rename-static-folders.sh:*)",
       "Bash(/Users/imzee/projects/spinforge/make-folders-fs-friendly.sh)",
       "Bash(/Users/imzee/projects/spinforge/update-static-paths.sh:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(open:*)"
     ],
     "deny": []
   }

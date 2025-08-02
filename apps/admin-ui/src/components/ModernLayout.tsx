@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Package,
   Upload,
-  BarChart3,
   Settings,
   Rocket,
   Menu,
@@ -13,7 +12,6 @@ import {
   Home,
   Monitor,
   ChevronRight,
-  Layers,
   Shield,
   Activity,
   Archive,
@@ -41,6 +39,12 @@ const navItems = [
     color: "from-blue-500 to-blue-600",
   },
   {
+    path: "/dashboard",
+    icon: Monitor,
+    label: "Dashboard",
+    color: "from-purple-500 to-purple-600",
+  },
+  {
     path: "/applications",
     icon: Package,
     label: "Applications",
@@ -48,7 +52,7 @@ const navItems = [
   },
   {
     path: "/active-spinlets",
-    icon: Activity,
+    icon: Archive,
     label: "Active Spinlets",
     color: "from-cyan-500 to-cyan-600",
   },
@@ -57,12 +61,6 @@ const navItems = [
     icon: Upload,
     label: "Deploy",
     color: "from-orange-500 to-orange-600",
-  },
-  {
-    path: "/deployments",
-    icon: Archive,
-    label: "Deployments",
-    color: "from-yellow-500 to-yellow-600",
   },
   {
     path: "/customers",
@@ -75,24 +73,6 @@ const navItems = [
     icon: UserCog,
     label: "Admin Users",
     color: "from-rose-500 to-rose-600",
-  },
-  {
-    path: "/analytics",
-    icon: BarChart3,
-    label: "Analytics",
-    color: "from-pink-500 to-pink-600",
-  },
-  {
-    path: "/modern-dashboard",
-    icon: Monitor,
-    label: "Dashboard",
-    color: "from-purple-500 to-purple-600",
-  },
-  {
-    path: "/metrics",
-    icon: Layers,
-    label: "System Metrics",
-    color: "from-indigo-500 to-indigo-600",
   },
   {
     path: "/settings",

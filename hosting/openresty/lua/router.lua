@@ -10,8 +10,8 @@ local function get_redis_connection()
     local red = redis:new()
     red:set_timeout(1000) -- 1 second timeout
     
-    -- Use IP address for now, DNS resolution issue in container
-    local ok, err = red:connect("172.18.0.2", redis_port)
+    -- Use hostname for Redis connection
+    local ok, err = red:connect("keydb", redis_port)
     if not ok then
         ngx.log(ngx.ERR, "Failed to connect to Redis: ", err)
         return nil, err
@@ -247,6 +247,34 @@ local site, err = get_site_config(host)
 if not site then
     ngx.log(ngx.ERR, "Router: Site not found for domain: ", host, " Error: ", err or "no error")
     ngx.var.route_type = ""
+    
+    -- Check if it's a Redis connection error
+    if err and (err:find("connection refused") or err:find("timeout")) then
+        ngx.status = 503
+        ngx.header["Content-Type"] = "text/html"
+        ngx.say([[
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Service Temporarily Unavailable</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        h1 { color: #e74c3c; }
+        .error-details { background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px auto; max-width: 600px; }
+    </style>
+</head>
+<body>
+    <h1>Service Temporarily Unavailable</h1>
+    <div class="error-details">
+        <p>We're experiencing technical difficulties. Please try again in a moment.</p>
+        <p><small>If this problem persists, please contact support.</small></p>
+    </div>
+</body>
+</html>
+        ]])
+        return ngx.exit(503)
+    end
+    
     update_metrics(host, 404)
     return
 end
@@ -276,6 +304,11 @@ elseif site.type == "proxy" then
     ngx.var.route_type = "proxy"
     ngx.var.proxy_target = site.target or site.upstream
     ngx.log(ngx.INFO, "Proxying to: ", ngx.var.proxy_target)
+elseif site.type == "container" then
+    -- Container sites work like proxy sites
+    ngx.var.route_type = "proxy"
+    ngx.var.proxy_target = site.target
+    ngx.log(ngx.INFO, "Proxying to container: ", ngx.var.proxy_target)
 elseif site.type == "loadbalancer" then
     ngx.var.route_type = "proxy"  -- Use proxy type for handling
     
