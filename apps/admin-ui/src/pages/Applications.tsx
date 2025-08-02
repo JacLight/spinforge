@@ -63,6 +63,26 @@ function formatDate(dateStr: string | undefined): string {
   }
 }
 
+function getSSLIcon(vhost: VHost) {
+  const hasSSL = vhost.ssl?.enabled || false;
+  
+  if (hasSSL) {
+    return (
+      <div className="flex items-center space-x-1" title="SSL Certificate Active">
+        <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+        <span className="text-xs text-green-600 font-medium">HTTPS</span>
+      </div>
+    );
+  } else {
+    return (
+      <div className="flex items-center space-x-1" title="No SSL Certificate">
+        <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
+        <span className="text-xs text-gray-500">HTTP</span>
+      </div>
+    );
+  }
+}
+
 export default function Applications() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -516,6 +536,9 @@ export default function Applications() {
                       Customer
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      SSL
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -578,6 +601,9 @@ export default function Applications() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {vhost.customerId || "Unknown"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {getSSLIcon(vhost)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatDate(vhost.created_at || vhost.createdAt)}
@@ -711,10 +737,11 @@ export default function Applications() {
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-gray-600 mb-3">
-                      <span>{vhost.type}</span>
-                      <span className="truncate ml-2" title={vhost.customerId}>
-                        {vhost.customerId || "Unknown"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="capitalize">{vhost.type}</span>
+                        {getSSLIcon(vhost)}
+                      </div>
+                      <span className="text-gray-500">{vhost.customerId || "Unknown"}</span>
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t">

@@ -46,6 +46,9 @@ export default function Deploy() {
     
     // Advanced container config (Docker Compose)
     composeYaml: "",
+    
+    // SSL configuration
+    enableSSL: false,
   });
 
   const deployMutation = useMutation({
@@ -61,6 +64,7 @@ export default function Deploy() {
         enabled: true,
         aliases: formData.aliases.filter(a => a),
         customerId: "default",
+        ssl: formData.enableSSL ? { enabled: true, provider: 'letsencrypt' } : { enabled: false },
       };
 
       switch (selectedType) {
@@ -293,6 +297,47 @@ export default function Deploy() {
                     <p>Load balancer configuration coming soon!</p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* SSL Configuration */}
+          {selectedType && (
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg">
+              <div className="px-6 py-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">SSL Configuration</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="enableSSL"
+                      checked={formData.enableSSL}
+                      onChange={(e) => setFormData({ ...formData, enableSSL: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="enableSSL" className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-gray-900">Enable Auto SSL (Let's Encrypt)</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Free
+                      </span>
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500 ml-7">
+                    Automatically provision and renew SSL certificates using Let's Encrypt. 
+                    Your site will be accessible via HTTPS with trusted encryption.
+                  </p>
+                  {formData.enableSSL && (
+                    <div className="ml-7 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center space-x-2">
+                        <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+                        <span className="text-sm text-blue-700 font-medium">SSL will be configured after deployment</span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Certificate provisioning may take 1-2 minutes to complete.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Actions */}
