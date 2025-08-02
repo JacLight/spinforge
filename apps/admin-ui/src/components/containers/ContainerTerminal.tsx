@@ -140,18 +140,23 @@ export function ContainerTerminal({ container }: ContainerTerminalProps) {
     const terminal = terminalInstance.current;
     
     try {
-      // Show command being executed
-      terminal.writeln(`\x1b[90m[executing: ${command}]\x1b[0m`);
-      
       // Execute command via API
       const result = await hostingAPI.execInContainer(container.domain, command);
       
       // Display output
-      if (result.output) {
-        const lines = result.output.split('\n');
+      if (result.stdout) {
+        const lines = result.stdout.split('\n');
+        lines.forEach(line => {
+          terminal.writeln(line);
+        });
+      }
+      
+      // Display stderr if any
+      if (result.stderr) {
+        const lines = result.stderr.split('\n');
         lines.forEach(line => {
           if (line.trim()) {
-            terminal.writeln(line);
+            terminal.writeln(`\x1b[31m${line}\x1b[0m`);
           }
         });
       }
@@ -159,12 +164,16 @@ export function ContainerTerminal({ container }: ContainerTerminalProps) {
       // Handle special commands
       if (command === 'clear' || command === 'cls') {
         terminal.clear();
-        terminal.writeln('\x1b[32mSpinForge Container Terminal\x1b[0m');
+        terminal.writeln('\x1b[32m┌──────────────────────────────────────┐\x1b[0m');
+        terminal.writeln('\x1b[32m│\x1b[0m \x1b[1;36mSpinForge Container Terminal\x1b[0m     \x1b[32m│\x1b[0m');
+        terminal.writeln('\x1b[32m│\x1b[0m \x1b[33mContainer:\x1b[0m ' + container.domain.padEnd(20) + ' \x1b[32m│\x1b[0m');
+        terminal.writeln('\x1b[32m└──────────────────────────────────────┘\x1b[0m');
         terminal.writeln('');
       }
       
     } catch (error: any) {
-      terminal.writeln(`\x1b[31mError: ${error.message}\x1b[0m`);
+      terminal.writeln(`\x1b[31mError: ${error.message || 'Command failed'}\x1b[0m`);
+      console.error('Terminal exec error:', error);
     }
     
     // Show new prompt

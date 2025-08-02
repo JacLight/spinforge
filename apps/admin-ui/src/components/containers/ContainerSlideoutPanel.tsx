@@ -24,13 +24,16 @@ export function ContainerSlideoutPanel({
   onClose, 
   onAction
 }: ContainerSlideoutPanelProps) {
+  // Early return MUST be before any hooks
+  if (!container) return null;
+  
   const [activeTab, setActiveTab] = useState<'summary' | 'logs' | 'exec' | 'files'>('summary');
-  const [containerWithStats, setContainerWithStats] = useState<SpinForgeContainer | null>(container);
+  const [containerWithStats, setContainerWithStats] = useState<SpinForgeContainer>(container);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   
   // Fetch real-time container stats when panel opens
   useEffect(() => {
-    if (!container || !isOpen) return;
+    if (!isOpen) return;
 
     const fetchContainerStats = async () => {
       setIsLoadingStats(true);
@@ -57,8 +60,6 @@ export function ContainerSlideoutPanel({
     
     return () => clearInterval(interval);
   }, [container, isOpen]);
-  
-  if (!container || !containerWithStats) return null;
   
   // Determine container status based on actual stats data availability
   const status = (() => {
@@ -99,12 +100,34 @@ export function ContainerSlideoutPanel({
     return fallbackStatus;
   })();
 
+  // Determine if container is running for exec tab
+  const isContainerRunning = (() => {
+    if (containerWithStats.enabled === false) return false;
+    if (containerWithStats.containerStats?.error) return false;
+    if (containerWithStats.containerStats?.state?.status) {
+      return containerWithStats.containerStats.state.status === 'running';
+    }
+    // Check if container has Docker stats (CPU, Memory, etc.) which indicates it's running
+    if (containerWithStats.containerStats && 
+        (containerWithStats.containerStats.CPUPerc || containerWithStats.containerStats.MemUsage || containerWithStats.containerStats.NetIO)) {
+      return true;
+    }
+    return false;
+  })();
+
   const tabs = [
     { id: 'summary', label: 'Summary', icon: Container },
     { id: 'logs', label: 'Logs', icon: Terminal },
-    { id: 'exec', label: 'Exec', icon: Play },
+    { id: 'exec', label: 'Exec', icon: Play, disabled: !isContainerRunning },
     { id: 'files', label: 'Files', icon: FolderOpen }
   ] as const;
+
+  // Switch away from exec tab if container becomes stopped
+  React.useEffect(() => {
+    if (activeTab === 'exec' && !isContainerRunning) {
+      setActiveTab('summary');
+    }
+  }, [isContainerRunning, activeTab]);
 
   return (
     <AnimatePresence>
@@ -162,18 +185,23 @@ export function ContainerSlideoutPanel({
               <div className="flex space-x-8 px-8">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
+                  const isDisabled = 'disabled' in tab && tab.disabled;
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => !isDisabled && setActiveTab(tab.id)}
+                      disabled={isDisabled}
                       className={`flex items-center space-x-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                        activeTab === tab.id
+                        isDisabled
+                          ? 'border-transparent text-gray-300 cursor-not-allowed opacity-50'
+                          : activeTab === tab.id
                           ? 'border-blue-500 text-blue-600'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
                       <Icon className="h-4 w-4" />
                       <span>{tab.label}</span>
+                      {isDisabled && <span className="text-xs">(stopped)</span>}
                     </button>
                   );
                 })}

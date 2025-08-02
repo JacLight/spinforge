@@ -53,17 +53,13 @@ export default function ContainerDeploymentConfig({
 
         <button
           type="button"
-          onClick={() => setMode('advanced')}
-          className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-lg border-2 transition-all ${
-            mode === 'advanced'
-              ? 'border-blue-500 bg-blue-50 text-blue-700'
-              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-          }`}
+          disabled
+          className="flex-1 flex items-center justify-center gap-3 p-4 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
         >
           <Layers className="h-6 w-6" />
           <div className="text-left">
             <h4 className="font-medium">Advanced</h4>
-            <p className="text-sm opacity-80">Multi-service orchestration</p>
+            <p className="text-sm opacity-80">Coming Soon</p>
           </div>
         </button>
       </div>

@@ -76,8 +76,16 @@ export function ContainerRow({
   const status = (() => {
     if (container.enabled === false) return 'stopped';
     if (container.containerStats?.error) return 'stopped';
-    if (container.containerStats?.CPUPerc || container.containerStats?.MemUsage || container.containerStats?.NetIO) return 'running';
-    return container.enabled === true ? 'running' : 'stopped';
+    if (container.containerStats?.state?.status) {
+      return container.containerStats.state.status;
+    }
+    // Check if container has Docker stats (CPU, Memory, etc.) which indicates it's running
+    if (container.containerStats && 
+        (container.containerStats.CPUPerc || container.containerStats.MemUsage || container.containerStats.NetIO)) {
+      return 'running';
+    }
+    // If no stats or error, it's stopped
+    return 'stopped';
   })();
   
   const StatusIcon = status === 'running' ? Play : Square;

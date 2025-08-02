@@ -468,9 +468,14 @@ function groupSpinForgeContainers(containers: SpinForgeContainer[]): ContainerGr
         return c.containerStats.state.status === 'running';
       }
       
-      // If container is enabled but we don't have stats, assume it's running
-      // (This handles cases where the container is running but stats fetch failed)
-      return c.enabled === true;
+      // Check if container has Docker stats (CPU, Memory, etc.) which indicates it's running
+      if (c.containerStats && !c.containerStats.error && 
+          (c.containerStats.CPUPerc || c.containerStats.MemUsage || c.containerStats.NetIO)) {
+        return true;
+      }
+      
+      // If container has error or no stats, it's stopped
+      return false;
     }).length;
     const total = group.containers.length;
     
