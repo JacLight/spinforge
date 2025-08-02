@@ -8,7 +8,6 @@ import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
 import ModernLayout from "./components/ModernLayout";
 import Welcome from "./pages/Welcome";
-import Dashboard from "./pages/Dashboard";
 import UnifiedDashboard from "./pages/UnifiedDashboard";
 import SystemDashboard from "./pages/SystemDashboard";
 import Applications from "./pages/Applications";
@@ -99,7 +98,6 @@ function App() {
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/dashboard" element={<UnifiedDashboard />} />
-          <Route path="/old-dashboard" element={<Dashboard />} />
           <Route path="/system-dashboard" element={<SystemDashboard />} />
           <Route path="/deploy" element={<Deploy />} />
           <Route path="/settings" element={<Settings />} />

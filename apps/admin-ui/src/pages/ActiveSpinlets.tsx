@@ -177,15 +177,6 @@ export default function ActiveSpinlets() {
           transition={{ duration: 0.5 }}
           className="space-y-8"
         >
-          {/* Page Header */}
-          <div className="mb-8">
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-              Running Processes
-            </h2>
-            <p className="text-lg text-gray-600 mt-2">
-              Real-time monitoring of currently active spinlet processes
-            </p>
-          </div>
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
