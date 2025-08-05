@@ -75,27 +75,18 @@ if not ssl_enabled then
     return
 end
 
--- Check if certificate exists - try multiple paths
-local cert_paths = utils.get_cert_paths(server_name)
-local cert_found = false
+-- ALWAYS use the dot format for certificates (as Let's Encrypt creates them)
+-- The router handles the underscore conversion for static files
+cert_path = "/etc/letsencrypt/live/" .. server_name .. "/fullchain.pem"
+key_path = "/etc/letsencrypt/live/" .. server_name .. "/privkey.pem"
 
-for _, path_info in ipairs(cert_paths) do
-    local f = io.open(path_info.cert, "r")
-    if f then
-        f:close()
-        cert_path = path_info.cert
-        key_path = path_info.key
-        cert_found = true
-        ngx.log(ngx.INFO, "SSL: Certificate found at: ", cert_path)
-        break
-    end
-end
-
-if not cert_found then
-    ngx.log(ngx.WARN, "SSL: No certificate found for domain: ", server_name)
-    ngx.log(ngx.WARN, "SSL: Checked paths: ", cert_paths[1].cert, " and ", cert_paths[2] and cert_paths[2].cert or "none")
+-- Try to open certificate file
+local f = io.open(cert_path, "r")
+if not f then
+    ngx.log(ngx.WARN, "SSL: No certificate found at: ", cert_path)
     return
 end
+f:close()
 
 -- Read certificate and key
 local cert_file = io.open(cert_path, "r")
