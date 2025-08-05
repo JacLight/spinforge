@@ -1,0 +1,73 @@
+{
+  "name": "spinforge-cli",
+  "version": "0.3.13",
+  "description": "SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure",
+  "bin": {
+    "spinforge": "./dist/cli.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "spinforge",
+    "deployment",
+    "paas",
+    "docker",
+    "cli",
+    "deploy",
+    "nextjs",
+    "react",
+    "nodejs",
+    "microservices",
+    "hosting"
+  ],
+  "author": "SpinForge Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JacLight/spinforge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JacLight/spinforge/issues"
+  },
+  "homepage": "https://spinforge.dev",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "dev": "tsc -w",
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@types/archiver": "^6.0.3",
+    "archiver": "^7.0.1",
+    "axios": "^1.6.2",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "dotenv": "^17.2.1",
+    "form-data": "^4.0.4",
+    "inquirer": "^9.2.12",
+    "ioredis": "^5.3.2",
+    "nanoid": "^5.0.4",
+    "open": "^9.1.0",
+    "ora": "^7.0.1",
+    "table": "^6.8.1"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/ioredis": "^4.28.10",
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  }
+}

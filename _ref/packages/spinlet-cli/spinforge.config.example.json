@@ -1,0 +1,5 @@
+{
+  "apiUrl": "https://api.spinforge.dev",
+  "webUrl": "https://spinforge.dev",
+  "deploymentPath": "~/.spinforge/deployments"
+}

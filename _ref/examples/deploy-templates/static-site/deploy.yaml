@@ -1,0 +1,30 @@
+name: marketing-site
+version: 1.0.0
+description: Static marketing website
+
+domain: 
+  - example.com
+  - www.example.com
+
+customerId: marketing-team
+
+framework: static
+runtime: static
+
+build:
+  command: npm install && npm run build
+  outputDir: public
+
+resources:
+  memory: 128MB
+  cpu: 0.1
+
+networking:
+  cors:
+    origins: 
+      - https://app.example.com
+    methods: 
+      - GET
+      - POST
+    headers: 
+      - Content-Type

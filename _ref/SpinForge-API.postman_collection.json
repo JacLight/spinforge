@@ -1,0 +1,788 @@
+{
+  "info": {
+    "name": "SpinForge API",
+    "description": "Complete API collection for SpinForge platform including monitoring and system control",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Admin-Token",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{adminToken}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:9004",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "your-admin-token-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_health",
+              "host": ["{{baseUrl}}"],
+              "path": ["_health"]
+            },
+            "description": "Basic health check endpoint"
+          }
+        },
+        {
+          "name": "Basic Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["_metrics"]
+            },
+            "description": "Basic metrics (legacy endpoint)"
+          }
+        },
+        {
+          "name": "System Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_metrics/system",
+              "host": ["{{baseUrl}}"],
+              "path": ["_metrics", "system"]
+            },
+            "description": "Detailed system metrics (CPU, memory, disk, network)"
+          }
+        },
+        {
+          "name": "Docker Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_metrics/docker",
+              "host": ["{{baseUrl}}"],
+              "path": ["_metrics", "docker"]
+            },
+            "description": "Docker container statistics"
+          }
+        },
+        {
+          "name": "KeyDB Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_metrics/keydb",
+              "host": ["{{baseUrl}}"],
+              "path": ["_metrics", "keydb"]
+            },
+            "description": "KeyDB/Redis performance metrics"
+          }
+        },
+        {
+          "name": "Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_metrics/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["_metrics", "services"]
+            },
+            "description": "Health status of all services"
+          }
+        },
+        {
+          "name": "All Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_metrics/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["_metrics", "all"]
+            },
+            "description": "Combined metrics from all sources"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Route Management",
+      "item": [
+        {
+          "name": "Get All Routes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes"]
+            },
+            "description": "Get all configured routes"
+          }
+        },
+        {
+          "name": "Get Route Details (Complete Value Chain)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/details",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "details"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Get comprehensive route details including spinlet, services, logs, metrics, and audit trail"
+          }
+        },
+        {
+          "name": "Get Route Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/logs?lines=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "logs"],
+              "query": [
+                {
+                  "key": "lines",
+                  "value": "100"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Get logs for a specific route"
+          }
+        },
+        {
+          "name": "Get Route Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "metrics"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Get performance metrics for a specific route"
+          }
+        },
+        {
+          "name": "Get Route Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "health"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Get health status for a specific route"
+          }
+        },
+        {
+          "name": "Update Route Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memory\": \"1GB\",\n  \"cpu\": \"1.0\",\n  \"env\": {\n    \"NEW_VAR\": \"value\"\n  },\n  \"replicas\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "config"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Update configuration for a specific route"
+          }
+        },
+        {
+          "name": "Restart Route",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/restart",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "restart"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Restart the spinlet for a specific route"
+          }
+        },
+        {
+          "name": "Execute Command in Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"ls -la\",\n  \"workDir\": \"/app\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain/exec",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain", "exec"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Execute a command in the route's spinlet"
+          }
+        },
+        {
+          "name": "Get Customer Routes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/customers/:customerId/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "customers", ":customerId", "routes"],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "customer-123"
+                }
+              ]
+            },
+            "description": "Get routes for a specific customer"
+          }
+        },
+        {
+          "name": "Create Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"myapp.example.com\",\n  \"customerId\": \"customer-123\",\n  \"spinletId\": \"spin-{{$timestamp}}\",\n  \"buildPath\": \"/path/to/app\",\n  \"framework\": \"express\",\n  \"config\": {\n    \"memory\": \"512MB\",\n    \"cpu\": \"0.5\",\n    \"env\": {\n      \"NODE_ENV\": \"production\",\n      \"PORT\": \"3000\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes"]
+            },
+            "description": "Deploy a new application"
+          }
+        },
+        {
+          "name": "Delete Route",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/:domain",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", ":domain"],
+              "variable": [
+                {
+                  "key": "domain",
+                  "value": "myapp.example.com"
+                }
+              ]
+            },
+            "description": "Remove a route/application"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spinlet Management",
+      "item": [
+        {
+          "name": "Get Spinlet State",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Get state of a specific spinlet"
+          }
+        },
+        {
+          "name": "Stop Spinlet",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/stop",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "stop"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Stop a running spinlet"
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Control (NEW)",
+      "item": [
+        {
+          "name": "Start Spinlet",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "start"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Start a stopped spinlet"
+          }
+        },
+        {
+          "name": "Restart Spinlet",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/restart",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "restart"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Restart a spinlet"
+          }
+        },
+        {
+          "name": "Scale Spinlet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instances\": 3,\n  \"memory\": \"1GB\",\n  \"cpu\": \"1.0\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/scale",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "scale"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Scale spinlet resources"
+          }
+        },
+        {
+          "name": "Update Environment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"env\": {\n    \"NODE_ENV\": \"production\",\n    \"DEBUG\": \"false\",\n    \"API_KEY\": \"new-key\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/env",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "env"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Update spinlet environment variables"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logs & Debugging",
+      "item": [
+        {
+          "name": "Get Spinlet Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/logs?lines=100&follow=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "logs"],
+              "query": [
+                {
+                  "key": "lines",
+                  "value": "100"
+                },
+                {
+                  "key": "follow",
+                  "value": "false"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Get spinlet logs"
+          }
+        },
+        {
+          "name": "Stream Logs (WebSocket)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Upgrade",
+                "value": "websocket"
+              },
+              {
+                "key": "Connection",
+                "value": "Upgrade"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/logs/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "logs", "stream"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Stream logs via WebSocket"
+          }
+        },
+        {
+          "name": "Execute Command",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"ls -la\",\n  \"workDir\": \"/app\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/spinlets/:spinletId/exec",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "spinlets", ":spinletId", "exec"],
+              "variable": [
+                {
+                  "key": "spinletId",
+                  "value": "spin-123"
+                }
+              ]
+            },
+            "description": "Execute command in spinlet container"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Configuration Management",
+      "item": [
+        {
+          "name": "Get Platform Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "config"]
+            },
+            "description": "Get platform configuration"
+          }
+        },
+        {
+          "name": "Update Platform Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rateLimits\": {\n    \"global\": {\n      \"windowMs\": 60000,\n      \"max\": 1000\n    },\n    \"perCustomer\": {\n      \"windowMs\": 60000,\n      \"max\": 100\n    }\n  },\n  \"resources\": {\n    \"defaultMemory\": \"512MB\",\n    \"defaultCpu\": \"0.5\",\n    \"maxMemory\": \"4GB\",\n    \"maxCpu\": \"2\"\n  },\n  \"ports\": {\n    \"start\": 10000,\n    \"end\": 20000\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "config"]
+            },
+            "description": "Update platform configuration"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Backup & Maintenance",
+      "item": [
+        {
+          "name": "Create Backup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"full\",\n  \"includeData\": true,\n  \"includeConfigs\": true,\n  \"includeLogs\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/backup",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "backup"]
+            },
+            "description": "Create system backup"
+          }
+        },
+        {
+          "name": "List Backups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/backup",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "backup"]
+            },
+            "description": "List available backups"
+          }
+        },
+        {
+          "name": "Restore Backup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"backupId\": \"backup-20250718-123456\",\n  \"restoreData\": true,\n  \"restoreConfigs\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/backup/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "backup", "restore"]
+            },
+            "description": "Restore from backup"
+          }
+        },
+        {
+          "name": "Cleanup Resources",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cleanupType\": \"unused\",\n  \"olderThanDays\": 30,\n  \"dryRun\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/cleanup",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "cleanup"]
+            },
+            "description": "Cleanup unused resources"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security & Access",
+      "item": [
+        {
+          "name": "Generate API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Production API Key\",\n  \"permissions\": [\"read\", \"write\", \"admin\"],\n  \"expiresIn\": \"30d\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/auth/keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "auth", "keys"]
+            },
+            "description": "Generate new API key"
+          }
+        },
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/auth/keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "auth", "keys"]
+            },
+            "description": "List all API keys"
+          }
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/auth/keys/:keyId",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "auth", "keys", ":keyId"],
+              "variable": [
+                {
+                  "key": "keyId",
+                  "value": "key-123"
+                }
+              ]
+            },
+            "description": "Revoke an API key"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+# SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
+# Copyright (c) 2025 Jacob Ajiboye
+# Licensed under the MIT License
+
+services:
+  keydb:
+    image: eqalpha/keydb:latest
+    container_name: spinforge-keydb
+    restart: unless-stopped
+    volumes:
+      - keydb-data:/data
+    environment:
+      - KEYDB_PASSWORD=${REDIS_PASSWORD:-}
+    command: keydb-server --appendonly yes --protected-mode no --port 16378
+    networks:
+      - spinforge
+    healthcheck:
+      test: ["CMD", "keydb-cli", "-p", "16378", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  openresty:
+    build:
+      context: ./hosting/openresty
+      dockerfile: Dockerfile
+    container_name: spinforge-openresty
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8082:8081"
+    env_file:
+      - .env
+    volumes:
+      - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./hosting/openresty/lua:/etc/openresty/lua:ro
+      - ./hosting/data/static:/data/static
+      - ./hosting/data/certs:/etc/letsencrypt
+      - ./hosting/data/certbot-webroot:/var/www/certbot
+      - openresty-logs:/var/log/nginx
+    networks:
+      - spinforge
+    depends_on:
+      keydb:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./hosting/api
+      dockerfile: Dockerfile
+    container_name: spinforge-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - PORT=${API_PORT}
+      - STATIC_ROOT=${STATIC_ROOT}
+    volumes:
+      - ./hosting/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - spinforge
+    depends_on:
+      - keydb
+      - openresty
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: spinforge-certbot
+    restart: unless-stopped
+    volumes:
+      - ./hosting/data/certs:/etc/letsencrypt
+      - ./hosting/data/certbot-webroot:/var/www/certbot
+      - ./hosting/data/certbot-logs:/var/log/letsencrypt
+    networks:
+      - spinforge
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"find /etc/letsencrypt/live -name '*.pem' -exec chmod 644 {} \\;\"; sleep 12h & wait $${!}; done;'"
+
+  admin-ui:
+    build:
+      context: ./apps/admin-ui
+      dockerfile: Dockerfile
+    container_name: spinforge-admin-ui
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+    networks:
+      - spinforge
+    depends_on:
+      - api
+      - keydb
+
+  website:
+    build:
+      context: ./apps/website
+      dockerfile: Dockerfile
+    container_name: spinforge-website
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env
+    networks:
+      - spinforge
+    depends_on:
+      - api
+      - keydb
+
+volumes:
+  keydb-data:
+  openresty-logs:
+
+networks:
+  spinforge:
+    driver: bridge

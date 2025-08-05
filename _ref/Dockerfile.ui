@@ -1,0 +1,35 @@
+# SpinForge - Open Source Hosting Platform
+# Copyright (c) 2025 Jacob Ajiboye
+# Licensed under the MIT License
+
+# Build stage
+FROM node:20-alpine as builder
+
+WORKDIR /app
+
+# Copy package files
+COPY packages/spinlet-ui/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY packages/spinlet-ui/ ./
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx-ui.conf /etc/nginx/nginx.conf
+
+# Expose port
+EXPOSE 80
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,328 @@
+{
+  "info": {
+    "_postman_id": "deployment-api-collection",
+    "name": "SpinForge Deployment API",
+    "description": "Collection for testing SpinForge deployment endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Deployments",
+      "item": [
+        {
+          "name": "List All Deployments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments"]
+            },
+            "description": "Get all deployment statuses including pending, building, success, and failed deployments"
+          }
+        },
+        {
+          "name": "Scan Deployment Folder",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/scan",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "scan"]
+            },
+            "description": "List all items in the deployment folder"
+          }
+        },
+        {
+          "name": "Trigger Deployment Scan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/scan",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "scan"]
+            },
+            "description": "Trigger hot deployment watcher to scan for new deployments"
+          }
+        },
+        {
+          "name": "Retry Failed Deployment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/{{deploymentName}}/retry",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "{{deploymentName}}", "retry"]
+            },
+            "description": "Retry a failed deployment by removing .failed marker and triggering redeploy"
+          }
+        },
+        {
+          "name": "Cancel Deployment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/{{deploymentName}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "{{deploymentName}}", "cancel"]
+            },
+            "description": "Cancel an in-progress deployment"
+          }
+        },
+        {
+          "name": "Get Deployment Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/{{deploymentName}}/logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "{{deploymentName}}", "logs"]
+            },
+            "description": "Get logs for a specific deployment"
+          }
+        },
+        {
+          "name": "Delete Deployment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/{{deploymentName}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "{{deploymentName}}"]
+            },
+            "description": "Remove a deployment from the system"
+          }
+        },
+        {
+          "name": "Trigger Health Check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments/health-check",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments", "health-check"]
+            },
+            "description": "Trigger health check for all deployments"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Routes",
+      "item": [
+        {
+          "name": "List All Routes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes"]
+            },
+            "description": "Get all configured routes"
+          }
+        },
+        {
+          "name": "Create Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"test-app.localhost\",\n  \"spinletId\": \"test-app\",\n  \"customerId\": \"customer1\",\n  \"buildPath\": \"/deployments/test-app\",\n  \"framework\": \"static\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes"]
+            },
+            "description": "Create a new route"
+          }
+        },
+        {
+          "name": "Delete Route",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes/{{domain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes", "{{domain}}"]
+            },
+            "description": "Delete a route by domain"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test Deployment Methods",
+      "item": [
+        {
+          "name": "1. Create Static Site Deployment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"test-static-site\",\n  \"domain\": \"test-static.localhost\",\n  \"customerId\": \"customer1\",\n  \"framework\": \"static\",\n  \"config\": {\n    \"memory\": \"128MB\",\n    \"cpu\": 0.1\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/_admin/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "routes"]
+            },
+            "description": "First create a route for testing deployment"
+          }
+        },
+        {
+          "name": "2. Check Deployment Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/_admin/deployments",
+              "host": ["{{baseUrl}}"],
+              "path": ["_admin", "deployments"]
+            },
+            "description": "Check if deployment shows up in the list"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:9004",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "changeMe123",
+      "type": "string"
+    },
+    {
+      "key": "deploymentName",
+      "value": "test-app",
+      "type": "string"
+    },
+    {
+      "key": "domain",
+      "value": "test-app.localhost",
+      "type": "string"
+    }
+  ]
+}
