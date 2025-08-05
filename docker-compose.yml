@@ -75,9 +75,10 @@ services:
       - ./hosting/data/certs:/etc/letsencrypt
       - ./hosting/data/certbot-webroot:/var/www/certbot
       - ./hosting/data/certbot-logs:/var/log/letsencrypt
+      - ./hosting/scripts:/scripts:ro
     networks:
       - spinforge
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"find /etc/letsencrypt/live -name '*.pem' -exec chmod 644 {} \\;\"; sleep 12h & wait $${!}; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive\"; sleep 12h & wait $${!}; done;'"
 
   admin-ui:
     build:
