@@ -1,13 +1,34 @@
 #!/bin/bash
 
+# Detect docker compose command (v1 vs v2)
+if docker compose version &>/dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
+    DOCKER_COMPOSE="docker-compose"
+fi
+
 echo "Stopping SpinForge and monitoring stack..."
 
-# Stop monitoring stack
+# Stop monitoring stack first
 echo "Stopping monitoring services..."
-docker-compose -f docker-compose.monitoring.yml down
+if [ -f "docker-compose.monitoring.yml" ]; then
+    $DOCKER_COMPOSE -f docker-compose.monitoring.yml down
+else
+    echo "Warning: docker-compose.monitoring.yml not found, skipping monitoring stack"
+fi
 
 # Stop main SpinForge stack
 echo "Stopping main SpinForge services..."
-docker-compose down
+$DOCKER_COMPOSE down
 
+# Optional: Remove volumes (commented out by default)
+# echo "Removing volumes..."
+# $DOCKER_COMPOSE down -v
+# $DOCKER_COMPOSE -f docker-compose.monitoring.yml down -v
+
+echo ""
 echo "All services stopped."
+echo ""
+echo "To remove all data and volumes, run:"
+echo "  $DOCKER_COMPOSE down -v"
+echo "  $DOCKER_COMPOSE -f docker-compose.monitoring.yml down -v"

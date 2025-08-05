@@ -7,10 +7,12 @@
 --]]
 -- SpinForge Dynamic Router
 -- Reads host mappings from Redis/KeyDB
+-- Version: 2.1.0 - 2025-08-05 - Added domain name normalization
 
 local redis = require "resty.redis"
 local cjson = require "cjson"
 local logger = require "logger"
+local utils = require "utils"
 
 -- Helper function to get Redis connection
 local function get_redis_connection()
@@ -309,7 +311,7 @@ if site.type == "static" then
     else
         -- Use the primary domain for the folder name (from site config, not the host header)
         -- This ensures aliases work correctly
-        local folder_name = site.domain:gsub("%.", "_")
+        local folder_name = utils.domain_to_folder(site.domain)
         ngx.var.target_root = (os.getenv("STATIC_ROOT") or "/data/static") .. "/" .. folder_name
     end
     ngx.var.route_type = "static"
@@ -365,7 +367,7 @@ elseif site.type == "loadbalancer" then
     local backend_config
     
     -- Define sticky cookie name once for the entire request
-    local sticky_cookie_name = "spinforge_backend_" .. host:gsub("%.", "_")
+    local sticky_cookie_name = "spinforge_backend_" .. utils.domain_to_folder(host)
     
     -- First, check for explicit label parameter (for testing/debugging)
     local label_param = ngx.var.arg_label
