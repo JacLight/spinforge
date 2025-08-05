@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 # Detect docker compose command (v1 vs v2)
 if docker compose version &>/dev/null; then
@@ -18,21 +19,21 @@ fi
 
 # Start main SpinForge stack
 echo "Starting main SpinForge services..."
-$DOCKER_COMPOSE up -d
+$DOCKER_COMPOSE up -d || { echo "Error: Failed to start main services"; exit 1; }
 
 # Wait for main services to be ready
 echo "Waiting for main services to start..."
 sleep 10
 
 # Check if main services are running
-if ! $DOCKER_COMPOSE ps | grep -q "Up"; then
+if ! $DOCKER_COMPOSE ps --format json 2>/dev/null | grep -q '"State":"running"' && ! $DOCKER_COMPOSE ps 2>/dev/null | grep -qE "(Up|Running)"; then
     echo "Error: Main services failed to start. Check logs with: $DOCKER_COMPOSE logs"
     exit 1
 fi
 
 # Start monitoring stack
 echo "Starting monitoring services..."
-$DOCKER_COMPOSE -f docker-compose.monitoring.yml up -d
+$DOCKER_COMPOSE -f docker-compose.monitoring.yml up -d || { echo "Error: Failed to start monitoring services"; exit 1; }
 
 # Wait for monitoring services to be ready
 echo "Waiting for monitoring services to start..."

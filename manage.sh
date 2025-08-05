@@ -1,68 +1,78 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SpinForge Management Script
 
-set -e
+set -euo pipefail
 
-COMMAND=$1
+# Check if docker compose is available
+if docker compose version &>/dev/null; then
+    DOCKER_COMPOSE="docker compose"
+elif docker-compose version &>/dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    echo "Error: Docker Compose not found!"
+    exit 1
+fi
+
+COMMAND=${1:-}
 
 case "$COMMAND" in
     start)
         echo "🚀 Starting SpinForge..."
-        docker compose up -d
-        docker compose ps
+        $DOCKER_COMPOSE up -d || { echo "Error: Failed to start services"; exit 1; }
+        $DOCKER_COMPOSE ps
         ;;
     
     stop)
         echo "🛑 Stopping SpinForge..."
-        docker compose stop
+        $DOCKER_COMPOSE stop || { echo "Error: Failed to stop services"; exit 1; }
         ;;
     
     restart)
         echo "🔄 Restarting SpinForge..."
-        docker compose restart
-        docker compose ps
+        $DOCKER_COMPOSE restart || { echo "Error: Failed to restart services"; exit 1; }
+        $DOCKER_COMPOSE ps
         ;;
     
     down)
         echo "📦 Stopping and removing containers..."
-        docker compose down
+        $DOCKER_COMPOSE down || { echo "Error: Failed to bring down services"; exit 1; }
         ;;
     
     logs)
-        SERVICE=$2
+        SERVICE=${2:-}
         if [ -z "$SERVICE" ]; then
-            docker compose logs -f
+            $DOCKER_COMPOSE logs -f
         else
-            docker compose logs -f "$SERVICE"
+            $DOCKER_COMPOSE logs -f "$SERVICE"
         fi
         ;;
     
     status)
-        docker compose ps
+        $DOCKER_COMPOSE ps
         ;;
     
     build)
         echo "🏗️  Building containers..."
-        docker compose build
+        $DOCKER_COMPOSE build || { echo "Error: Build failed"; exit 1; }
         ;;
     
     rebuild)
         echo "🏗️  Rebuilding containers..."
-        docker compose down
-        docker compose build --no-cache
-        docker compose up -d
-        docker compose ps
+        $DOCKER_COMPOSE down || { echo "Error: Failed to bring down services"; exit 1; }
+        $DOCKER_COMPOSE build --no-cache || { echo "Error: Build failed"; exit 1; }
+        $DOCKER_COMPOSE up -d || { echo "Error: Failed to start services"; exit 1; }
+        $DOCKER_COMPOSE ps
         ;;
     
     shell)
         SERVICE=${2:-api}
         echo "🐚 Opening shell in $SERVICE container..."
-        docker compose exec "$SERVICE" /bin/sh
+        exec $DOCKER_COMPOSE exec "$SERVICE" /bin/sh
         ;;
     
     clean)
         echo "🧹 Cleaning up..."
-        docker compose down -v
+        $DOCKER_COMPOSE down -v || { echo "Error: Failed to clean up"; exit 1; }
         echo "⚠️  Removed all containers and volumes"
         ;;
     
