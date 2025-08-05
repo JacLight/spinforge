@@ -4,8 +4,8 @@
 
 FROM node:22-alpine
 
-# Install Docker CLI
-RUN apk add --no-cache docker-cli
+# Install Docker CLI and OpenSSL
+RUN apk add --no-cache docker-cli openssl
 
 WORKDIR /app
 

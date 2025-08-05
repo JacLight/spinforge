@@ -22,6 +22,15 @@ if not ok then
     return
 end
 
+-- Authenticate if password is set
+if redis_password and redis_password ~= "" then
+    local ok, err = red:auth(redis_password)
+    if not ok then
+        ngx.log(ngx.ERR, "SSL: Failed to authenticate with Redis: ", err)
+        return
+    end
+end
+
 -- Check if this domain has SSL enabled
 local site_key = "site:" .. server_name
 local res, err = red:get(site_key)
