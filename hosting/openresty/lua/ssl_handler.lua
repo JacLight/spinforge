@@ -32,6 +32,16 @@ if redis_password and redis_password ~= "" then
     end
 end
 
+-- Select database (important!)
+local redis_db = tonumber(os.getenv("REDIS_DB")) or 1
+if redis_db and redis_db ~= 0 then
+    local ok, err = red:select(redis_db)
+    if not ok then
+        ngx.log(ngx.ERR, "SSL: Failed to select Redis database: ", err)
+        return
+    end
+end
+
 -- Check if this domain has SSL enabled
 local site_key = "site:" .. server_name
 local res, err = red:get(site_key)

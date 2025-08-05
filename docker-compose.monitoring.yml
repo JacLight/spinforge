@@ -28,7 +28,7 @@ services:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki-data:/loki
     ports:
-      - "3100:3100"
+      - "3101:3100"
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - spinforge
@@ -100,8 +100,7 @@ services:
       - "9121:9121"
     networks:
       - spinforge
-    depends_on:
-      - keydb
+    # External dependency - requires main stack to be running
 
   # Nginx exporter for OpenResty metrics
   nginx-exporter:
@@ -114,8 +113,7 @@ services:
       - "9113:9113"
     networks:
       - spinforge
-    depends_on:
-      - openresty
+    # External dependency - requires main stack to be running
 
 volumes:
   prometheus-data:
