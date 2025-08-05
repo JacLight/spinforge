@@ -68,6 +68,22 @@ app.use((err, req, res, next) => {
 
 // Start the server
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info(`SpinForge API (OpenResty version) listening on port ${PORT}`);
+  
+  // Initialize SSL certificate cache
+  try {
+    const SSLCacheService = require('./services/SSLCacheService');
+    const redisClient = require('./utils/redis');
+    const sslCache = new SSLCacheService(redisClient);
+    
+    logger.info('Initializing SSL certificate cache...');
+    await sslCache.cacheAllCertificates();
+    
+    // Start watching for certificate changes
+    sslCache.watchCertificates();
+    logger.info('SSL certificate cache initialized');
+  } catch (error) {
+    logger.error('Failed to initialize SSL cache:', error);
+  }
 });
