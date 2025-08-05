@@ -99,6 +99,36 @@ EOF
 
 **⚠️ Important**: Change the default password immediately after first login!
 
+## 📊 Monitoring Stack (Optional)
+
+SpinForge includes a comprehensive monitoring stack with Prometheus, Grafana, and Loki for metrics, visualization, and log aggregation.
+
+### Start with Monitoring
+
+```bash
+# Start SpinForge with monitoring
+./start-with-monitoring.sh
+```
+
+### Access Monitoring Services
+
+- **Grafana**: `http://localhost:3000` (admin/admin)
+- **Prometheus**: `http://localhost:9090`
+
+### Features
+
+- **Metrics Collection**: Prometheus collects metrics from all SpinForge services
+- **Log Aggregation**: Loki aggregates logs from all containers
+- **Visualization**: Pre-configured Grafana dashboards for SpinForge monitoring
+- **Alerting**: Set up alerts based on metrics and logs
+
+### Stop Everything
+
+```bash
+# Stop SpinForge and monitoring
+./stop-with-monitoring.sh
+```
+
 ## 📋 Architecture
 
 SpinForge consists of four main components working together:

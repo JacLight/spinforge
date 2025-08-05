@@ -6,6 +6,8 @@
  * See the LICENSE file in the root directory for details.
  */
 const redis = require('redis');
+const { metrics } = require('./prometheus');
+const logger = require('./logger');
 
 // Redis client
 const redisClient = redis.createClient({
@@ -17,7 +19,28 @@ const redisClient = redis.createClient({
   database: process.env.REDIS_DB || 1
 });
 
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
+// Track Redis metrics
+redisClient.on('error', (err) => {
+  logger.error('Redis Client Error', err);
+  metrics.keydbConnections.set(0);
+});
+
+redisClient.on('connect', () => {
+  logger.info('Connected to KeyDB');
+  metrics.keydbConnections.set(1);
+});
+
+redisClient.on('ready', () => {
+  logger.info('KeyDB client ready');
+});
+
+// Wrap Redis commands to track metrics
+const originalSendCommand = redisClient.sendCommand;
+redisClient.sendCommand = function(commandName, ...args) {
+  metrics.keydbCommands.inc({ command: commandName });
+  return originalSendCommand.apply(this, [commandName, ...args]);
+};
+
 redisClient.connect();
 
 module.exports = redisClient;

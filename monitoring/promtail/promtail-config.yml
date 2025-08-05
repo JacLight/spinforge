@@ -1,0 +1,66 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape Docker container logs
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/lib/docker/containers/*/*log
+    
+    pipeline_stages:
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs:
+      - json:
+          expressions:
+            tag:
+          source: attrs
+      - regex:
+          expression: (?P<container_name>(?:[^|]*))\|(?P<image_tag>(?:[^|]*))
+          source: tag
+      - timestamp:
+          format: RFC3339Nano
+          source: time
+      - labels:
+          stream:
+          container_name:
+          image_tag:
+      - output:
+          source: output
+
+  # SpinForge specific logs
+  - job_name: spinforge
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: spinforge
+          __path__: /var/lib/docker/containers/*spinforge*/*log
+    
+    pipeline_stages:
+      - json:
+          expressions:
+            log: log
+            stream: stream
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}'
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[^\s]*)\s+\[(?P<level>[^\]]+)\]\s+(?P<message>.*)'
+      - labels:
+          level:
+      - timestamp:
+          format: '2006-01-02T15:04:05Z07:00'
+          source: timestamp

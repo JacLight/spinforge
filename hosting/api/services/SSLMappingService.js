@@ -68,7 +68,7 @@ class SSLMappingService {
       const siteData = await this.redisClient.get(key);
       if (siteData) {
         const site = JSON.parse(siteData);
-        if (site.ssl?.enabled) {
+        if (site.ssl_enabled) {
           sites.push(site);
         }
       }
