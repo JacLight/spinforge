@@ -1,5 +1,5 @@
-import React from 'react';
-import { Settings, Zap, Database, Shield, Globe, Server } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, Zap, Database, Shield, Globe, Server, Package, Plus, Trash2 } from 'lucide-react';
 
 interface SettingsTabProps {
   vhost: any;
@@ -9,6 +9,45 @@ interface SettingsTabProps {
 }
 
 export default function SettingsTab({ vhost, isEditing, formData, setFormData }: SettingsTabProps) {
+  const [newEnvKey, setNewEnvKey] = useState('');
+  const [newEnvValue, setNewEnvValue] = useState('');
+
+  // Environment variables for containers
+  const addEnvVar = () => {
+    if (newEnvKey && newEnvValue) {
+      // Ensure env is always an object, not an array
+      const currentEnv = formData.containerConfig?.env || {};
+      const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
+      
+      setFormData({
+        ...formData,
+        containerConfig: {
+          ...formData.containerConfig,
+          env: {
+            ...cleanEnv,
+            [newEnvKey]: newEnvValue
+          }
+        }
+      });
+      setNewEnvKey('');
+      setNewEnvValue('');
+    }
+  };
+
+  const removeEnvVar = (key: string) => {
+    const currentEnv = formData.containerConfig?.env || {};
+    const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
+    const { [key]: _, ...restEnv } = cleanEnv;
+    
+    setFormData({
+      ...formData,
+      containerConfig: {
+        ...formData.containerConfig,
+        env: restEnv
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">Settings & Configuration</h2>
@@ -107,40 +146,155 @@ export default function SettingsTab({ vhost, isEditing, formData, setFormData }:
       {vhost.type === 'container' && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
           <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Database className="h-4 w-4 text-purple-500" />
+            <Package className="h-5 w-5 text-purple-500" />
             Container Configuration
           </h3>
           
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Container Port</label>
-              {isEditing ? (
-                <input
-                  type="number"
-                  value={formData.containerConfig?.port || 3000}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    containerConfig: { ...formData.containerConfig, port: parseInt(e.target.value) }
-                  })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                <code className="text-sm bg-gray-100 px-3 py-1 rounded">
-                  {formData.containerConfig?.port || 3000}
-                </code>
-              )}
+            {/* Basic Container Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Docker Image</label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.containerConfig?.image || ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      containerConfig: { ...formData.containerConfig, image: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="nginx:alpine"
+                  />
+                ) : (
+                  <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
+                    {formData.containerConfig?.image || 'Not set'}
+                  </code>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    value={formData.containerConfig?.port || 3000}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      containerConfig: { ...formData.containerConfig, port: parseInt(e.target.value) }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                ) : (
+                  <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
+                    {formData.containerConfig?.port || 3000}
+                  </code>
+                )}
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Environment Variables</label>
-              <div className="bg-gray-50 rounded-lg p-4 font-mono text-xs">
-                {Object.entries(formData.containerConfig?.env || {}).map(([key, value]) => (
-                  <div key={key} className="py-1">
-                    <span className="text-blue-600">{key}</span>=<span className="text-gray-700">{String(value)}</span>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Container Name</label>
+              <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
+                {vhost.containerName || vhost.domain.replace(/\./g, '-')}
+              </code>
+            </div>
+
+            {/* Environment Variables */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Environment Variables</label>
+              <div className="space-y-2">
+                {(() => {
+                  const env = formData.containerConfig?.env || {};
+                  // Filter out any numeric keys or invalid entries
+                  const validEntries = Object.entries(env).filter(([key, value]) => {
+                    // Skip numeric keys (from array corruption) and object values
+                    return isNaN(Number(key)) && typeof value !== 'object';
+                  });
+                  
+                  if (validEntries.length === 0 && !isEditing) {
+                    return (
+                      <div className="text-sm text-gray-500 p-2">
+                        No environment variables configured
+                      </div>
+                    );
+                  }
+                  
+                  return validEntries.map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="text"
+                            value={key}
+                            onChange={(e) => {
+                              const newEnv = { ...env };
+                              delete newEnv[key];
+                              newEnv[e.target.value] = value;
+                              setFormData({
+                                ...formData,
+                                containerConfig: { ...formData.containerConfig, env: newEnv }
+                              });
+                            }}
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm font-mono"
+                            placeholder="KEY"
+                          />
+                          <span className="text-gray-500">=</span>
+                          <input
+                            type="text"
+                            value={String(value)}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                containerConfig: {
+                                  ...formData.containerConfig,
+                                  env: { ...env, [key]: e.target.value }
+                                }
+                              });
+                            }}
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                            placeholder="value"
+                          />
+                          <button
+                            onClick={() => removeEnvVar(key)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <code className="flex-1 text-sm">
+                          <span className="text-blue-600">{key}</span>
+                          <span className="text-gray-500">=</span>
+                          <span className="text-green-600">"{String(value)}"</span>
+                        </code>
+                      )}
+                    </div>
+                  ));
+                })()}
+                
+                {isEditing && (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newEnvKey}
+                      onChange={(e) => setNewEnvKey(e.target.value)}
+                      placeholder="KEY"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                    />
+                    <input
+                      type="text"
+                      value={newEnvValue}
+                      onChange={(e) => setNewEnvValue(e.target.value)}
+                      placeholder="value"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <button
+                      onClick={addEnvVar}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
                   </div>
-                ))}
-                {Object.keys(formData.containerConfig?.env || {}).length === 0 && (
-                  <span className="text-gray-500">No environment variables configured</span>
                 )}
               </div>
             </div>

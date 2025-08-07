@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Shield, Globe, Server, Activity, CheckCircle, XCircle, Plus, Trash2, ExternalLink, ChevronRight, AlertTriangle, Package, Network, Edit2, Settings } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, Globe, Server, Activity, CheckCircle, XCircle, Plus, Trash2, ExternalLink, ChevronRight, AlertTriangle, Package, Network, Edit2, Settings, Play, Square, RotateCcw, RefreshCw, FileText, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface OverviewTabProps {
   vhost: any;
@@ -11,8 +12,6 @@ interface OverviewTabProps {
 export default function OverviewTab({ vhost, isEditing, formData, setFormData }: OverviewTabProps) {
   const [newDomain, setNewDomain] = useState('');
   const [editingBackendIndex, setEditingBackendIndex] = useState<number | null>(null);
-  const [newEnvKey, setNewEnvKey] = useState('');
-  const [newEnvValue, setNewEnvValue] = useState('');
   
   const domains = formData.domains || [vhost.domain];
 
@@ -52,41 +51,6 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
     });
   };
 
-  // Environment variables for containers
-  const addEnvVar = () => {
-    if (newEnvKey && newEnvValue) {
-      // Ensure env is always an object, not an array
-      const currentEnv = formData.containerConfig?.env || {};
-      const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
-      
-      setFormData({
-        ...formData,
-        containerConfig: {
-          ...formData.containerConfig,
-          env: {
-            ...cleanEnv,
-            [newEnvKey]: newEnvValue
-          }
-        }
-      });
-      setNewEnvKey('');
-      setNewEnvValue('');
-    }
-  };
-
-  const removeEnvVar = (key: string) => {
-    const currentEnv = formData.containerConfig?.env || {};
-    const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
-    const { [key]: _, ...restEnv } = cleanEnv;
-    
-    setFormData({
-      ...formData,
-      containerConfig: {
-        ...formData.containerConfig,
-        env: restEnv
-      }
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -469,144 +433,7 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
         </div>
       )}
 
-      {vhost.type === 'container' && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Package className="h-5 w-5 text-purple-500" />
-            Container Configuration
-          </h3>
-          
-          <div className="space-y-4">
-            {/* Basic Container Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Container Name</label>
-                <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
-                  {vhost.containerName || vhost.domain.replace(/\./g, '-')}
-                </code>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    value={formData.containerConfig?.port || 3000}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      containerConfig: { ...formData.containerConfig, port: parseInt(e.target.value) }
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                ) : (
-                  <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
-                    {formData.containerConfig?.port || 3000}
-                  </code>
-                )}
-              </div>
-            </div>
-
-            {/* Environment Variables */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Environment Variables</label>
-              <div className="space-y-2">
-                {(() => {
-                  const env = formData.containerConfig?.env || {};
-                  // Filter out any numeric keys or invalid entries
-                  const validEntries = Object.entries(env).filter(([key, value]) => {
-                    // Skip numeric keys (from array corruption) and object values
-                    return isNaN(Number(key)) && typeof value !== 'object';
-                  });
-                  
-                  if (validEntries.length === 0 && !isEditing) {
-                    return (
-                      <div className="text-sm text-gray-500 p-2">
-                        No environment variables configured
-                      </div>
-                    );
-                  }
-                  
-                  return validEntries.map(([key, value]) => (
-                    <div key={key} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                      {isEditing ? (
-                        <>
-                          <input
-                            type="text"
-                            value={key}
-                            onChange={(e) => {
-                              const newEnv = { ...env };
-                              delete newEnv[key];
-                              newEnv[e.target.value] = value;
-                              setFormData({
-                                ...formData,
-                                containerConfig: { ...formData.containerConfig, env: newEnv }
-                              });
-                            }}
-                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm font-mono"
-                            placeholder="KEY"
-                          />
-                          <span className="text-gray-500">=</span>
-                          <input
-                            type="text"
-                            value={String(value)}
-                            onChange={(e) => {
-                              setFormData({
-                                ...formData,
-                                containerConfig: {
-                                  ...formData.containerConfig,
-                                  env: { ...env, [key]: e.target.value }
-                                }
-                              });
-                            }}
-                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                            placeholder="value"
-                          />
-                          <button
-                            onClick={() => removeEnvVar(key)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <code className="flex-1 text-sm">
-                          <span className="text-blue-600">{key}</span>
-                          <span className="text-gray-500">=</span>
-                          <span className="text-green-600">"{String(value)}"</span>
-                        </code>
-                      )}
-                    </div>
-                  ));
-                })()}
-                
-                {isEditing && (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newEnvKey}
-                      onChange={(e) => setNewEnvKey(e.target.value)}
-                      placeholder="KEY"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-                    />
-                    <input
-                      type="text"
-                      value={newEnvValue}
-                      onChange={(e) => setNewEnvValue(e.target.value)}
-                      placeholder="value"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <button
-                      onClick={addEnvVar}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {vhost.type === 'container' && <ContainerManagement vhost={vhost} />}
 
       {vhost.type === 'loadbalancer' && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
@@ -705,6 +532,191 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Container Management Component
+function ContainerManagement({ vhost }: { vhost: any }) {
+  const [containerStatus, setContainerStatus] = useState<string>('checking');
+  const [isLoading, setIsLoading] = useState<{ [key: string]: boolean }>({});
+  const [containerInfo, setContainerInfo] = useState<any>(null);
+
+  // Check container status
+  const checkContainerStatus = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/health`);
+      if (response.ok) {
+        const data = await response.json();
+        setContainerStatus(data.status);
+        setContainerInfo(data);
+      } else {
+        setContainerStatus('stopped');
+      }
+    } catch (error) {
+      setContainerStatus('error');
+      console.error('Failed to check container status:', error);
+    }
+  };
+
+  // Container actions
+  const containerAction = async (action: string) => {
+    setIsLoading(prev => ({ ...prev, [action]: true }));
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/${action}`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        toast.success(`Container ${action} successful`);
+        // Wait a moment then check status
+        setTimeout(checkContainerStatus, 2000);
+      } else {
+        const errorData = await response.json().catch(() => null);
+        toast.error(errorData?.error || `Failed to ${action} container`);
+      }
+    } catch (error) {
+      console.error(`Container ${action} error:`, error);
+      toast.error(`Failed to ${action} container`);
+    } finally {
+      setIsLoading(prev => ({ ...prev, [action]: false }));
+    }
+  };
+
+  const viewContainerLogs = async () => {
+    setIsLoading(prev => ({ ...prev, logs: true }));
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/logs`);
+      if (response.ok) {
+        const data = await response.json();
+        // Create a new window/modal to show logs
+        const logWindow = window.open('', '_blank', 'width=800,height=600');
+        if (logWindow) {
+          logWindow.document.write(`
+            <html>
+              <head><title>Container Logs - ${vhost.domain}</title></head>
+              <body style="font-family: monospace; background: #1a1a1a; color: #f0f0f0; padding: 20px;">
+                <h3>Container Logs for ${vhost.domain}</h3>
+                <pre style="white-space: pre-wrap; word-wrap: break-word;">${data.logs || 'No logs available'}</pre>
+              </body>
+            </html>
+          `);
+          logWindow.document.close();
+        }
+      } else {
+        toast.error('Failed to fetch container logs');
+      }
+    } catch (error) {
+      toast.error('Failed to fetch container logs');
+    } finally {
+      setIsLoading(prev => ({ ...prev, logs: false }));
+    }
+  };
+
+  // Check status on mount and set up interval
+  useEffect(() => {
+    checkContainerStatus();
+    const interval = setInterval(checkContainerStatus, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [vhost.domain]);
+
+  const getStatusColor = () => {
+    switch (containerStatus) {
+      case 'running': return 'text-green-600';
+      case 'stopped': return 'text-red-600';
+      case 'restarting': return 'text-yellow-600';
+      case 'checking': return 'text-blue-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (containerStatus) {
+      case 'running': return <CheckCircle className="h-4 w-4" />;
+      case 'stopped': return <XCircle className="h-4 w-4" />;
+      case 'restarting': return <Loader2 className="h-4 w-4 animate-spin" />;
+      case 'checking': return <Loader2 className="h-4 w-4 animate-spin" />;
+      default: return <AlertTriangle className="h-4 w-4" />;
+    }
+  };
+
+  return (
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+      <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <Package className="h-5 w-5 text-purple-500" />
+        Container Management
+      </h3>
+
+      {/* Container Status */}
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-700 mb-2">Container Status</h4>
+        <div className={`flex items-center gap-2 ${getStatusColor()}`}>
+          {getStatusIcon()}
+          <span className="font-medium capitalize">{containerStatus}</span>
+          {containerInfo?.uptime && (
+            <span className="text-xs text-gray-500 ml-2">
+              Uptime: {containerInfo.uptime}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Control Buttons */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <button
+          onClick={() => containerAction('start')}
+          disabled={isLoading.start || containerStatus === 'running'}
+          className={`p-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${
+            containerStatus === 'running' 
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-green-500 hover:bg-green-600 text-white'
+          }`}
+        >
+          {isLoading.start ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          Start
+        </button>
+
+        <button
+          onClick={() => containerAction('stop')}
+          disabled={isLoading.stop || containerStatus === 'stopped'}
+          className={`p-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${
+            containerStatus === 'stopped'
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-red-500 hover:bg-red-600 text-white'
+          }`}
+        >
+          {isLoading.stop ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+          Stop
+        </button>
+
+        <button
+          onClick={() => containerAction('restart')}
+          disabled={isLoading.restart}
+          className="p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+        >
+          {isLoading.restart ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+          Restart
+        </button>
+
+        <button
+          onClick={() => containerAction('rebuild')}
+          disabled={isLoading.rebuild}
+          className="p-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+        >
+          {isLoading.rebuild ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Rebuild
+        </button>
+      </div>
+
+      {/* View Container Logs */}
+      <button
+        onClick={viewContainerLogs}
+        disabled={isLoading.logs}
+        className="w-full p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+      >
+        {isLoading.logs ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+        View Container Logs
+      </button>
     </div>
   );
 }
