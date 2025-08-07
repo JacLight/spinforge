@@ -9,7 +9,7 @@ interface ProtectedRoutesTabProps {
 }
 
 export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutesTabProps) {
-  const [activeSection, setActiveSection] = useState<'routes' | 'oauth' | 'keys'>('routes');
+  const [activeSection, setActiveSection] = useState<'routes' | 'oauth' | 'custom' | 'keys'>('routes');
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false);
   const [pathRules, setPathRules] = useState<any[]>([]);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
@@ -25,7 +25,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     authType: 'apiKey',
     requiredKey: '',
     rateLimit: { enabled: false, requests: 100, window: 60 },
-    unauthorizedAction: 'error',
+    unauthorizedAction: 'redirect',
     unauthorizedRedirect: '/login'
   });
 
@@ -42,7 +42,29 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     clientId: '',
     clientSecret: '',
     redirectUri: `https://${vhost.domain}/_oauth/callback`,
-    scope: 'openid email profile'
+    scope: 'openid email profile',
+    unauthorizedRedirect: '/login',
+    cookieSettings: {
+      setAuthToken: true,
+      tokenCookieName: 'auth_token',
+      additionalClaims: [] as string[], // Claims from auth payload to store in cookies
+      cookieExpiry: 3600 // seconds
+    }
+  });
+
+  const [customAuthConfig, setCustomAuthConfig] = useState({
+    enabled: false,
+    authUrl: '',
+    method: 'POST',
+    headers: {} as Record<string, string>,
+    bodyParams: {} as Record<string, string>,
+    responseMapping: {
+      tokenField: 'token',
+      userIdField: 'userId',
+      additionalFields: [] as { responseField: string; cookieName: string }[]
+    },
+    unauthorizedRedirect: '/login',
+    cookieExpiry: 3600
   });
 
   // Load auth configuration
@@ -235,7 +257,17 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                OAuth Configuration
+                OAuth
+              </button>
+              <button
+                onClick={() => setActiveSection('custom')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeSection === 'custom'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Custom Auth
               </button>
               <button
                 onClick={() => setActiveSection('keys')}
@@ -271,10 +303,15 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                   <div className="flex items-center gap-2">
                     <code className="text-sm">{rule.pattern}</code>
                     <span className={`px-2 py-0.5 text-xs rounded ${
-                      rule.authType === 'apiKey' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                      rule.authType === 'apiKey' ? 'bg-blue-100 text-blue-700' : 
+                      rule.authType === 'custom' ? 'bg-green-100 text-green-700' :
+                      'bg-purple-100 text-purple-700'
                     }`}>
                       {rule.authType}
                     </span>
+                    {rule.unauthorizedRedirect && (
+                      <span className="text-xs text-gray-500">→ {rule.unauthorizedRedirect}</span>
+                    )}
                   </div>
                   <button
                     onClick={() => deletePathRule(rule.id)}
@@ -302,8 +339,16 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                     >
                       <option value="apiKey">API Key</option>
                       <option value="oauth">OAuth</option>
+                      <option value="custom">Custom Auth</option>
                     </select>
                   </div>
+                  <input
+                    type="text"
+                    value={newRoute.unauthorizedRedirect}
+                    onChange={(e) => setNewRoute({ ...newRoute, unauthorizedRedirect: e.target.value })}
+                    placeholder="Unauthorized redirect URL (e.g., /login)"
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                  />
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowAddRouteForm(false)}
@@ -376,8 +421,279 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                         className="px-3 py-2 border border-gray-300 rounded text-sm"
                       />
                     </div>
+                    
+                    <input
+                      type="text"
+                      value={oauthConfig.unauthorizedRedirect}
+                      onChange={(e) => setOauthConfig({ ...oauthConfig, unauthorizedRedirect: e.target.value })}
+                      placeholder="Unauthorized redirect URL (e.g., /login)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    />
+
+                    {/* Cookie Settings */}
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Cookie Settings</p>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <span className="text-xs">Set Auth Token in Cookie</span>
+                          <button
+                            onClick={() => setOauthConfig({
+                              ...oauthConfig, 
+                              cookieSettings: {
+                                ...oauthConfig.cookieSettings,
+                                setAuthToken: !oauthConfig.cookieSettings.setAuthToken
+                              }
+                            })}
+                            className={`relative inline-flex h-4 w-8 items-center rounded-full ${
+                              oauthConfig.cookieSettings.setAuthToken ? 'bg-blue-600' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white ${
+                              oauthConfig.cookieSettings.setAuthToken ? 'translate-x-4' : 'translate-x-1'
+                            }`} />
+                          </button>
+                        </div>
+
+                        {oauthConfig.cookieSettings.setAuthToken && (
+                          <>
+                            <input
+                              type="text"
+                              value={oauthConfig.cookieSettings.tokenCookieName}
+                              onChange={(e) => setOauthConfig({
+                                ...oauthConfig,
+                                cookieSettings: {
+                                  ...oauthConfig.cookieSettings,
+                                  tokenCookieName: e.target.value
+                                }
+                              })}
+                              placeholder="Token cookie name"
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                            
+                            <input
+                              type="number"
+                              value={oauthConfig.cookieSettings.cookieExpiry}
+                              onChange={(e) => setOauthConfig({
+                                ...oauthConfig,
+                                cookieSettings: {
+                                  ...oauthConfig.cookieSettings,
+                                  cookieExpiry: parseInt(e.target.value)
+                                }
+                              })}
+                              placeholder="Cookie expiry (seconds)"
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+
+                            <div>
+                              <p className="text-xs text-gray-600 mb-1">Additional Claims to Store in Cookies:</p>
+                              <input
+                                type="text"
+                                value={oauthConfig.cookieSettings.additionalClaims.join(', ')}
+                                onChange={(e) => setOauthConfig({
+                                  ...oauthConfig,
+                                  cookieSettings: {
+                                    ...oauthConfig.cookieSettings,
+                                    additionalClaims: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                                  }
+                                })}
+                                placeholder="e.g., email, name, user_id (comma-separated)"
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
                     <button className="px-4 py-2 bg-blue-600 text-white rounded text-sm">
                       Save OAuth Config
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Auth Section */}
+          {activeSection === 'custom' && (
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow p-4">
+              <h4 className="font-medium text-gray-900 mb-4">Custom Authentication</h4>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                  <span className="text-sm">Enable Custom Auth</span>
+                  <button
+                    onClick={() => setCustomAuthConfig({ ...customAuthConfig, enabled: !customAuthConfig.enabled })}
+                    className={`relative inline-flex h-5 w-10 items-center rounded-full ${
+                      customAuthConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white ${
+                      customAuthConfig.enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+
+                {customAuthConfig.enabled && (
+                  <>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700">Authentication Endpoint</label>
+                      <input
+                        type="url"
+                        value={customAuthConfig.authUrl}
+                        onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, authUrl: e.target.value })}
+                        placeholder="https://api.example.com/auth/verify"
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm mt-1"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs font-medium text-gray-700">HTTP Method</label>
+                        <select
+                          value={customAuthConfig.method}
+                          onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, method: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm mt-1"
+                        >
+                          <option value="POST">POST</option>
+                          <option value="GET">GET</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700">Cookie Expiry (seconds)</label>
+                        <input
+                          type="number"
+                          value={customAuthConfig.cookieExpiry}
+                          onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, cookieExpiry: parseInt(e.target.value) })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={customAuthConfig.unauthorizedRedirect}
+                      onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, unauthorizedRedirect: e.target.value })}
+                      placeholder="Unauthorized redirect URL (e.g., /login)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    />
+
+                    {/* Response Mapping */}
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Response Field Mapping</p>
+                      
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={customAuthConfig.responseMapping.tokenField}
+                            onChange={(e) => setCustomAuthConfig({
+                              ...customAuthConfig,
+                              responseMapping: {
+                                ...customAuthConfig.responseMapping,
+                                tokenField: e.target.value
+                              }
+                            })}
+                            placeholder="Token field name (e.g., token)"
+                            className="px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={customAuthConfig.responseMapping.userIdField}
+                            onChange={(e) => setCustomAuthConfig({
+                              ...customAuthConfig,
+                              responseMapping: {
+                                ...customAuthConfig.responseMapping,
+                                userIdField: e.target.value
+                              }
+                            })}
+                            placeholder="User ID field (e.g., userId)"
+                            className="px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">Additional Fields to Store in Cookies:</p>
+                          <div className="space-y-1">
+                            {customAuthConfig.responseMapping.additionalFields.map((field, idx) => (
+                              <div key={idx} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={field.responseField}
+                                  onChange={(e) => {
+                                    const fields = [...customAuthConfig.responseMapping.additionalFields];
+                                    fields[idx] = { ...fields[idx], responseField: e.target.value };
+                                    setCustomAuthConfig({
+                                      ...customAuthConfig,
+                                      responseMapping: {
+                                        ...customAuthConfig.responseMapping,
+                                        additionalFields: fields
+                                      }
+                                    });
+                                  }}
+                                  placeholder="Response field"
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                />
+                                <input
+                                  type="text"
+                                  value={field.cookieName}
+                                  onChange={(e) => {
+                                    const fields = [...customAuthConfig.responseMapping.additionalFields];
+                                    fields[idx] = { ...fields[idx], cookieName: e.target.value };
+                                    setCustomAuthConfig({
+                                      ...customAuthConfig,
+                                      responseMapping: {
+                                        ...customAuthConfig.responseMapping,
+                                        additionalFields: fields
+                                      }
+                                    });
+                                  }}
+                                  placeholder="Cookie name"
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const fields = customAuthConfig.responseMapping.additionalFields.filter((_, i) => i !== idx);
+                                    setCustomAuthConfig({
+                                      ...customAuthConfig,
+                                      responseMapping: {
+                                        ...customAuthConfig.responseMapping,
+                                        additionalFields: fields
+                                      }
+                                    });
+                                  }}
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                setCustomAuthConfig({
+                                  ...customAuthConfig,
+                                  responseMapping: {
+                                    ...customAuthConfig.responseMapping,
+                                    additionalFields: [
+                                      ...customAuthConfig.responseMapping.additionalFields,
+                                      { responseField: '', cookieName: '' }
+                                    ]
+                                  }
+                                });
+                              }}
+                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                            >
+                              <Plus className="h-3 w-3 inline mr-1" />
+                              Add Field Mapping
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded text-sm">
+                      Save Custom Auth Config
                     </button>
                   </>
                 )}

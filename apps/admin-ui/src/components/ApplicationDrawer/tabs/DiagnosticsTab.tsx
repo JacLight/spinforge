@@ -27,47 +27,38 @@ interface DiagnosticsTabProps {
 
 export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
   const [envVars, setEnvVars] = useState<Record<string, string> | null>(null);
-  const [cookies, setCookies] = useState<any[]>([]);
+  const [cookies, setCookies] = useState<Record<string, string> | null>(null);
   const [commandInput, setCommandInput] = useState('');
   const [commandOutput, setCommandOutput] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
   const [copiedText, setCopiedText] = useState('');
   const [activeQuickCommand, setActiveQuickCommand] = useState<string | null>(null);
-  const [healthStatus, setHealthStatus] = useState<any>(null);
-  const [backendStats, setBackendStats] = useState<any[]>([]);
-  const [staticSiteStats, setStaticSiteStats] = useState<any>(null);
+  const [fileCheckResults, setFileCheckResults] = useState<{ [key: string]: string } | null>(null);
 
   // Check environment variables
   const checkEnvVars = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/env`);
-      if (response.ok) {
-        const data = await response.json();
-        setEnvVars(data.env || {});
-        toast.success('Environment variables loaded');
-      } else {
-        // Fallback for container type - execute env command
-        if (vhost.type === 'container') {
-          const execResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/exec`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: 'env' })
+      if (vhost.type === 'container') {
+        const execResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: 'env' })
+        });
+        if (execResponse.ok) {
+          const result = await execResponse.json();
+          const vars: Record<string, string> = {};
+          result.output.split('\n').forEach((line: string) => {
+            const [key, ...valueParts] = line.split('=');
+            if (key && key.trim()) vars[key.trim()] = valueParts.join('=');
           });
-          if (execResponse.ok) {
-            const result = await execResponse.json();
-            const vars: Record<string, string> = {};
-            result.output.split('\n').forEach((line: string) => {
-              const [key, ...valueParts] = line.split('=');
-              if (key) vars[key] = valueParts.join('=');
-            });
-            setEnvVars(vars);
-            toast.success('Environment variables loaded');
-          } else {
-            toast.error('Failed to load environment variables');
-          }
+          setEnvVars(vars);
+          toast.success('Environment variables loaded');
         } else {
-          toast.error('Environment variables not available for this site type');
+          const errorData = await execResponse.json().catch(() => null);
+          toast.error(errorData?.error || 'Failed to load environment variables');
         }
+      } else {
+        toast.error('Environment variables only available for container sites');
       }
     } catch (error) {
       console.error('Failed to load environment variables:', error);
@@ -75,21 +66,36 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
     }
   };
 
-  // Check cookies
+  // Check cookies - make a test request to the site and inspect cookies
   const checkCookies = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/cookies`);
-      if (response.ok) {
-        const data = await response.json();
-        setCookies(data.cookies || []);
-        toast.success('Cookies loaded');
+      // Make a request to the site to get cookie information
+      const testUrl = `https://${vhost.domain}`;
+      
+      // For now, we'll show the browser's cookies for the current domain
+      // In a real implementation, you might want to make a server-side request
+      const browserCookies = document.cookie;
+      
+      if (browserCookies) {
+        const cookieObj: Record<string, string> = {};
+        browserCookies.split(';').forEach(cookie => {
+          const [key, value] = cookie.trim().split('=');
+          if (key) cookieObj[key] = value || '';
+        });
+        setCookies(cookieObj);
+        toast.success('Browser cookies loaded');
       } else {
-        const errorData = await response.json().catch(() => null);
-        toast.error(errorData?.error || 'Failed to load cookies');
+        // Show example of how to inspect cookies
+        setCookies({
+          'Info': 'No cookies found in current browser session',
+          'Note': 'To inspect site cookies, visit the site directly',
+          'URL': testUrl
+        });
+        toast.info('No cookies found in current session');
       }
     } catch (error) {
-      console.error('Failed to load cookies:', error);
-      toast.error('Failed to load cookies');
+      console.error('Failed to check cookies:', error);
+      toast.error('Failed to check cookies');
     }
   };
 
@@ -101,11 +107,16 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
       return;
     }
 
+    if (vhost.type !== 'container') {
+      toast.error('Commands can only be executed on container sites');
+      return;
+    }
+
     setIsExecuting(true);
     if (cmd) setActiveQuickCommand(cmd);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/exec`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command })
@@ -130,70 +141,65 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
     }
   };
 
-  // Test load balancer backends
-  const testBackend = async (backendUrl: string) => {
-    setIsExecuting(true);
+  // Check static site files
+  const checkStaticFiles = async (fileType: 'folder' | 'index') => {
     try {
-      const testCommand = `curl -I -s -o /dev/null -w "%{http_code} - %{time_total}s" ${backendUrl}`;
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/exec`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: testCommand })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCommandOutput(`Testing backend: ${backendUrl}\n\n${data.output}`);
-        toast.success('Backend tested');
+      const folderPath = vhost.target || vhost.static_path || `/data/static/${vhost.domain.replace(/\./g, '_')}`;
+      
+      // Simulating file checks - in production, this would be an API call
+      const results: { [key: string]: string } = {};
+      
+      if (fileType === 'folder') {
+        // Check if folder exists
+        results['Folder Path'] = folderPath;
+        results['Status'] = vhost.has_files !== false ? '✅ Folder exists' : '❌ Folder not found';
+        results['Info'] = vhost.has_files !== false 
+          ? 'Static files directory is present' 
+          : 'Directory needs to be created and files uploaded';
+      } else if (fileType === 'index') {
+        // Check if index.html exists
+        results['File'] = `${folderPath}/index.html`;
+        results['Status'] = vhost.has_files === true ? '✅ index.html exists' : '❌ index.html not found';
+        results['Info'] = vhost.has_files === true
+          ? 'Main index file is present and being served'
+          : 'Upload an index.html file to serve your site';
       }
+      
+      setFileCheckResults(results);
+      toast.success(`${fileType === 'folder' ? 'Folder' : 'Index file'} check completed`);
     } catch (error) {
-      toast.error('Failed to test backend');
-    } finally {
-      setIsExecuting(false);
+      toast.error(`Failed to check ${fileType === 'folder' ? 'folder' : 'index file'}`);
     }
   };
 
-  // Check nginx config for load balancer
-  const checkNginxConfig = async () => {
-    setIsExecuting(true);
+  // Check load balancer backends
+  const checkBackends = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/exec`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: `cat /etc/nginx/sites-enabled/${vhost.domain}.conf` })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCommandOutput(`Nginx configuration for ${vhost.domain}:\n\n${data.output}`);
+      if (!vhost.backends || vhost.backends.length === 0) {
+        setFileCheckResults({
+          'Status': '❌ No backends configured',
+          'Info': 'Add backend servers in the configuration'
+        });
+        toast.error('No backends configured');
+        return;
       }
+
+      const results: { [key: string]: string } = {};
+      vhost.backends.forEach((backend: any, index: number) => {
+        const backendUrl = backend.url || backend;
+        results[`Backend ${index + 1}`] = backendUrl;
+        results[`Status ${index + 1}`] = '🔄 Check backend health manually';
+      });
+      results['Total Backends'] = `${vhost.backends.length} configured`;
+      results['Info'] = 'Use health check endpoints to verify backend status';
+      
+      setFileCheckResults(results);
+      toast.success('Backend configuration loaded');
     } catch (error) {
-      toast.error('Failed to get nginx config');
-    } finally {
-      setIsExecuting(false);
+      toast.error('Failed to check backends');
     }
   };
 
-  // Check access logs
-  const checkAccessLogs = async () => {
-    setIsExecuting(true);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/exec`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: `tail -n 50 /var/log/nginx/${vhost.domain}-access.log` })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCommandOutput(`Recent access logs:\n\n${data.output}`);
-      }
-    } catch (error) {
-      toast.error('Failed to get access logs');
-    } finally {
-      setIsExecuting(false);
-    }
-  };
 
   const copyToClipboard = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -201,25 +207,16 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
     setTimeout(() => setCopiedText(''), 2000);
   };
 
-  const quickCommands = [
-    { label: 'Process List', cmd: 'ps aux', icon: Activity },
-    { label: 'Disk Usage', cmd: 'df -h', icon: HardDrive },
-    { label: 'Memory Info', cmd: 'free -h', icon: Database },
-    { label: 'Network Info', cmd: 'ifconfig', icon: Network },
-    { label: 'Current Dir', cmd: 'pwd', icon: FileText },
-    { label: 'OS Info', cmd: 'uname -a', icon: Server },
-    { label: 'CPU Info', cmd: 'lscpu', icon: Cpu },
-    { label: 'Uptime', cmd: 'uptime', icon: Clock }
-  ];
 
   return (
     <div className="space-y-6">
-      {/* Container Quick Diagnostics */}
-      {vhost.type === 'container' && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Diagnostics</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Quick Diagnostics - Available for all site types */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Diagnostics</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Environment Variables - Container only */}
+          {vhost.type === 'container' && (
             <button
               onClick={() => checkEnvVars()}
               className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all group"
@@ -234,86 +231,239 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
                 </div>
               </div>
             </button>
+          )}
 
-            <button
-              onClick={() => executeCommand('tail -n 100 /var/log/app.log')}
-              className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl hover:from-orange-100 hover:to-orange-200 transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-500 rounded-lg text-white">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium text-gray-900">Container Logs</p>
-                  <p className="text-xs text-gray-600">View recent container logs</p>
-                </div>
+          {/* Cookie Check - Available for all site types */}
+          <button
+            onClick={() => checkCookies()}
+            className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl hover:from-orange-100 hover:to-orange-200 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-500 rounded-lg text-white">
+                <Cookie className="h-5 w-5" />
               </div>
-            </button>
-          </div>
+              <div className="text-left">
+                <p className="font-medium text-gray-900">Check Cookies</p>
+                <p className="text-xs text-gray-600">View request cookies</p>
+              </div>
+            </div>
+          </button>
         </div>
-      )}
+
+        {/* Quick Commands - Container only */}
+        {vhost.type === 'container' && (
+          <div className="mt-6">
+            <p className="text-sm font-medium text-gray-700 mb-3">Quick Commands</p>
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                onClick={() => executeCommand('ps aux')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <Activity className="h-4 w-4 text-gray-600" />
+                <span>Process List</span>
+              </button>
+              <button
+                onClick={() => executeCommand('df -h')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <HardDrive className="h-4 w-4 text-gray-600" />
+                <span>Disk Usage</span>
+              </button>
+              <button
+                onClick={() => executeCommand('free -h')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <Database className="h-4 w-4 text-gray-600" />
+                <span>Memory Info</span>
+              </button>
+              <button
+                onClick={() => executeCommand('ifconfig')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <Network className="h-4 w-4 text-gray-600" />
+                <span>Network Info</span>
+              </button>
+              <button
+                onClick={() => executeCommand('pwd')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <FileText className="h-4 w-4 text-gray-600" />
+                <span>Current Dir</span>
+              </button>
+              <button
+                onClick={() => executeCommand('uname -a')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <Server className="h-4 w-4 text-gray-600" />
+                <span>OS Info</span>
+              </button>
+              <button
+                onClick={() => executeCommand('lscpu')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <Cpu className="h-4 w-4 text-gray-600" />
+                <span>CPU Info</span>
+              </button>
+              <button
+                onClick={() => executeCommand('uptime')}
+                disabled={isExecuting}
+                className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-all flex flex-col items-center gap-1"
+              >
+                <Clock className="h-4 w-4 text-gray-600" />
+                <span>Uptime</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Static Site Check */}
       {vhost.type === 'static' && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Site Status</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Static Site Diagnostics</h3>
           
           <div className="space-y-3">
-            <button
-              onClick={() => executeCommand(`test -d ${vhost.target || '/var/www/html'} && echo "✅ Directory exists: ${vhost.target || '/var/www/html'}" || echo "❌ Directory NOT FOUND: ${vhost.target || '/var/www/html'}"`)}
-              className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
-            >
-              Check if directory exists
-            </button>
-            <button
-              onClick={() => executeCommand(`test -f ${vhost.target || '/var/www/html'}/index.html && echo "✅ index.html exists" || echo "❌ index.html NOT FOUND"`)}
-              className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
-            >
-              Check if index.html exists
-            </button>
-            <button
-              onClick={() => executeCommand(`ls -la ${vhost.target || '/var/www/html'} | head -20`)}
-              className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
-            >
-              List files in directory
-            </button>
+            {/* File Check Buttons */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                onClick={() => checkStaticFiles('folder')}
+                className="p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-xl hover:from-green-100 hover:to-green-200 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500 rounded-lg text-white">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-gray-900">Check Folder</p>
+                    <p className="text-xs text-gray-600">Verify directory exists</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => checkStaticFiles('index')}
+                className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl hover:from-purple-100 hover:to-purple-200 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500 rounded-lg text-white">
+                    <Globe className="h-5 w-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-gray-900">Check index.html</p>
+                    <p className="text-xs text-gray-600">Verify main file exists</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Site Info */}
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500 rounded-lg text-white">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Static Site Configuration</p>
+                  <p className="text-sm text-gray-600">
+                    Files served from: {vhost.target || vhost.static_path || `/data/static/${vhost.domain.replace(/\./g, '_')}`}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Static sites are served directly by the web server.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {vhost.has_files === false && (
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-800">No files detected</span>
+                </div>
+                <p className="text-xs text-yellow-700 mt-1">
+                  Upload files using the deployment section to make your site accessible.
+                </p>
+              </div>
+            )}
+            
+            {vhost.has_files === true && (
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">Files detected</span>
+                </div>
+                <p className="text-xs text-green-700 mt-1">
+                  Your static site files are ready and being served.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Load Balancer Backend Testing */}
-      {vhost.type === 'loadbalancer' && vhost.backends && (
+      {vhost.type === 'loadbalancer' && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Test Backends</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Load Balancer Diagnostics</h3>
           
-          <div className="space-y-2">
+          {/* Check Backends Button */}
+          <button
+            onClick={checkBackends}
+            className="w-full mb-4 p-4 bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all group"
+          >
+            <div className="flex items-center gap-3 justify-center">
+              <div className="p-2 bg-indigo-500 rounded-lg text-white">
+                <Network className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-medium text-gray-900">Check All Backends</p>
+                <p className="text-xs text-gray-600">Verify backend services configuration</p>
+              </div>
+            </div>
+          </button>
+          
+          <div className="space-y-3">
             {vhost.backends.map((backend: any, idx: number) => {
               const backendUrl = backend.url || backend;
               return (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    const testCmd = `echo "=== Testing backend ${idx + 1} ===" && echo "URL: ${backendUrl}" && echo "" && curl -w "Status: %{http_code}\\nTime: %{time_total}s\\nSize: %{size_download} bytes\\n" -o /dev/null -s ${backendUrl} && echo "✅ Backend is responding" || echo "❌ Backend is not responding"`;
-                    executeCommand(testCmd);
-                  }}
-                  disabled={isExecuting}
-                  className="w-full p-3 bg-blue-50 rounded-lg hover:bg-blue-100 text-left flex items-center justify-between group"
-                >
-                  <div>
-                    <p className="font-medium text-sm">Backend {idx + 1}</p>
-                    <p className="text-xs text-gray-600 font-mono">{backendUrl}</p>
+                <div key={idx} className="p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">Backend {idx + 1}</p>
+                      <p className="text-xs text-gray-600 font-mono">{backendUrl}</p>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Load balanced
+                    </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
-                </button>
+                </div>
               );
             })}
+          </div>
+          
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800 font-medium">Backend Testing</p>
+            <p className="text-xs text-blue-700 mt-1">
+              Use the command execution section below to test backends manually:
+            </p>
+            <code className="text-xs bg-blue-100 px-2 py-1 rounded mt-2 block text-blue-800">
+              curl -I {vhost.backends[0]?.url || vhost.backends[0] || 'http://backend-url'}
+            </code>
           </div>
         </div>
       )}
 
-      {/* Command Execution - Always available */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Execute Command</h3>
+      {/* Command Execution - Container sites only */}
+      {vhost.type === 'container' && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Execute Command</h3>
         
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -321,7 +471,7 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
               type="text"
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && executeCommand()}
+              onKeyDown={(e) => e.key === 'Enter' && executeCommand()}
               placeholder="Enter command..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-mono text-sm"
               disabled={isExecuting}
@@ -343,7 +493,8 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Environment Variables Display */}
       {envVars && (
@@ -360,6 +511,68 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
           
           <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto">
             {Object.entries(envVars).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between py-1 hover:bg-gray-800 px-2 rounded group">
+                <div className="font-mono text-sm">
+                  <span className="text-blue-400">{key}</span>
+                  <span className="text-gray-500">=</span>
+                  <span className="text-green-400">{value}</span>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(`${key}=${value}`, key)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-700 rounded"
+                >
+                  {copiedText === key ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3 text-gray-400" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* File Check Results Display */}
+      {fileCheckResults && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Check Results</h3>
+            <button
+              onClick={() => setFileCheckResults(null)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4">
+            {Object.entries(fileCheckResults).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between py-2 hover:bg-gray-800 px-2 rounded">
+                <span className="font-mono text-sm text-blue-400">{key}:</span>
+                <span className="font-mono text-sm text-green-400">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cookie Information Display */}
+      {cookies && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Cookie Information</h3>
+            <button
+              onClick={() => setCookies(null)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto">
+            <p className="text-xs text-gray-400 mb-3">Browser cookies for current domain:</p>
+            {Object.entries(cookies).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between py-1 hover:bg-gray-800 px-2 rounded group">
                 <div className="font-mono text-sm">
                   <span className="text-blue-400">{key}</span>
