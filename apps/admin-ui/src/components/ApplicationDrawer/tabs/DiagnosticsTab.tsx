@@ -16,7 +16,8 @@ import {
   AlertCircle,
   Copy,
   Check,
-  Globe
+  Globe,
+  ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -213,7 +214,104 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Execute Command - Always show for all types */}
+      {/* Container Quick Diagnostics */}
+      {vhost.type === 'container' && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Diagnostics</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => checkEnvVars()}
+              className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500 rounded-lg text-white">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900">Check Env Variables</p>
+                  <p className="text-xs text-gray-600">View container environment</p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => executeCommand('tail -n 100 /var/log/app.log')}
+              className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl hover:from-orange-100 hover:to-orange-200 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-500 rounded-lg text-white">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900">Container Logs</p>
+                  <p className="text-xs text-gray-600">View recent container logs</p>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Static Site Check */}
+      {vhost.type === 'static' && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Site Status</h3>
+          
+          <div className="space-y-3">
+            <button
+              onClick={() => executeCommand(`test -d ${vhost.target || '/var/www/html'} && echo "✅ Directory exists: ${vhost.target || '/var/www/html'}" || echo "❌ Directory NOT FOUND: ${vhost.target || '/var/www/html'}"`)}
+              className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
+            >
+              Check if directory exists
+            </button>
+            <button
+              onClick={() => executeCommand(`test -f ${vhost.target || '/var/www/html'}/index.html && echo "✅ index.html exists" || echo "❌ index.html NOT FOUND"`)}
+              className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
+            >
+              Check if index.html exists
+            </button>
+            <button
+              onClick={() => executeCommand(`ls -la ${vhost.target || '/var/www/html'} | head -20`)}
+              className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
+            >
+              List files in directory
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Load Balancer Backend Testing */}
+      {vhost.type === 'loadbalancer' && vhost.backends && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Test Backends</h3>
+          
+          <div className="space-y-2">
+            {vhost.backends.map((backend: any, idx: number) => {
+              const backendUrl = backend.url || backend;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    const testCmd = `echo "=== Testing backend ${idx + 1} ===" && echo "URL: ${backendUrl}" && echo "" && curl -w "Status: %{http_code}\\nTime: %{time_total}s\\nSize: %{size_download} bytes\\n" -o /dev/null -s ${backendUrl} && echo "✅ Backend is responding" || echo "❌ Backend is not responding"`;
+                    executeCommand(testCmd);
+                  }}
+                  disabled={isExecuting}
+                  className="w-full p-3 bg-blue-50 rounded-lg hover:bg-blue-100 text-left flex items-center justify-between group"
+                >
+                  <div>
+                    <p className="font-medium text-sm">Backend {idx + 1}</p>
+                    <p className="text-xs text-gray-600 font-mono">{backendUrl}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Command Execution - Always available */}
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Execute Command</h3>
         
@@ -224,12 +322,7 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && executeCommand()}
-              placeholder={
-                vhost.type === 'container' ? "Enter command (e.g., ls -la, ps aux, df -h)" :
-                vhost.type === 'loadbalancer' ? "Enter command (e.g., nginx -t, curl backend-url)" :
-                vhost.type === 'static' ? "Enter command (e.g., ls -la, find . -name '*.html')" :
-                "Enter command"
-              }
+              placeholder="Enter command..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-mono text-sm"
               disabled={isExecuting}
             />
@@ -243,71 +336,6 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
             </button>
           </div>
 
-          {/* Context-specific Quick Commands */}
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Quick Commands</p>
-            <div className="grid grid-cols-4 gap-2">
-              {vhost.type === 'container' && (
-                <>
-                  <button onClick={() => executeCommand('ps aux')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Process List</button>
-                  <button onClick={() => executeCommand('df -h')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Disk Usage</button>
-                  <button onClick={() => executeCommand('free -h')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Memory</button>
-                  <button onClick={() => executeCommand('env')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Env Vars</button>
-                  <button onClick={() => executeCommand('netstat -tulpn')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Ports</button>
-                  <button onClick={() => executeCommand('tail -n 100 /var/log/app.log')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">App Logs</button>
-                  <button onClick={() => executeCommand('npm list')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">NPM Packages</button>
-                  <button onClick={() => executeCommand('node -v')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Node Version</button>
-                </>
-              )}
-              
-              {vhost.type === 'loadbalancer' && vhost.backends && (
-                <>
-                  <button onClick={() => checkNginxConfig()} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Nginx Config</button>
-                  <button onClick={() => checkAccessLogs()} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Access Logs</button>
-                  <button onClick={() => executeCommand('nginx -t')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Test Config</button>
-                  <button onClick={() => executeCommand('systemctl status nginx')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Nginx Status</button>
-                  {vhost.backends.slice(0, 4).map((backend: any, idx: number) => (
-                    <button 
-                      key={idx}
-                      onClick={() => testBackend(backend.url)} 
-                      disabled={isExecuting} 
-                      className="p-2 text-xs bg-blue-100 hover:bg-blue-200 rounded-lg truncate"
-                      title={`Test ${backend.url}`}
-                    >
-                      Test: {new URL(backend.url).hostname}
-                    </button>
-                  ))}
-                </>
-              )}
-              
-              {vhost.type === 'static' && (
-                <>
-                  <button onClick={() => executeCommand(`ls -la ${vhost.target || '/var/www/html'}`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">List Files</button>
-                  <button onClick={() => executeCommand(`du -sh ${vhost.target || '/var/www/html'}`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Disk Usage</button>
-                  <button onClick={() => executeCommand(`find ${vhost.target || '/var/www/html'} -type f -name "*.html" | head -20`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">HTML Files</button>
-                  <button onClick={() => executeCommand(`find ${vhost.target || '/var/www/html'} -type f -mtime -1`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Recent Changes</button>
-                  <button onClick={() => checkAccessLogs()} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Access Logs</button>
-                  <button onClick={() => executeCommand(`tail -n 50 /var/log/nginx/error.log`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Error Logs</button>
-                  <button onClick={() => executeCommand(`ls -la ${vhost.target || '/var/www/html'}/assets`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Assets</button>
-                  <button onClick={() => executeCommand(`wc -l ${vhost.target || '/var/www/html'}/*.html`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Line Count</button>
-                </>
-              )}
-              
-              {vhost.type === 'proxy' && (
-                <>
-                  <button onClick={() => executeCommand(`curl -I ${vhost.target}`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Check Target</button>
-                  <button onClick={() => executeCommand(`ping -c 4 ${new URL(vhost.target).hostname}`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Ping Target</button>
-                  <button onClick={() => checkNginxConfig()} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Proxy Config</button>
-                  <button onClick={() => checkAccessLogs()} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Access Logs</button>
-                  <button onClick={() => executeCommand('netstat -an | grep ESTABLISHED')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Connections</button>
-                  <button onClick={() => executeCommand(`curl -s -o /dev/null -w "%{http_code}" ${vhost.target}`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Status Code</button>
-                  <button onClick={() => executeCommand('nginx -t')} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Test Config</button>
-                  <button onClick={() => executeCommand(`traceroute ${new URL(vhost.target).hostname}`)} disabled={isExecuting} className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg">Traceroute</button>
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Command Output */}
           {commandOutput && (
             <div className="bg-gray-900 text-gray-100 rounded-lg p-4 font-mono text-xs overflow-x-auto max-h-96">
@@ -316,6 +344,43 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
           )}
         </div>
       </div>
+
+      {/* Environment Variables Display */}
+      {envVars && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Environment Variables</h3>
+            <button
+              onClick={() => setEnvVars(null)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto">
+            {Object.entries(envVars).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between py-1 hover:bg-gray-800 px-2 rounded group">
+                <div className="font-mono text-sm">
+                  <span className="text-blue-400">{key}</span>
+                  <span className="text-gray-500">=</span>
+                  <span className="text-green-400">{value}</span>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(`${key}=${value}`, key)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-700 rounded"
+                >
+                  {copiedText === key ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3 text-gray-400" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
     </div>
   );
