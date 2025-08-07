@@ -8,7 +8,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { hostingAPI } from "../services/hosting-api";
+import { hostingAPI } from "../services/customer-api";
 import { toast } from "sonner";
 import SSLCertificateManager from "./SSLCertificateManager";
 import {
@@ -240,7 +240,7 @@ function MetricsSection({ domain }: { domain?: string }) {
 }
 
 // Container Management Component
-function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEditing: boolean; onRefresh: () => void }) {
+function ContainerManagement({ vhost }: { vhost: any }) {
   const [logs, setLogs] = useState<string>('');
   const [showLogs, setShowLogs] = useState(false);
   const [containerStatus, setContainerStatus] = useState<'running' | 'stopped' | 'unknown'>('unknown');
@@ -263,7 +263,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
     }
   }, [health]);
 
-  const handleContainerAction = async (action: 'start' | 'stop' | 'restart' | 'rebuild') => {
+  const handleContainerAction = async (action: 'start' | 'stop' | 'restart') => {
     setIsLoading(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/${action}`, {
@@ -274,17 +274,11 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
         throw new Error(`Failed to ${action} container`);
       }
       
-      const actionMessage = action === 'rebuild' 
-        ? 'Container rebuilt successfully with new configuration' 
-        : `Container ${action}ed successfully`;
-      toast.success(actionMessage);
+      toast.success(`Container ${action}ed successfully`);
       
       // Refetch health status after action
       setTimeout(() => {
         refetchHealth();
-        if (action === 'rebuild' && onRefresh) {
-          onRefresh(); // Refresh the main vhost data to get updated container info
-        }
       }, 2000);
     } catch (error: any) {
       toast.error(`Failed to ${action} container: ${error.message}`);
@@ -349,49 +343,30 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
           </div>
           
           {/* Container Actions */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-2">
             <button
               onClick={() => handleContainerAction('start')}
               disabled={isLoading || containerStatus === 'running'}
-              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               Start
             </button>
             <button
               onClick={() => handleContainerAction('stop')}
               disabled={isLoading || containerStatus === 'stopped'}
-              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               Stop
             </button>
             <button
               onClick={() => handleContainerAction('restart')}
               disabled={isLoading || containerStatus !== 'running'}
-              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               <RefreshCw className="h-4 w-4 inline mr-1" />
               Restart
             </button>
-            <button
-              onClick={() => handleContainerAction('rebuild')}
-              disabled={isLoading}
-              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              title="Rebuild container with current configuration (applies env changes)"
-            >
-              <Package className="h-4 w-4 inline mr-1" />
-              Rebuild
-            </button>
           </div>
-          
-          {/* Configuration Change Notice */}
-          {isEditing && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-800">
-                <AlertCircle className="h-3 w-3 inline mr-1" />
-                After saving container configuration changes, click "Rebuild" to apply them.
-              </p>
-            </div>
-          )}
         </div>
         
         {/* View Logs Button */}
@@ -1401,7 +1376,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                               )}
                               
                               {/* Container Management */}
-                              <ContainerManagement vhost={vhost} isEditing={isEditing} onRefresh={onRefresh} />
+                              <ContainerManagement vhost={vhost} />
                             </div>
                           )
                         )}

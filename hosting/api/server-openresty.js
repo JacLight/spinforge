@@ -45,6 +45,10 @@ app.use('/_admin', adminRoutes);
 const customerRoutes = require('./routes/customer');
 app.use('/_api/customer', customerRoutes);
 
+// Mount auth routes
+const authRoutes = require('./routes/auth');
+app.use('/_auth', authRoutes);
+
 // Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
   try {

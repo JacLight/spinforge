@@ -7,8 +7,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth-server";
-import { redis, KEYS, getJson, setJson } from "@/lib/redis";
-import { nanoid } from "nanoid";
+
+const SPINHUB_API_URL = process.env.SPINHUB_API_URL || "http://api:8080";
 
 export async function GET(request: NextRequest) {
   const session = await getAuthenticatedUser(request);
@@ -18,28 +18,63 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get all API tokens for this user
-    const tokenKeys = await redis.keys(`apitoken:${session.userId}:*`);
-    const tokens = [];
+    // Fetch API tokens from the hosting API
+    const response = await fetch(`${SPINHUB_API_URL}/_api/customer/tokens`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "X-Customer-ID": session.customerId || "",
+        "Content-Type": "application/json",
+      },
+    });
 
-    for (const key of tokenKeys) {
-      const token = await getJson(key);
-      if (token) {
-        // Don't send the actual token value
-        tokens.push({
-          id: token.id,
-          name: token.name,
-          createdAt: token.createdAt,
-          lastUsed: token.lastUsed,
-        });
-      }
+    if (!response.ok) {
+      throw new Error("Failed to fetch tokens");
     }
 
+    const tokens = await response.json();
     return NextResponse.json(tokens);
   } catch (error) {
     console.error("Error fetching API tokens:", error);
     return NextResponse.json(
       { error: "Failed to fetch API tokens" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getAuthenticatedUser(request);
+  
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    
+    // Create API token via hosting API
+    const response = await fetch(`${SPINHUB_API_URL}/_api/customer/tokens`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "X-Customer-ID": session.customerId || "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to create token");
+    }
+
+    const token = await response.json();
+    return NextResponse.json(token);
+  } catch (error: any) {
+    console.error("Error creating API token:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to create API token" },
       { status: 500 }
     );
   }
@@ -60,14 +95,26 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Token ID required" }, { status: 400 });
     }
 
-    // Delete the token
-    await redis.del(`apitoken:${session.userId}:${tokenId}`);
+    // Delete the token via hosting API
+    const response = await fetch(`${SPINHUB_API_URL}/_api/customer/tokens/${tokenId}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "X-Customer-ID": session.customerId || "",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to delete token");
+    }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting API token:", error);
     return NextResponse.json(
-      { error: "Failed to delete API token" },
+      { error: error.message || "Failed to delete API token" },
       { status: 500 }
     );
   }

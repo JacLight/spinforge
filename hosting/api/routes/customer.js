@@ -12,17 +12,41 @@ const { checkStaticFiles } = require('../utils/site-helpers');
 
 // Customer authentication middleware
 const authenticateCustomer = async (req, res, next) => {
-  const customerId = req.headers['x-customer-id'];
   const authToken = req.headers['authorization']?.replace('Bearer ', '') || req.headers['x-auth-token'];
 
-  if (!customerId || !authToken) {
+  if (!authToken) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // TODO: Validate auth token against customer ID
-  // For now, just ensure both are present
-  req.customerId = customerId;
-  next();
+  try {
+    // Validate token and get customer ID from it
+    const tokenData = await redisClient.get(`apitoken:${authToken}`);
+    if (!tokenData) {
+      // Try session token
+      const sessionData = await redisClient.get(`session:${authToken}`);
+      if (!sessionData) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+      const session = JSON.parse(sessionData);
+      req.customerId = session.customerId;
+      req.userId = session.userId;
+      req.userEmail = session.email;
+    } else {
+      const token = JSON.parse(tokenData);
+      req.customerId = token.customerId;
+      req.userId = token.userId;
+      req.userEmail = token.email;
+    }
+    
+    if (!req.customerId) {
+      return res.status(401).json({ error: 'Invalid customer token' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Auth error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
 };
 
 // Apply authentication to all routes
@@ -300,6 +324,216 @@ router.put('/deployments/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// === SITES ENDPOINTS (used by UI) ===
+
+// List customer's sites
+router.get('/sites', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const keys = await redisClient.keys('site:*');
+    const sites = [];
+    
+    for (const key of keys) {
+      const data = await redisClient.get(key);
+      if (data) {
+        const site = JSON.parse(data);
+        if (site.customerId === customerId) {
+          const siteWithFiles = checkStaticFiles(site);
+          sites.push({
+            ...site,
+            files_exist: siteWithFiles.files_exist,
+            actual_domain: siteWithFiles.actual_domain
+          });
+        }
+      }
+    }
+    
+    res.json(sites);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Search sites
+router.get('/sites/search', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const { search, type } = req.query;
+    const keys = await redisClient.keys('site:*');
+    const sites = [];
+    
+    for (const key of keys) {
+      const data = await redisClient.get(key);
+      if (data) {
+        const site = JSON.parse(data);
+        if (site.customerId === customerId) {
+          // Apply filters
+          if (type && site.type !== type) continue;
+          if (search && !site.domain?.toLowerCase().includes(search.toLowerCase())) continue;
+          
+          const siteWithFiles = checkStaticFiles(site);
+          sites.push({
+            ...site,
+            files_exist: siteWithFiles.files_exist,
+            actual_domain: siteWithFiles.actual_domain
+          });
+        }
+      }
+    }
+    
+    res.json({
+      data: sites,
+      total: sites.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get specific site
+router.get('/sites/:domain', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const { domain } = req.params;
+    
+    const data = await redisClient.get(`site:${domain}`);
+    if (!data) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    const site = JSON.parse(data);
+    if (site.customerId !== customerId) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    const siteWithFiles = checkStaticFiles(site);
+    res.json({
+      ...site,
+      files_exist: siteWithFiles.files_exist,
+      actual_domain: siteWithFiles.actual_domain
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create new site
+router.post('/sites', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const siteData = req.body;
+    
+    // Ensure customer ID is set from token
+    siteData.customerId = customerId;
+    
+    if (!siteData.domain || !siteData.type) {
+      return res.status(400).json({ error: 'Domain and type are required' });
+    }
+    
+    // Check if domain already exists
+    const exists = await redisClient.exists(`site:${siteData.domain}`);
+    if (exists) {
+      return res.status(409).json({ error: 'Domain already exists' });
+    }
+    
+    // Create the site
+    const site = {
+      ...siteData,
+      customerId, // Ensure customer ID from token
+      enabled: siteData.enabled !== false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await redisClient.set(`site:${siteData.domain}`, JSON.stringify(site));
+    
+    res.status(201).json(site);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update site
+router.put('/sites/:domain', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const { domain } = req.params;
+    const updates = req.body;
+    
+    const data = await redisClient.get(`site:${domain}`);
+    if (!data) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    const site = JSON.parse(data);
+    if (site.customerId !== customerId) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    // Apply updates (but never change customerId)
+    const updatedSite = {
+      ...site,
+      ...updates,
+      customerId, // Always keep customer ID from token
+      updatedAt: new Date().toISOString()
+    };
+    
+    await redisClient.set(`site:${domain}`, JSON.stringify(updatedSite));
+    
+    res.json(updatedSite);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete site
+router.delete('/sites/:domain', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const { domain } = req.params;
+    
+    const data = await redisClient.get(`site:${domain}`);
+    if (!data) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    const site = JSON.parse(data);
+    if (site.customerId !== customerId) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    await redisClient.del(`site:${domain}`);
+    
+    res.json({ message: 'Site deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Upload static site ZIP
+router.post('/sites/:domain/upload', async (req, res) => {
+  // TODO: Implement file upload
+  res.status(501).json({ error: 'Not implemented yet' });
+});
+
+// Get container stats
+router.get('/sites/:domain/containers', async (req, res) => {
+  // TODO: Implement container stats
+  res.json({ containers: [] });
+});
+
+// Container actions
+router.post('/sites/:domain/container/:action', async (req, res) => {
+  // TODO: Implement container actions
+  res.status(501).json({ error: 'Not implemented yet' });
+});
+
+// Get container logs
+router.get('/sites/:domain/logs', async (req, res) => {
+  // TODO: Implement container logs
+  res.json({ logs: [] });
 });
 
 // Delete deployment

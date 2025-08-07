@@ -6,48 +6,43 @@
  * See the LICENSE file in the root directory for details.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import axios from "axios";
 
-export async function POST(
-  request: NextRequest,
-  props: { params: Promise<{ id: string }> }
-) {
-  const params = await props.params;
+export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
     const authToken =
       request.headers.get("authorization")?.replace("Bearer ", "") ||
       request.headers.get("x-auth-token") ||
-      cookieStore.get("auth-token")?.value;
+      request.cookies.get("auth-token")?.value;
+
+    const customerId = request.cookies.get("customer-id")?.value;
 
     if (!authToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const apiUrl = process.env.SPINHUB_API_URL;
+    // Get the SpinForge API URL from environment
+    const apiUrl = process.env.SPINHUB_API_URL || "http://api:8080";
 
     // Forward the request to the SpinForge API
-    const response = await axios.post(
-      `${apiUrl}/_admin/spinlets/${params.id}/restart`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      }
-    );
+    const response = await axios.get(`${apiUrl}/_api/customer/usage`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "X-Customer-ID": customerId || "",
+        "X-Auth-Token": authToken,
+      },
+    });
 
     return NextResponse.json(response.data);
   } catch (error: any) {
-    console.error("Error restarting spinlet:", error);
+    console.error("Error fetching usage data:", error);
 
     if (error.response?.status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: "Failed to restart spinlet" },
+      { error: "Failed to fetch usage data" },
       { status: 500 }
     );
   }

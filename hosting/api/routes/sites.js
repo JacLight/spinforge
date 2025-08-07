@@ -321,8 +321,114 @@ router.put('/:domain', async (req, res) => {
       }
     }
     
-    // Save to Redis
+    // Check if container configuration changed and needs rebuild
+    const oldSite = JSON.parse(data);
+    const containerConfigChanged = site.type === 'container' && 
+      updates.containerConfig && 
+      JSON.stringify(oldSite.containerConfig) !== JSON.stringify(site.containerConfig);
+    
+    // Save to Redis first
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    
+    // Handle container rebuild if configuration changed
+    if (containerConfigChanged && site.containerName) {
+      try {
+        console.log(`Container configuration changed for ${domain}, rebuilding...`);
+        
+        // Check if container exists and is running
+        let containerRunning = false;
+        try {
+          const { stdout: status } = await execAsync(`docker inspect -f '{{.State.Running}}' ${site.containerName}`);
+          containerRunning = status.trim() === 'true';
+        } catch (e) {
+          // Container doesn't exist or error checking
+          console.log('Container not found or error checking status');
+        }
+        
+        // Stop and remove old container if it exists
+        try {
+          await execAsync(`docker stop ${site.containerName}`);
+          await execAsync(`docker rm ${site.containerName}`);
+          console.log(`Removed old container: ${site.containerName}`);
+        } catch (e) {
+          // Container might not exist, continue
+          console.log('Container cleanup skipped:', e.message);
+        }
+        
+        // Rebuild container with new configuration
+        const config = site.containerConfig;
+        let dockerCmd = `docker run -d --name ${site.containerName}`;
+        dockerCmd += ` --network spinforge_spinforge`;
+        dockerCmd += ` --restart ${config.restartPolicy || 'unless-stopped'}`;
+        dockerCmd += ` -t`;
+        dockerCmd += ` -e TERM=xterm-256color`;
+        dockerCmd += ` -e LANG=C.UTF-8`;
+        dockerCmd += ` -e LC_ALL=C.UTF-8`;
+        
+        // Add environment variables
+        if (config.env && config.env.length > 0) {
+          config.env.forEach(env => {
+            dockerCmd += ` -e "${env.key}=${env.value}"`;
+          });
+        }
+        
+        // Add volume mounts
+        if (config.volumes && config.volumes.length > 0) {
+          config.volumes.forEach(vol => {
+            dockerCmd += ` -v "${vol.host}:${vol.container}"`;
+          });
+        }
+        
+        // Add resource limits
+        if (config.memoryLimit) {
+          dockerCmd += ` --memory="${config.memoryLimit}"`;
+        }
+        if (config.cpuLimit) {
+          dockerCmd += ` --cpus="${config.cpuLimit}"`;
+        }
+        
+        // Add labels
+        dockerCmd += ` --label spinforge.domain="${site.domain}"`;
+        dockerCmd += ` --label spinforge.type="container"`;
+        dockerCmd += ` --label spinforge.updated="${site.updatedAt}"`;
+        
+        // Add the image
+        dockerCmd += ` ${config.image}`;
+        
+        // Add command override if specified
+        if (config.command) {
+          dockerCmd += ` ${config.command}`;
+        }
+        
+        console.log('Recreating container with command:', dockerCmd);
+        const { stdout, stderr } = await execAsync(dockerCmd);
+        const containerId = stdout.trim();
+        
+        // Update container ID
+        site.containerId = containerId;
+        
+        // Wait for container to start
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Get new container IP
+        const { stdout: containerIp } = await execAsync(
+          `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${site.containerName}`
+        );
+        site.target = `http://${containerIp.trim()}:${config.port}`;
+        
+        // Save updated site with new container info
+        await redisClient.set(`site:${domain}`, JSON.stringify(site));
+        
+        console.log(`Container rebuilt successfully: ${site.containerName} -> ${site.target}`);
+      } catch (error) {
+        console.error('Container rebuild failed:', error);
+        // Don't fail the entire update, but log the error
+        return res.status(500).json({ 
+          error: 'Configuration updated but container rebuild failed', 
+          details: error.message 
+        });
+      }
+    }
     
     // Handle alias updates
     if (updates.aliases !== undefined) {

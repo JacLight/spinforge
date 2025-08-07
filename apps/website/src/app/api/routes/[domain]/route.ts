@@ -15,7 +15,7 @@ export async function DELETE(
 ) {
   const params = await props.params;
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authToken =
       request.headers.get("authorization")?.replace("Bearer ", "") ||
       request.headers.get("x-auth-token") ||

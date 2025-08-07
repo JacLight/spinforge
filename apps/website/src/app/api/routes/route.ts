@@ -11,7 +11,7 @@ import axios from "axios";
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authToken =
       request.headers.get("authorization")?.replace("Bearer ", "") ||
       request.headers.get("x-auth-token") ||
@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
           "X-Customer-ID": customerId,
         },
       });
-      return NextResponse.json(response.data);
+      // Return just the domains array, not the wrapper object
+      return NextResponse.json(response.data.domains || []);
     } catch (apiError: any) {
       // If customer API is not available, return empty array for now
       console.warn("Customer API not available, returning empty routes");

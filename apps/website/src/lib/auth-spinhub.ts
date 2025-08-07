@@ -1,17 +1,15 @@
 /**
- * SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
+ * SpinForge - Customer Authentication via API
  * Copyright (c) 2025 Jacob Ajiboye
  * 
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
 import { Session, User } from "./auth-simple";
-import { nanoid } from "nanoid";
-import { setJson, getJson, KEYS, redis } from "./redis";
 
-const SPINHUB_API_URL = process.env.SPINHUB_API_URL;
+const SPINHUB_API_URL = process.env.SPINHUB_API_URL || "http://api:8080";
 
-// Create user via SpinHub API
+// Create customer via API
 export async function createUser(data: {
   email: string;
   password: string;
@@ -19,7 +17,7 @@ export async function createUser(data: {
   company?: string;
 }): Promise<User> {
   try {
-    const response = await fetch(`${SPINHUB_API_URL}/_auth/register`, {
+    const response = await fetch(`${SPINHUB_API_URL}/_auth/customer/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -41,26 +39,17 @@ export async function createUser(data: {
 
     // Create user object compatible with existing code
     const user: User = {
-      id: result.userId,
-      email: result.customer.email,
+      id: result.user.id,
+      email: result.user.email,
       password: "", // Don't store password locally
-      name: result.customer.name,
+      name: result.user.name,
       company: data.company,
-      customerId: result.customer.id,
+      customerId: result.user.customerId,
       role: "customer",
       emailVerified: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-
-    // Store auth token for API calls
-    await setJson(KEYS.apiToken(result.token), {
-      userId: result.userId,
-      customerId: result.customer.id,
-      email: result.customer.email,
-      token: result.token,
-      createdAt: new Date().toISOString(),
-    });
 
     return user;
   } catch (error: any) {
@@ -68,13 +57,13 @@ export async function createUser(data: {
   }
 }
 
-// Login user via SpinHub API
+// Login customer via API
 export async function loginUser(
   email: string,
   password: string
 ): Promise<Session> {
   try {
-    const response = await fetch(`${SPINHUB_API_URL}/_auth/login`, {
+    const response = await fetch(`${SPINHUB_API_URL}/_auth/customer/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -92,27 +81,14 @@ export async function loginUser(
 
     const result = await response.json();
 
-    // Create session
-    const sessionToken = nanoid(32);
+    // Create session object
     const session: Session = {
-      userId: result.userId || result.customer.id,
-      customerId: result.customer.id,
-      email: result.customer.email,
-      role: "customer",
-      token: sessionToken,
-    };
-
-    // Save session (expire in 7 days)
-    await setJson(KEYS.session(sessionToken), session, 7 * 24 * 60 * 60);
-
-    // Store SpinHub auth token
-    await setJson(KEYS.apiToken(result.token), {
-      userId: result.userId || result.customer.id,
-      customerId: result.customer.id,
-      email: result.customer.email,
+      userId: result.user.customerId, // Use customerId as userId for compatibility
+      customerId: result.user.customerId,
+      email: result.user.email,
+      role: result.user.role || "customer",
       token: result.token,
-      createdAt: new Date().toISOString(),
-    });
+    };
 
     return session;
   } catch (error: any) {
@@ -120,26 +96,31 @@ export async function loginUser(
   }
 }
 
-// Get user by email (check local cache first, then SpinHub)
+// Get customer by email via API
 export async function getUserByEmail(email: string): Promise<User | null> {
-  // For now, return null as we're not caching users locally
-  // In a real implementation, you might want to cache user data
-  return null;
-}
-
-// Verify session (local session management)
-export async function verifySession(token: string): Promise<Session | null> {
-  return await getJson<Session>(KEYS.session(token));
-}
-
-// Verify API token with SpinHub
-export async function verifyApiToken(token: string): Promise<{
-  userId: string;
-  customerId: string;
-  role: string;
-} | null> {
   try {
-    const response = await fetch(`${SPINHUB_API_URL}/_auth/verify`, {
+    const response = await fetch(`${SPINHUB_API_URL}/_auth/customer/${email}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const user = await response.json();
+    return user;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Verify session via API
+export async function verifySession(token: string): Promise<Session | null> {
+  try {
+    const response = await fetch(`${SPINHUB_API_URL}/_auth/customer/verify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -157,95 +138,67 @@ export async function verifyApiToken(token: string): Promise<{
     }
 
     return {
-      userId: result.customer.id,
-      customerId: result.customer.id,
-      role: "customer",
+      userId: result.user.userId,
+      customerId: result.user.customerId,
+      email: result.user.email,
+      role: result.user.role,
+      token: token,
     };
   } catch {
     return null;
   }
 }
 
-// Magic link functions remain local for now
-export async function createMagicLink(email: string): Promise<string> {
-  const token = nanoid(32);
-
-  // Store magic link token (expire in 1 hour)
-  await setJson(
-    `magiclink:${token}`,
-    {
-      email,
-    },
-    3600
-  );
-
-  return token;
-}
-
-export async function verifyMagicLink(token: string): Promise<Session | null> {
-  const data = await getJson<any>(`magiclink:${token}`);
-  if (!data) {
-    return null;
-  }
-
-  // Create temporary user via SpinHub
+// Verify API token via API
+export async function verifyApiToken(token: string): Promise<{
+  userId: string;
+  customerId: string;
+  role: string;
+} | null> {
   try {
-    const tempPassword = nanoid(32);
-    const response = await fetch(`${SPINHUB_API_URL}/_auth/register`, {
+    const response = await fetch(`${SPINHUB_API_URL}/_auth/customer/verify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        email: data.email,
-        password: tempPassword,
-        name: data.email.split("@")[0],
-      }),
+      body: JSON.stringify({ token }),
     });
 
     if (!response.ok) {
-      // If user already exists, try to login (would need a different approach in production)
       return null;
     }
 
     const result = await response.json();
+    if (!result.valid) {
+      return null;
+    }
 
-    // Create session
-    const sessionToken = nanoid(32);
-    const session: Session = {
-      userId: result.userId || result.customer.id,
-      customerId: result.customer.id,
-      email: result.customer.email,
-      role: "customer",
-      token: sessionToken,
+    return {
+      userId: result.user.userId,
+      customerId: result.user.customerId,
+      role: result.user.role || "customer",
     };
-
-    // Save session
-    await setJson(KEYS.session(sessionToken), session, 7 * 24 * 60 * 60);
-
-    // Delete magic link token
-    await redis.del(`magiclink:${token}`);
-
-    return session;
   } catch {
     return null;
   }
 }
 
-// Generate API token
+// Magic link functions - not implemented yet
+export async function createMagicLink(email: string): Promise<string> {
+  // TODO: Implement magic link via API
+  throw new Error("Magic link not implemented yet");
+}
+
+export async function verifyMagicLink(token: string): Promise<Session | null> {
+  // TODO: Implement magic link verification via API
+  return null;
+}
+
+// Generate API token - handled by server
 export async function generateApiToken(
   userId: string,
   name: string
 ): Promise<string> {
-  // In production, this would call SpinHub to generate a proper API token
-  // For now, generate a local token
-  const token = nanoid(32);
-
-  await setJson(KEYS.apiToken(token), {
-    userId,
-    name,
-    createdAt: new Date().toISOString(),
-  });
-
-  return token;
+  // API tokens are generated server-side during login/register
+  throw new Error("API token generation is handled server-side");
 }

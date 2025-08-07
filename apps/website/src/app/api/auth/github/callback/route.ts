@@ -7,9 +7,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { createUser, getUserByEmail } from "@/lib/auth-spinhub";
-import { redis, KEYS, setJson, getJson } from "@/lib/redis";
-import { nanoid } from "nanoid";
+
+const SPINHUB_API_URL = process.env.SPINHUB_API_URL || "http://api:8080";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -70,44 +69,32 @@ export async function GET(request: NextRequest) {
       throw new Error("No email found in GitHub account");
     }
 
-    // Check if user exists
-    let user = await getUserByEmail(primaryEmail);
-
-    if (!user) {
-      // Create new user
-      user = await createUser({
-        email: primaryEmail,
-        password: nanoid(32), // Random password for OAuth users
-        name: githubUser.name || githubUser.login,
-        company: githubUser.company,
-      });
-
-      // Store GitHub connection
-      await setJson(`github:${githubUser.id}`, {
-        userId: user.id,
+    // Handle GitHub OAuth via backend API
+    const authResponse = await fetch(`${SPINHUB_API_URL}/_auth/customer/github`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
         email: primaryEmail,
         githubId: githubUser.id,
+        name: githubUser.name || githubUser.login,
+        company: githubUser.company,
         login: githubUser.login,
         avatarUrl: githubUser.avatar_url,
-      });
+      }),
+    });
+
+    if (!authResponse.ok) {
+      const error = await authResponse.json();
+      throw new Error(error.error || "Authentication failed");
     }
 
-    // Create session
-    const token = nanoid(32);
-    const session = {
-      userId: user.id,
-      customerId: user.customerId,
-      email: user.email,
-      role: user.role,
-      token,
-    };
-
-    // Save session
-    await setJson(KEYS.session(token), session, 7 * 24 * 60 * 60);
+    const authData = await authResponse.json();
 
     // Set cookie and redirect
     const response = NextResponse.redirect(new URL("/dashboard", process.env.APP_URL!));
-    response.cookies.set("auth-token", token, {
+    response.cookies.set("auth-token", authData.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

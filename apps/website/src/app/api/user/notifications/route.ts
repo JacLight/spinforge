@@ -7,7 +7,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth-server";
-import { getJson, setJson } from "@/lib/redis";
+
+const SPINHUB_API_URL = process.env.SPINHUB_API_URL || "http://api:8080";
 
 export async function GET(request: NextRequest) {
   const session = await getAuthenticatedUser(request);
@@ -17,21 +18,37 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get notification preferences
-    const preferences = await getJson(`notifications:${session.userId}`) || {
+    // Get notification preferences from backend API
+    const response = await fetch(`${SPINHUB_API_URL}/_api/customer/notifications`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "X-Customer-ID": session.customerId || "",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      // Return default preferences if API doesn't have them yet
+      return NextResponse.json({
+        emailNotifications: true,
+        deploymentAlerts: true,
+        usageAlerts: true,
+        weeklyReports: false,
+      });
+    }
+
+    const preferences = await response.json();
+    return NextResponse.json(preferences);
+  } catch (error) {
+    console.error("Error fetching notification preferences:", error);
+    // Return defaults on error
+    return NextResponse.json({
       emailNotifications: true,
       deploymentAlerts: true,
       usageAlerts: true,
       weeklyReports: false,
-    };
-
-    return NextResponse.json(preferences);
-  } catch (error) {
-    console.error("Error fetching notification preferences:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch preferences" },
-      { status: 500 }
-    );
+    });
   }
 }
 
@@ -45,20 +62,32 @@ export async function PUT(request: NextRequest) {
   try {
     const preferences = await request.json();
 
-    // Save notification preferences
-    await setJson(`notifications:${session.userId}`, {
-      emailNotifications: preferences.emailNotifications ?? true,
-      deploymentAlerts: preferences.deploymentAlerts ?? true,
-      usageAlerts: preferences.usageAlerts ?? true,
-      weeklyReports: preferences.weeklyReports ?? false,
-      updatedAt: new Date().toISOString(),
+    // Save notification preferences via backend API
+    const response = await fetch(`${SPINHUB_API_URL}/_api/customer/notifications`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "X-Customer-ID": session.customerId || "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        emailNotifications: preferences.emailNotifications ?? true,
+        deploymentAlerts: preferences.deploymentAlerts ?? true,
+        usageAlerts: preferences.usageAlerts ?? true,
+        weeklyReports: preferences.weeklyReports ?? false,
+      }),
     });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to update preferences");
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error updating notification preferences:", error);
     return NextResponse.json(
-      { error: "Failed to update preferences" },
+      { error: error instanceof Error ? error.message : "Failed to update preferences" },
       { status: 500 }
     );
   }

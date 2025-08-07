@@ -89,6 +89,112 @@ router.post('/:domain/container/restart', async (req, res) => {
   }
 });
 
+// Rebuild container with current configuration
+router.post('/:domain/container/rebuild', async (req, res) => {
+  try {
+    const domain = req.params.domain;
+    const data = await redisClient.get(`site:${domain}`);
+    if (!data) {
+      return res.status(404).json({ error: 'Site not found' });
+    }
+    
+    const site = JSON.parse(data);
+    if (site.type !== 'container' || !site.containerName) {
+      return res.status(400).json({ error: 'Not a container site' });
+    }
+    
+    if (!site.containerConfig) {
+      return res.status(400).json({ error: 'Container configuration not found' });
+    }
+    
+    console.log(`Rebuilding container for ${domain}...`);
+    
+    // Stop and remove old container
+    try {
+      await execAsync(`docker stop ${site.containerName}`);
+      await execAsync(`docker rm ${site.containerName}`);
+      console.log(`Removed old container: ${site.containerName}`);
+    } catch (e) {
+      console.log('Container cleanup skipped:', e.message);
+    }
+    
+    // Rebuild container with current configuration
+    const config = site.containerConfig;
+    let dockerCmd = `docker run -d --name ${site.containerName}`;
+    dockerCmd += ` --network spinforge_spinforge`;
+    dockerCmd += ` --restart ${config.restartPolicy || 'unless-stopped'}`;
+    dockerCmd += ` -t`;
+    dockerCmd += ` -e TERM=xterm-256color`;
+    dockerCmd += ` -e LANG=C.UTF-8`;
+    dockerCmd += ` -e LC_ALL=C.UTF-8`;
+    
+    // Add environment variables
+    if (config.env && config.env.length > 0) {
+      config.env.forEach(env => {
+        dockerCmd += ` -e "${env.key}=${env.value}"`;
+      });
+    }
+    
+    // Add volume mounts
+    if (config.volumes && config.volumes.length > 0) {
+      config.volumes.forEach(vol => {
+        dockerCmd += ` -v "${vol.host}:${vol.container}"`;
+      });
+    }
+    
+    // Add resource limits
+    if (config.memoryLimit) {
+      dockerCmd += ` --memory="${config.memoryLimit}"`;
+    }
+    if (config.cpuLimit) {
+      dockerCmd += ` --cpus="${config.cpuLimit}"`;
+    }
+    
+    // Add labels
+    dockerCmd += ` --label spinforge.domain="${site.domain}"`;
+    dockerCmd += ` --label spinforge.type="container"`;
+    dockerCmd += ` --label spinforge.rebuilt="${new Date().toISOString()}"`;
+    
+    // Add the image
+    dockerCmd += ` ${config.image}`;
+    
+    // Add command override if specified
+    if (config.command) {
+      dockerCmd += ` ${config.command}`;
+    }
+    
+    console.log('Rebuilding container with command:', dockerCmd);
+    const { stdout } = await execAsync(dockerCmd);
+    const containerId = stdout.trim();
+    
+    // Update container ID
+    site.containerId = containerId;
+    site.updatedAt = new Date().toISOString();
+    
+    // Wait for container to start
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Get new container IP
+    const { stdout: containerIp } = await execAsync(
+      `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${site.containerName}`
+    );
+    site.target = `http://${containerIp.trim()}:${config.port}`;
+    
+    // Save updated site with new container info
+    await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    
+    console.log(`Container rebuilt successfully: ${site.containerName} -> ${site.target}`);
+    res.json({ 
+      message: 'Container rebuilt successfully',
+      containerId: containerId,
+      target: site.target
+    });
+  } catch (error) {
+    console.error('Container rebuild failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get container logs
 router.get('/:domain/container/logs', async (req, res) => {
   try {

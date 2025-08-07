@@ -63,18 +63,18 @@ export default function UsagePage() {
         };
       }
       
-      // TODO: Replace with actual API call
-      // const response = await axios.get(`/api/usage?timeRange=${timeRange}`);
-      // return response.data;
+      // Fetch actual usage data from API
+      const response = await axios.get(`/api/usage?timeRange=${timeRange}`);
+      const usageData = response.data;
       
-      // For now, return zeros for real customers
+      // Transform the API response to match the expected format
       return {
-        requests: 0,
-        bandwidth: 0,
-        buildMinutes: 0,
-        storageUsed: 0,
+        requests: usageData.sites?.total || 0,
+        bandwidth: usageData.bandwidth?.used || 0,
+        buildMinutes: 0, // Not tracked yet in current API
+        storageUsed: usageData.storage?.used || 0,
         activeDeployments: deployments.length,
-        peakConcurrentUsers: 0,
+        peakConcurrentUsers: usageData.containers?.running || 0,
       };
     },
     enabled: !!user?.customerId,

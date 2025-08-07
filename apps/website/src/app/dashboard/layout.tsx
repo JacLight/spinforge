@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: Home },
   { name: "Applications", href: "/dashboard/applications", icon: Package },
-  { name: "Deployments", href: "/dashboard/deployments", icon: Rocket },
+  { name: "SpinLets", href: "/dashboard/spinlets", icon: Rocket },
   { name: "Domains", href: "/dashboard/domains", icon: Globe },
   { name: "API Tokens", href: "/dashboard/api-tokens", icon: Key },
   { name: "Usage", href: "/dashboard/usage", icon: BarChart3 },
@@ -139,11 +139,11 @@ export default function DashboardLayout({
               {navigation.find(n => n.href === pathname)?.name || "Dashboard"}
             </h1>
             <Link
-              href="/dashboard/deployments"
+              href="/dashboard/deploy"
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
               <Plus className="h-4 w-4" />
-              New Deployment
+              Deploy SpinLet
             </Link>
           </div>
         </div>

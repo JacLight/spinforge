@@ -7,10 +7,9 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth-server";
-import { generateApiToken } from "@/lib/auth-spinhub";
-import { setJson } from "@/lib/redis";
-import { nanoid } from "nanoid";
 import { z } from "zod";
+
+const SPINHUB_API_URL = process.env.SPINHUB_API_URL || "http://api:8080";
 
 const tokenSchema = z.object({
   name: z.string().min(1, "Token name is required"),
@@ -27,23 +26,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name } = tokenSchema.parse(body);
 
-    // Generate the API token
-    const token = await generateApiToken(session.userId, name);
-    const tokenId = nanoid();
-
-    // Store token metadata
-    await setJson(`apitoken:${session.userId}:${tokenId}`, {
-      id: tokenId,
-      name,
-      createdAt: new Date().toISOString(),
-      lastUsed: null,
+    // Generate token via the backend API
+    const response = await fetch(`${SPINHUB_API_URL}/_api/customer/tokens`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session.token}`,
+        "X-Customer-ID": session.customerId || "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name }),
     });
 
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to generate token");
+    }
+
+    const tokenData = await response.json();
+
     return NextResponse.json({
-      id: tokenId,
-      name,
-      token, // Only sent once
-      createdAt: new Date().toISOString(),
+      id: tokenData.id,
+      name: tokenData.name,
+      token: tokenData.token, // Only sent once
+      createdAt: tokenData.createdAt,
       user: {
         id: session.userId,
         customerId: session.customerId,
@@ -60,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     console.error("Token generation error:", error);
     return NextResponse.json(
-      { error: "Failed to generate token" },
+      { error: error instanceof Error ? error.message : "Failed to generate token" },
       { status: 500 }
     );
   }
