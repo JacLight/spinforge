@@ -16,6 +16,7 @@ const healthRoutes = require('./health');
 const miscRoutes = require('./misc');
 const versionRoutes = require('./version');
 const sslRoutes = require('./ssl');
+const authGatewayRoutes = require('./auth-gateway');
 
 // Mount routes
 router.use('/sites', sitesRoutes);
@@ -24,6 +25,7 @@ router.use('/containers', containerRoutes); // Also mount at /containers for /co
 router.use('/metrics', metricsRoutes);
 router.use('/health', healthRoutes);
 router.use('/ssl', sslRoutes);
+router.use('/', authGatewayRoutes); // Auth gateway routes under /sites/:domain/auth
 router.use('/', miscRoutes);
 
 // Additional metric routes with underscore prefix

@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { hostingAPI } from '../services/hosting-api';
-import ApplicationDrawerV2 from '../components/ApplicationDrawerV2';
+import ApplicationDrawer from '../components/ApplicationDrawer';
 import { Loader, AlertCircle } from 'lucide-react';
 
 export default function ApplicationDetail() {
@@ -66,7 +66,7 @@ export default function ApplicationDetail() {
   }
 
   return (
-    <ApplicationDrawerV2
+    <ApplicationDrawer
       vhost={vhost}
       isOpen={isDrawerOpen}
       onClose={handleClose}

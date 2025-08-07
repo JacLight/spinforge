@@ -14,6 +14,13 @@ local cjson = require "cjson"
 local logger = require "logger"
 local utils = require "utils"
 
+-- Try to load auth gateway module
+local auth_gateway = nil
+local ok, auth_module = pcall(require, "auth_gateway")
+if ok then
+    auth_gateway = auth_module
+end
+
 -- Helper function to get Redis connection
 local function get_redis_connection()
     local red = redis:new()
@@ -137,6 +144,11 @@ local host = ngx.var.host:lower()
 -- Skip if we've already processed this request
 if ngx.ctx.route_processed then
     return
+end
+
+-- Run authentication check if module is available
+if auth_gateway and auth_gateway.authenticate then
+    auth_gateway.authenticate()
 end
 
 -- Special diagnostic endpoint for load balancers

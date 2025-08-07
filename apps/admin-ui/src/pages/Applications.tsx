@@ -11,7 +11,7 @@ import { hostingAPI, VHost } from "../services/hosting-api";
 import { toast } from "sonner";
 import { useNavigate, Link } from "react-router-dom";
 import { useDebounce } from "../hooks/useDebounce";
-import ApplicationDrawer from "../components/ApplicationDrawerV2";
+import ApplicationDrawer from "../components/ApplicationDrawer";
 import {
   Globe,
   Package,
