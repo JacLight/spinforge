@@ -143,4 +143,83 @@ router.get('/_health', async (req, res) => {
   }
 });
 
+// Backend health check endpoint for load balancers
+router.post('/check', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+  
+  try {
+    // Parse URL to check if it's a local service
+    const urlObj = new URL(url);
+    let checkUrl = url;
+    
+    // If it's localhost or a .localhost domain, check via internal network
+    if (urlObj.hostname === 'localhost' || urlObj.hostname.endsWith('.localhost')) {
+      // Replace with internal docker network URL using OpenResty
+      checkUrl = `http://openresty:8081${urlObj.pathname}${urlObj.search}`;
+      // Set host header for proper routing
+      const hostHeader = urlObj.hostname;
+      
+      const response = await axios.get(checkUrl, {
+        timeout: 5000,
+        headers: {
+          'Host': hostHeader
+        },
+        validateStatus: () => true // Accept any status code
+      });
+      
+      const healthy = response.status >= 200 && response.status < 500;
+      
+      res.json({
+        healthy,
+        status: response.status,
+        statusText: response.statusText,
+        url: url,
+        responseTime: response.headers['x-response-time'] || null,
+        details: {
+          headers: response.headers,
+          checkedUrl: checkUrl
+        }
+      });
+    } else {
+      // External URL - check directly
+      const startTime = Date.now();
+      const response = await axios.get(url, {
+        timeout: 5000,
+        validateStatus: () => true // Accept any status code
+      });
+      const responseTime = Date.now() - startTime;
+      
+      const healthy = response.status >= 200 && response.status < 500;
+      
+      res.json({
+        healthy,
+        status: response.status,
+        statusText: response.statusText,
+        url: url,
+        responseTime: responseTime,
+        details: {
+          headers: response.headers
+        }
+      });
+    }
+  } catch (error) {
+    // Connection error or timeout
+    res.json({
+      healthy: false,
+      status: 0,
+      statusText: 'Connection Failed',
+      url: url,
+      error: error.message,
+      details: {
+        code: error.code,
+        timeout: error.code === 'ECONNABORTED'
+      }
+    });
+  }
+});
+
 module.exports = router;

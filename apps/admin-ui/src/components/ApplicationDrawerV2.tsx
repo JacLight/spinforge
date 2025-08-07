@@ -45,6 +45,10 @@ import {
   TrendingUp,
   Settings,
   Lock,
+  Stethoscope,
+  Cookie,
+  Heart,
+  Terminal,
 } from "lucide-react";
 
 // Helper function for domain validation
@@ -62,12 +66,13 @@ function isValidDomain(domain: string): boolean {
 }
 
 // Metrics component
-function MetricsSection({ domain }: { domain?: string }) {
+function MetricsSection({ domain, isEditing }: { domain?: string; isEditing?: boolean }) {
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['vhost-metrics', domain],
     queryFn: () => domain ? hostingAPI.getVHostMetrics(domain) : null,
     enabled: !!domain,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: isEditing ? false : 30000, // Disable refresh when editing
+    refetchOnWindowFocus: !isEditing, // Disable window focus refresh when editing
   });
 
   if (!domain || isLoading) {
@@ -250,11 +255,12 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   const { data: health, refetch: refetchHealth } = useQuery({
     queryKey: ['container-health', vhost.domain],
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/health`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/health`);
       if (!response.ok) throw new Error('Failed to get container health');
       return response.json();
     },
-    refetchInterval: 30000, // Check every 30 seconds
+    refetchInterval: isEditing ? false : 30000, // Disable refresh when editing
+    refetchOnWindowFocus: !isEditing, // Disable window focus refresh when editing
   });
 
   React.useEffect(() => {
@@ -266,7 +272,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   const handleContainerAction = async (action: 'start' | 'stop' | 'restart' | 'rebuild') => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/${action}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/${action}`, {
         method: 'POST',
       });
       
@@ -296,7 +302,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sites/${vhost.domain}/container/logs?lines=200`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/logs?lines=200`);
       if (!response.ok) throw new Error('Failed to fetch logs');
       const data = await response.json();
       setLogs(data.logs);
@@ -453,6 +459,366 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   );
 }
 
+// Diagnostics Component
+function Diagnostics({ vhost }: { vhost: any }) {
+  const [envVars, setEnvVars] = useState<string>('');
+  const [cookies, setCookies] = useState<string>('');
+  const [healthStatus, setHealthStatus] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeCheck, setActiveCheck] = useState<string>('');
+
+  // Check environment variables (for containers)
+  const checkEnvVariables = async () => {
+    if (vhost.type !== 'container') {
+      toast.error('Environment variables are only available for container applications');
+      return;
+    }
+    
+    setIsLoading(true);
+    setActiveCheck('env');
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: 'env | sort' })
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch environment variables');
+      const data = await response.json();
+      setEnvVars(data.stdout || data.output || 'No environment variables found');
+    } catch (error: any) {
+      toast.error('Failed to fetch environment variables');
+      setEnvVars(`Error: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check health of connected proxies (for load balancers)
+  const checkProxyHealth = async () => {
+    if (vhost.type !== 'loadbalancer') {
+      toast.error('Health checks are only available for load balancer applications');
+      return;
+    }
+    
+    setIsLoading(true);
+    setActiveCheck('health');
+    try {
+      const backends = vhost.backends || vhost.backendConfigs || [];
+      
+      if (backends.length === 0) {
+        toast.info('No backend servers configured');
+        setHealthStatus([]);
+        return;
+      }
+      
+      const healthChecks = await Promise.all(
+        backends.map(async (backend: any) => {
+          const url = typeof backend === 'string' ? backend : backend.url;
+          try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/health/check`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url })
+            });
+            
+            if (!response.ok) {
+              return { 
+                url, 
+                status: 'error', 
+                error: `API returned ${response.status}`,
+                details: null 
+              };
+            }
+            
+            const data = await response.json();
+            return { 
+              url, 
+              status: data.healthy ? 'healthy' : 'unhealthy', 
+              httpStatus: data.status,
+              responseTime: data.responseTime,
+              details: data 
+            };
+          } catch (error: any) {
+            return { 
+              url, 
+              status: 'error', 
+              error: error.message || 'Connection failed',
+              details: null 
+            };
+          }
+        })
+      );
+      setHealthStatus(healthChecks);
+      
+      // Show summary toast
+      const healthy = healthChecks.filter(h => h.status === 'healthy').length;
+      const total = healthChecks.length;
+      if (healthy === total) {
+        toast.success(`All ${total} backend(s) are healthy`);
+      } else if (healthy > 0) {
+        toast.warning(`${healthy} of ${total} backend(s) are healthy`);
+      } else {
+        toast.error('All backends are down or unreachable');
+      }
+    } catch (error: any) {
+      toast.error('Failed to check proxy health');
+      setHealthStatus([{ url: 'error', status: 'error', error: error.message, details: null }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check cookies in request
+  const checkCookies = async () => {
+    setIsLoading(true);
+    setActiveCheck('cookies');
+    try {
+      // Make a request to the site and capture cookies
+      const siteUrl = `http://${vhost.domain}`;
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/check-cookies`, {
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        // Fallback: Try to get cookies from browser
+        const browserCookies = document.cookie.split(';').map(c => c.trim()).filter(c => c);
+        if (browserCookies.length > 0) {
+          setCookies(`Browser cookies for current domain:\n${browserCookies.join('\n')}`);
+        } else {
+          setCookies('No cookies found in current browser session');
+        }
+      } else {
+        const data = await response.json();
+        setCookies(data.cookies || 'No cookies found for this domain');
+      }
+    } catch (error: any) {
+      // Fallback to browser cookies
+      const browserCookies = document.cookie.split(';').map(c => c.trim()).filter(c => c);
+      if (browserCookies.length > 0) {
+        setCookies(`Browser cookies (API unavailable):\n${browserCookies.join('\n')}`);
+      } else {
+        setCookies(`Error fetching cookies: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Execute custom command (for containers)
+  const [customCommand, setCustomCommand] = useState('');
+  const [commandOutput, setCommandOutput] = useState('');
+  
+  const executeCommand = async () => {
+    if (!customCommand.trim()) {
+      toast.error('Please enter a command');
+      return;
+    }
+    
+    if (vhost.type !== 'container') {
+      toast.error('Command execution is only available for container applications');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: customCommand })
+      });
+      
+      if (!response.ok) throw new Error('Failed to execute command');
+      const data = await response.json();
+      setCommandOutput(data.stdout || data.output || 'Command executed with no output');
+    } catch (error: any) {
+      toast.error('Failed to execute command');
+      setCommandOutput(`Error: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Quick Diagnostic Actions */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Diagnostics</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Environment Variables Check (Containers) */}
+          {vhost.type === 'container' && (
+            <button
+              onClick={checkEnvVariables}
+              disabled={isLoading}
+              className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition-all duration-200 disabled:opacity-50"
+            >
+              <Terminal className="h-8 w-8 text-blue-600 mb-2" />
+              <span className="text-sm font-medium text-gray-900">Check Env Variables</span>
+              <span className="text-xs text-gray-500 mt-1">View container environment</span>
+            </button>
+          )}
+          
+          {/* Health Check (Load Balancers) */}
+          {vhost.type === 'loadbalancer' && (
+            <button
+              onClick={checkProxyHealth}
+              disabled={isLoading}
+              className="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-xl border border-green-200 transition-all duration-200 disabled:opacity-50"
+            >
+              <Heart className="h-8 w-8 text-green-600 mb-2" />
+              <span className="text-sm font-medium text-gray-900">Check Backend Health</span>
+              <span className="text-xs text-gray-500 mt-1">Test proxy endpoints</span>
+            </button>
+          )}
+          
+          {/* Cookie Check (All) */}
+          <button
+            onClick={checkCookies}
+            disabled={isLoading}
+            className="flex flex-col items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-xl border border-purple-200 transition-all duration-200 disabled:opacity-50"
+          >
+            <Cookie className="h-8 w-8 text-purple-600 mb-2" />
+            <span className="text-sm font-medium text-gray-900">Check Cookies</span>
+            <span className="text-xs text-gray-500 mt-1">View request cookies</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Results Display */}
+      {activeCheck && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {activeCheck === 'env' && 'Environment Variables'}
+            {activeCheck === 'health' && 'Backend Health Status'}
+            {activeCheck === 'cookies' && 'Cookie Information'}
+          </h3>
+          
+          {/* Environment Variables Display */}
+          {activeCheck === 'env' && envVars && (
+            <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+              <pre className="text-green-400 font-mono text-sm whitespace-pre-wrap">{envVars}</pre>
+            </div>
+          )}
+          
+          {/* Health Status Display */}
+          {activeCheck === 'health' && healthStatus.length > 0 && (
+            <div className="space-y-3">
+              {healthStatus.map((backend, index) => (
+                <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <div className={`h-3 w-3 rounded-full ${
+                        backend.status === 'healthy' ? 'bg-green-500 animate-pulse' : 
+                        backend.status === 'unhealthy' ? 'bg-yellow-500' : 'bg-red-500'
+                      }`} />
+                      <code className="text-sm text-gray-700 font-medium">{backend.url}</code>
+                    </div>
+                    <span className={`text-sm font-medium px-2 py-1 rounded ${
+                      backend.status === 'healthy' ? 'bg-green-100 text-green-700' : 
+                      backend.status === 'unhealthy' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {backend.status.toUpperCase()}
+                    </span>
+                  </div>
+                  {backend.httpStatus && (
+                    <div className="text-xs text-gray-600 ml-6">
+                      HTTP {backend.httpStatus}
+                      {backend.responseTime && ` • ${backend.responseTime}ms`}
+                    </div>
+                  )}
+                  {backend.error && (
+                    <div className="text-xs text-red-600 ml-6 mt-1">
+                      Error: {backend.error}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Empty state for health check */}
+          {activeCheck === 'health' && healthStatus.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <Heart className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm">No backend servers configured</p>
+              <p className="text-xs mt-1">Add backend servers to your load balancer configuration</p>
+            </div>
+          )}
+          
+          {/* Cookies Display */}
+          {activeCheck === 'cookies' && cookies && (
+            <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+              <pre className="text-blue-400 font-mono text-sm whitespace-pre-wrap">{cookies}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Command Execution (Containers Only) */}
+      {vhost.type === 'container' && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Execute Command</h3>
+          
+          <div className="space-y-4">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={customCommand}
+                onChange={(e) => setCustomCommand(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && executeCommand()}
+                placeholder="Enter command (e.g., ls -la, ps aux, df -h)"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={executeCommand}
+                disabled={isLoading}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                Execute
+              </button>
+            </div>
+            
+            {commandOutput && (
+              <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                <pre className="text-green-400 font-mono text-sm whitespace-pre-wrap">{commandOutput}</pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Common Diagnostic Commands */}
+      {vhost.type === 'container' && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Commands</h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {[
+              { label: 'Process List', cmd: 'ps aux' },
+              { label: 'Disk Usage', cmd: 'df -h' },
+              { label: 'Memory Info', cmd: 'free -h' },
+              { label: 'Network Info', cmd: 'netstat -tuln' },
+              { label: 'Current Dir', cmd: 'pwd && ls -la' },
+              { label: 'OS Info', cmd: 'cat /etc/os-release' },
+              { label: 'CPU Info', cmd: 'nproc && cat /proc/cpuinfo | grep "model name" | head -1' },
+              { label: 'Uptime', cmd: 'uptime' },
+            ].map((item) => (
+              <button
+                key={item.cmd}
+                onClick={() => setCustomCommand(item.cmd)}
+                className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-medium"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ApplicationDrawerProps {
   vhost: any | null;
   isOpen: boolean;
@@ -474,8 +840,10 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
       if (!initialVhost?.domain) return initialVhost;
       return hostingAPI.getVHost(initialVhost.domain);
     },
-    enabled: isOpen && !!initialVhost?.domain,
+    enabled: isOpen && !!initialVhost?.domain && !isEditing, // Disable when editing
     initialData: initialVhost,
+    refetchInterval: false, // No auto-refresh
+    refetchOnWindowFocus: !isEditing, // Disable window focus refresh when editing
   });
   
   interface BackendConfig {
@@ -662,6 +1030,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
     queryKey: ["all-vhosts"],
     queryFn: () => hostingAPI.listVHosts(),
     staleTime: 60000,
+    refetchOnWindowFocus: !isEditing, // Disable window focus refresh when editing
   });
 
   const validateDomain = (value: string) => {
@@ -1052,13 +1421,14 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                       { id: 'domains', label: 'Domains', icon: Globe },
                       { id: 'metrics', label: 'Metrics', icon: ChevronRight },
                       { id: 'settings', label: 'Settings', icon: Shield },
-                      { id: 'ssl', label: 'SSL Certificate', icon: Lock }
+                      { id: 'ssl', label: 'SSL Certificate', icon: Lock },
+                      { id: 'diagnostics', label: 'Diagnostics', icon: Stethoscope }
                     ].map((section) => (
                       <button
                         key={section.id}
                         onClick={() => {
                           setActiveSection(section.id);
-                          if (section.id !== 'ssl') {
+                          if (section.id !== 'ssl' && section.id !== 'diagnostics') {
                             setTimeout(() => {
                               document.getElementById(`section-${section.id}`)?.scrollIntoView({ behavior: 'smooth' });
                             }, 100);
@@ -1080,7 +1450,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
               
               {/* Content - Split into scrollable and fixed sections */}
               <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Show either main content or SSL section based on active section */}
+                {/* Show either main content, SSL section, or Diagnostics based on active section */}
                 {activeSection === 'ssl' ? (
                   /* SSL Certificate Section - Full height */
                   <div className="flex-1 overflow-y-auto bg-white">
@@ -1090,6 +1460,14 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                         domain={vhost.domain || vhost.id || ''} 
                         applicationId={vhost.id || ''}
                       />
+                    </div>
+                  </div>
+                ) : activeSection === 'diagnostics' ? (
+                  /* Diagnostics Section - Full height */
+                  <div className="flex-1 overflow-y-auto bg-white">
+                    <div className="px-6 lg:px-8 py-8">
+                      <h2 className="text-lg font-semibold text-gray-900 mb-6">Application Diagnostics</h2>
+                      <Diagnostics vhost={vhost} />
                     </div>
                   </div>
                 ) : (
@@ -1584,7 +1962,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                   {/* Metrics Section */}
                   <section id="section-metrics" className="space-y-6">
                     <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">Hosting Metrics</h2>
-                    <MetricsSection domain={vhost?.domain} />
+                    <MetricsSection domain={vhost?.domain} isEditing={isEditing} />
                   </section>
                   
                   {/* Settings Section */}

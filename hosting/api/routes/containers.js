@@ -259,16 +259,26 @@ router.get('/:domain/container/health', async (req, res) => {
       }
       
       // Get container health status if available
-      const { stdout: healthStatus } = await execAsync(`docker inspect -f '{{.State.Health.Status}}' ${site.containerName}`);
-      const health = healthStatus.trim();
-      
-      res.json({ 
-        healthy: isRunning && (health === 'healthy' || health === '<no value>'),
-        status: isRunning ? 'running' : 'stopped',
-        health: health === '<no value>' ? 'no healthcheck' : health
-      });
+      try {
+        const { stdout: healthStatus } = await execAsync(`docker inspect -f '{{.State.Health.Status}}' ${site.containerName}`);
+        const health = healthStatus.trim();
+        
+        res.json({ 
+          healthy: isRunning && (health === 'healthy' || health === '<no value>'),
+          status: isRunning ? 'running' : 'stopped',
+          health: health === '<no value>' ? 'no healthcheck' : health
+        });
+      } catch (healthError) {
+        // Container doesn't have health check configured
+        res.json({ 
+          healthy: isRunning,
+          status: 'running',
+          health: 'no healthcheck'
+        });
+      }
     } catch (error) {
-      res.json({ healthy: false, status: 'not found' });
+      console.error(`Failed to check container ${site.containerName}:`, error.message);
+      res.json({ healthy: false, status: 'not found', error: error.message });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
