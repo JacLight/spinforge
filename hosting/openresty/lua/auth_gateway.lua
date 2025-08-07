@@ -98,7 +98,7 @@ local function get_path_rules(domain)
     local paths_json, err = red:get("auth:" .. domain .. ":paths")
     return_redis_connection(red)
     
-    if err or not paths_json then
+    if err or not paths_json or paths_json == ngx.null then
         return nil
     end
     

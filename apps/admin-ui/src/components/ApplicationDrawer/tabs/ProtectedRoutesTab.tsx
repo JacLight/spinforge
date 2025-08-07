@@ -72,6 +72,24 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
         setIsProtectionEnabled(data.enabled || false);
         setPathRules(data.authRules?.paths || []);
         setApiKeys(data.authRules?.apiKeys || []);
+        
+        // Load OAuth config if exists
+        if (data.authRules?.oauth) {
+          setOauthConfig({
+            ...oauthConfig,
+            ...data.authRules.oauth,
+            enabled: true
+          });
+        }
+        
+        // Load Custom auth config if exists
+        if (data.authRules?.customAuth) {
+          setCustomAuthConfig({
+            ...customAuthConfig,
+            ...data.authRules.customAuth,
+            enabled: true
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to load auth config:', error);
@@ -374,14 +392,47 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
               <Users className="h-4 w-4 text-purple-500" />
               OAuth 2.0
             </h4>
-            <div className={`h-2 w-2 rounded-full ${oauthConfig.enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+            {oauthConfig.enabled && (
+              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                Configured
+              </span>
+            )}
           </div>
+          
+          {oauthConfig.enabled && (
+            <div className="mb-3 space-y-1 text-xs">
+              {oauthConfig.clientId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Client ID:</span>
+                  <code className="text-gray-900">{oauthConfig.clientId.substring(0, 10)}...</code>
+                </div>
+              )}
+              {oauthConfig.authUrl && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Provider:</span>
+                  <code className="text-gray-900">{new URL(oauthConfig.authUrl).hostname}</code>
+                </div>
+              )}
+              {oauthConfig.cookieSettings?.additionalClaims?.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Claims:</span>
+                  <span className="text-gray-900">{oauthConfig.cookieSettings.additionalClaims.length} mapped</span>
+                </div>
+              )}
+              {vhost.type === 'container' && oauthConfig.cookieSettings?.mapToEnvVars && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Env Vars:</span>
+                  <span className="text-purple-700 font-medium">✓ Enabled</span>
+                </div>
+              )}
+            </div>
+          )}
           
           <button
             onClick={() => setShowOAuthModal(true)}
             className="w-full px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
           >
-            {oauthConfig.enabled ? 'Edit OAuth Config' : 'Configure OAuth'}
+            {oauthConfig.enabled ? 'Edit Configuration' : 'Configure OAuth'}
           </button>
         </div>
 
@@ -392,14 +443,47 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
               <Settings className="h-4 w-4 text-green-500" />
               Custom Auth
             </h4>
-            <div className={`h-2 w-2 rounded-full ${customAuthConfig.enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+            {customAuthConfig.enabled && (
+              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                Configured
+              </span>
+            )}
           </div>
+          
+          {customAuthConfig.enabled && (
+            <div className="mb-3 space-y-1 text-xs">
+              {customAuthConfig.authUrl && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Endpoint:</span>
+                  <code className="text-gray-900 truncate" style={{ maxWidth: '120px' }}>
+                    {new URL(customAuthConfig.authUrl).hostname}
+                  </code>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Method:</span>
+                <span className="text-gray-900">{customAuthConfig.method}</span>
+              </div>
+              {customAuthConfig.responseMapping?.additionalFields?.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Fields:</span>
+                  <span className="text-gray-900">{customAuthConfig.responseMapping.additionalFields.length} mapped</span>
+                </div>
+              )}
+              {vhost.type === 'container' && customAuthConfig.mapToEnvVars && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Env Vars:</span>
+                  <span className="text-green-700 font-medium">✓ Enabled</span>
+                </div>
+              )}
+            </div>
+          )}
           
           <button
             onClick={() => setShowCustomAuthModal(true)}
             className="w-full px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
           >
-            {customAuthConfig.enabled ? 'Edit Custom Auth' : 'Configure Custom'}
+            {customAuthConfig.enabled ? 'Edit Configuration' : 'Configure Custom'}
           </button>
         </div>
       </div>
@@ -811,10 +895,24 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setOauthConfig({ ...oauthConfig, enabled: true });
-                    setShowOAuthModal(false);
-                    toast.success('OAuth configuration saved');
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/oauth`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...oauthConfig, enabled: true })
+                      });
+                      
+                      if (response.ok) {
+                        setOauthConfig({ ...oauthConfig, enabled: true });
+                        setShowOAuthModal(false);
+                        toast.success('OAuth configuration saved');
+                      } else {
+                        toast.error('Failed to save OAuth configuration');
+                      }
+                    } catch (error) {
+                      toast.error('Failed to save OAuth configuration');
+                    }
                   }}
                   className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
                 >
@@ -1059,10 +1157,24 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setCustomAuthConfig({ ...customAuthConfig, enabled: true });
-                    setShowCustomAuthModal(false);
-                    toast.success('Custom auth configuration saved');
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/custom`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...customAuthConfig, enabled: true })
+                      });
+                      
+                      if (response.ok) {
+                        setCustomAuthConfig({ ...customAuthConfig, enabled: true });
+                        setShowCustomAuthModal(false);
+                        toast.success('Custom auth configuration saved');
+                      } else {
+                        toast.error('Failed to save custom auth configuration');
+                      }
+                    } catch (error) {
+                      toast.error('Failed to save custom auth configuration');
+                    }
                   }}
                   className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                 >

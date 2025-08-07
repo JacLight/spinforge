@@ -26,38 +26,33 @@ router.get('/sites/:domain/auth', async (req, res) => {
     // Check if auth is enabled for this domain
     const enabled = await redisClient.get(`auth:${domain}:enabled`);
     if (!enabled) {
-      return res.json({ enabled: false, authRules: { paths: [], apiKeys: [], oauth: null } });
+      return res.json({ enabled: false, routes: [], apiKeys: [] });
     }
     
     // Get all auth configuration
-    const [paths, keysData, oauth] = await Promise.all([
-      redisClient.get(`auth:${domain}:paths`),
-      redisClient.hGetAll(`auth:${domain}:keys`),
-      redisClient.get(`auth:${domain}:oauth`)
+    const [routesData, keysData] = await Promise.all([
+      redisClient.get(`auth:${domain}:routes`),
+      redisClient.hGetAll(`auth:${domain}:keys`)
     ]);
     
     // Parse stored data
-    const pathRules = paths ? JSON.parse(paths) : [];
+    const routes = routesData ? JSON.parse(routesData) : [];
     const apiKeys = Object.entries(keysData || {}).map(([id, data]) => {
       const keyInfo = JSON.parse(data);
       return { id, ...keyInfo };
     });
-    const oauthConfig = oauth ? JSON.parse(oauth) : null;
     
     res.json({
       enabled: true,
-      authRules: {
-        paths: pathRules,
-        apiKeys: apiKeys.map(k => ({
-          id: k.id,
-          name: k.name,
-          createdAt: k.createdAt,
-          lastUsed: k.lastUsed,
-          useCount: k.useCount
-          // Never return the hashed key
-        })),
-        oauth: oauthConfig
-      }
+      routes: routes,
+      apiKeys: apiKeys.map(k => ({
+        id: k.id,
+        name: k.name,
+        createdAt: k.createdAt,
+        lastUsed: k.lastUsed,
+        useCount: k.useCount
+        // Never return the hashed key
+      }))
     });
   } catch (error) {
     console.error('Failed to get auth config:', error);
@@ -141,29 +136,29 @@ router.delete('/sites/:domain/auth/keys/:keyId', async (req, res) => {
   }
 });
 
-// Add path rule
-router.post('/sites/:domain/auth/paths', async (req, res) => {
+// Add route with auth configuration
+router.post('/sites/:domain/auth/routes', async (req, res) => {
   try {
     const domain = req.params.domain;
-    const rule = req.body;
+    const route = req.body;
     
-    if (!rule.pattern) {
-      return res.status(400).json({ error: 'Path pattern is required' });
+    if (!route.pattern) {
+      return res.status(400).json({ error: 'Route pattern is required' });
     }
     
-    // Generate rule ID
-    rule.id = generateId();
-    rule.createdAt = new Date().toISOString();
+    // Generate route ID
+    route.id = generateId();
+    route.createdAt = new Date().toISOString();
     
-    // Get existing paths
-    const existingPaths = await redisClient.get(`auth:${domain}:paths`);
-    const paths = existingPaths ? JSON.parse(existingPaths) : [];
+    // Get existing routes
+    const existingRoutes = await redisClient.get(`auth:${domain}:routes`);
+    const routes = existingRoutes ? JSON.parse(existingRoutes) : [];
     
-    // Add new rule
-    paths.push(rule);
+    // Add new route
+    routes.push(route);
     
     // Sort by specificity (more specific patterns first)
-    paths.sort((a, b) => {
+    routes.sort((a, b) => {
       // Exact matches first
       if (!a.pattern.includes('*') && b.pattern.includes('*')) return -1;
       if (a.pattern.includes('*') && !b.pattern.includes('*')) return 1;
@@ -172,7 +167,7 @@ router.post('/sites/:domain/auth/paths', async (req, res) => {
     });
     
     // Store in Redis
-    await redisClient.set(`auth:${domain}:paths`, JSON.stringify(paths));
+    await redisClient.set(`auth:${domain}:routes`, JSON.stringify(routes));
     
     // Enable auth for this domain
     await redisClient.set(`auth:${domain}:enabled`, '1');
@@ -180,36 +175,78 @@ router.post('/sites/:domain/auth/paths', async (req, res) => {
     // Invalidate OpenResty cache
     await invalidateAuthCache(domain);
     
-    res.json({ rule });
+    res.json({ route });
   } catch (error) {
-    console.error('Failed to add path rule:', error);
+    console.error('Failed to add route:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Delete path rule
-router.delete('/sites/:domain/auth/paths/:ruleId', async (req, res) => {
+// Update route
+router.put('/sites/:domain/auth/routes', async (req, res) => {
   try {
-    const { domain, ruleId } = req.params;
+    const domain = req.params.domain;
+    const route = req.body;
     
-    // Get existing paths
-    const existingPaths = await redisClient.get(`auth:${domain}:paths`);
-    if (!existingPaths) {
-      return res.status(404).json({ error: 'Path rule not found' });
+    if (!route.id || !route.pattern) {
+      return res.status(400).json({ error: 'Route ID and pattern are required' });
     }
     
-    const paths = JSON.parse(existingPaths);
-    const updatedPaths = paths.filter(p => p.id !== ruleId);
+    // Get existing routes
+    const existingRoutes = await redisClient.get(`auth:${domain}:routes`);
+    const routes = existingRoutes ? JSON.parse(existingRoutes) : [];
     
-    if (updatedPaths.length === paths.length) {
-      return res.status(404).json({ error: 'Path rule not found' });
+    // Find and update the route
+    const index = routes.findIndex(r => r.id === route.id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Route not found' });
+    }
+    
+    routes[index] = { ...routes[index], ...route };
+    
+    // Re-sort by specificity
+    routes.sort((a, b) => {
+      if (!a.pattern.includes('*') && b.pattern.includes('*')) return -1;
+      if (a.pattern.includes('*') && !b.pattern.includes('*')) return 1;
+      return b.pattern.length - a.pattern.length;
+    });
+    
+    // Store in Redis
+    await redisClient.set(`auth:${domain}:routes`, JSON.stringify(routes));
+    
+    // Invalidate OpenResty cache
+    await invalidateAuthCache(domain);
+    
+    res.json({ route: routes[index] });
+  } catch (error) {
+    console.error('Failed to update route:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete route
+router.delete('/sites/:domain/auth/routes/:routeId', async (req, res) => {
+  try {
+    const { domain, routeId } = req.params;
+    
+    // Get existing routes
+    const existingRoutes = await redisClient.get(`auth:${domain}:routes`);
+    if (!existingRoutes) {
+      return res.status(404).json({ error: 'Route not found' });
+    }
+    
+    const routes = JSON.parse(existingRoutes);
+    const updatedRoutes = routes.filter(r => r.id !== routeId);
+    
+    if (updatedRoutes.length === routes.length) {
+      return res.status(404).json({ error: 'Route not found' });
     }
     
     // Update or delete
-    if (updatedPaths.length > 0) {
-      await redisClient.set(`auth:${domain}:paths`, JSON.stringify(updatedPaths));
+    if (updatedRoutes.length > 0) {
+      await redisClient.set(`auth:${domain}:routes`, JSON.stringify(updatedRoutes));
     } else {
-      await redisClient.del(`auth:${domain}:paths`);
+      await redisClient.del(`auth:${domain}:routes`);
       
       // Check if any auth rules remain
       const remainingKeys = await redisClient.hLen(`auth:${domain}:keys`);
@@ -222,33 +259,34 @@ router.delete('/sites/:domain/auth/paths/:ruleId', async (req, res) => {
     // Invalidate OpenResty cache
     await invalidateAuthCache(domain);
     
-    res.json({ message: 'Path rule deleted' });
+    res.json({ message: 'Route deleted' });
   } catch (error) {
-    console.error('Failed to delete path rule:', error);
+    console.error('Failed to delete route:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Update OAuth configuration
-router.put('/sites/:domain/auth/oauth', async (req, res) => {
+// Clear all auth configuration
+router.delete('/sites/:domain/auth/clear', async (req, res) => {
   try {
     const domain = req.params.domain;
-    const oauthConfig = req.body;
     
-    if (!oauthConfig.authUrl) {
-      // If clearing OAuth config
-      await redisClient.del(`auth:${domain}:oauth`);
-    } else {
-      // Store in Redis
-      await redisClient.set(`auth:${domain}:oauth`, JSON.stringify(oauthConfig));
-    }
+    // Clear all auth data
+    await Promise.all([
+      redisClient.del(`auth:${domain}:enabled`),
+      redisClient.del(`auth:${domain}:routes`),
+      redisClient.del(`auth:${domain}:keys`),
+      redisClient.del(`auth:${domain}:oauth`),
+      redisClient.del(`auth:${domain}:customAuth`),
+      redisClient.del(`auth:${domain}:paths`)
+    ]);
     
     // Invalidate OpenResty cache
     await invalidateAuthCache(domain);
     
-    res.json({ message: 'OAuth configuration saved' });
+    res.json({ message: 'Auth configuration cleared' });
   } catch (error) {
-    console.error('Failed to save OAuth config:', error);
+    console.error('Failed to clear auth config:', error);
     res.status(500).json({ error: error.message });
   }
 });
