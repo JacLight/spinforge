@@ -49,6 +49,7 @@ import {
   Cookie,
   Heart,
   Terminal,
+  Key,
 } from "lucide-react";
 
 // Helper function for domain validation
@@ -448,6 +449,538 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
                     className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-medium"
                   >
                     Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Protected Routes Component
+function ProtectedRoutes({ vhost, isEditing }: { vhost: any; isEditing: boolean }) {
+  const [pathRules, setPathRules] = useState<any[]>(vhost.authRules?.paths || []);
+  const [apiKeys, setApiKeys] = useState<any[]>(vhost.authRules?.apiKeys || []);
+  const [oauthConfig, setOauthConfig] = useState(vhost.authRules?.oauth || {
+    authUrl: '',
+    callbackPath: '/auth/callback',
+    tokenHeader: 'X-Auth-Token',
+    setCookies: true
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [showNewKeyModal, setShowNewKeyModal] = useState(false);
+  const [newKey, setNewKey] = useState({ name: '', key: '', autoGenerate: true });
+  const [showNewPathModal, setShowNewPathModal] = useState(false);
+  const [newPath, setNewPath] = useState({
+    pattern: '',
+    authType: 'none',
+    rateLimit: '100/min',
+    unauthorizedAction: '401',
+    apiKeys: [],
+    redirectUrl: ''
+  });
+
+  // Generate API Key
+  const generateApiKey = () => {
+    const prefix = 'sk_';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let key = prefix;
+    for (let i = 0; i < 32; i++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return key;
+  };
+
+  // Add new API key
+  const addApiKey = async () => {
+    if (!newKey.name) {
+      toast.error('Please provide a name for the API key');
+      return;
+    }
+
+    const keyValue = newKey.autoGenerate ? generateApiKey() : newKey.key;
+    if (!keyValue) {
+      toast.error('Please provide an API key value');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newKey.name, key: keyValue })
+      });
+
+      if (!response.ok) throw new Error('Failed to add API key');
+      
+      const data = await response.json();
+      
+      // Show the key one time
+      toast.success(`API Key created: ${keyValue}`, { duration: 10000 });
+      
+      // Add to list (with hashed version from server)
+      setApiKeys([...apiKeys, data.keyInfo]);
+      setShowNewKeyModal(false);
+      setNewKey({ name: '', key: '', autoGenerate: true });
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(keyValue);
+      toast.info('Key copied to clipboard - save it now, you won\'t see it again!');
+    } catch (error: any) {
+      toast.error('Failed to add API key');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Delete API key
+  const deleteApiKey = async (keyId: string) => {
+    if (!confirm('Are you sure you want to delete this API key?')) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys/${keyId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) throw new Error('Failed to delete API key');
+      
+      setApiKeys(apiKeys.filter(k => k.id !== keyId));
+      toast.success('API key deleted');
+    } catch (error: any) {
+      toast.error('Failed to delete API key');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add path rule
+  const addPathRule = async () => {
+    if (!newPath.pattern) {
+      toast.error('Please provide a path pattern');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPath)
+      });
+
+      if (!response.ok) throw new Error('Failed to add path rule');
+      
+      const data = await response.json();
+      setPathRules([...pathRules, data.rule]);
+      setShowNewPathModal(false);
+      setNewPath({
+        pattern: '',
+        authType: 'none',
+        rateLimit: '100/min',
+        unauthorizedAction: '401',
+        apiKeys: [],
+        redirectUrl: ''
+      });
+      toast.success('Path rule added');
+    } catch (error: any) {
+      toast.error('Failed to add path rule');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Delete path rule
+  const deletePathRule = async (ruleId: string) => {
+    if (!confirm('Are you sure you want to delete this path rule?')) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths/${ruleId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) throw new Error('Failed to delete path rule');
+      
+      setPathRules(pathRules.filter(r => r.id !== ruleId));
+      toast.success('Path rule deleted');
+    } catch (error: any) {
+      toast.error('Failed to delete path rule');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Save OAuth config
+  const saveOAuthConfig = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/oauth`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(oauthConfig)
+      });
+
+      if (!response.ok) throw new Error('Failed to save OAuth config');
+      
+      toast.success('OAuth configuration saved');
+    } catch (error: any) {
+      toast.error('Failed to save OAuth config');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Path Rules */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Protected Paths</h3>
+          <button
+            onClick={() => setShowNewPathModal(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+          >
+            <Shield className="h-4 w-4" />
+            Add Path Rule
+          </button>
+        </div>
+
+        {pathRules.length > 0 ? (
+          <div className="space-y-3">
+            {pathRules.map((rule) => (
+              <div key={rule.id} className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <code className="text-sm font-medium text-gray-900">{rule.pattern}</code>
+                  <button
+                    onClick={() => deletePathRule(rule.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Auth:</span>{' '}
+                    <span className="font-medium">
+                      {rule.authType === 'api_key' && '🔑 API Key'}
+                      {rule.authType === 'oauth' && '🔐 OAuth Redirect'}
+                      {rule.authType === 'none' && '🌐 Public'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Rate Limit:</span>{' '}
+                    <span className="font-medium">{rule.rateLimit}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">On Fail:</span>{' '}
+                    <span className="font-medium">
+                      {rule.unauthorizedAction === '401' && 'Return 401'}
+                      {rule.unauthorizedAction === '403' && 'Return 403'}
+                      {rule.unauthorizedAction === 'redirect' && 'Redirect'}
+                      {rule.unauthorizedAction === 'custom' && 'Custom JSON'}
+                    </span>
+                  </div>
+                </div>
+                {rule.authType === 'api_key' && rule.apiKeys?.length > 0 && (
+                  <div className="mt-2 text-xs text-gray-600">
+                    Allowed Keys: {rule.apiKeys.join(', ')}
+                  </div>
+                )}
+                {rule.authType === 'oauth' && rule.redirectUrl && (
+                  <div className="mt-2 text-xs text-gray-600">
+                    Redirect: {rule.redirectUrl}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Shield className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-sm">No protected paths configured</p>
+            <p className="text-xs mt-1">Add path rules to protect your endpoints</p>
+          </div>
+        )}
+      </div>
+
+      {/* API Keys */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">API Keys</h3>
+          <button
+            onClick={() => setShowNewKeyModal(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
+          >
+            <Key className="h-4 w-4" />
+            Generate Key
+          </button>
+        </div>
+
+        {apiKeys.length > 0 ? (
+          <div className="space-y-3">
+            {apiKeys.map((key) => (
+              <div key={key.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1">
+                  <div className="font-medium text-sm text-gray-900">{key.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Created: {new Date(key.createdAt).toLocaleDateString()}
+                    {key.lastUsed && ` • Last used: ${new Date(key.lastUsed).toLocaleDateString()}`}
+                    {key.useCount && ` • Used ${key.useCount} times`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs text-gray-600">ID: {key.id}</code>
+                  <button
+                    onClick={() => deleteApiKey(key.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Key className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-sm">No API keys configured</p>
+            <p className="text-xs mt-1">Generate keys for API authentication</p>
+          </div>
+        )}
+      </div>
+
+      {/* OAuth Configuration */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">OAuth/Redirect Configuration</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Auth URL</label>
+            <input
+              type="url"
+              value={oauthConfig.authUrl}
+              onChange={(e) => setOauthConfig({ ...oauthConfig, authUrl: e.target.value })}
+              placeholder="https://auth.example.com/verify"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Users will be redirected here for authentication</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Callback Path</label>
+            <input
+              type="text"
+              value={oauthConfig.callbackPath}
+              onChange={(e) => setOauthConfig({ ...oauthConfig, callbackPath: e.target.value })}
+              placeholder="/auth/callback"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Path where auth provider will redirect back</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Token Header</label>
+            <input
+              type="text"
+              value={oauthConfig.tokenHeader}
+              onChange={(e) => setOauthConfig({ ...oauthConfig, tokenHeader: e.target.value })}
+              placeholder="X-Auth-Token"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Header name for authentication token</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="setCookies"
+              checked={oauthConfig.setCookies}
+              onChange={(e) => setOauthConfig({ ...oauthConfig, setCookies: e.target.checked })}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="setCookies" className="text-sm text-gray-700">
+              Set auth response data as cookies
+            </label>
+          </div>
+
+          <button
+            onClick={saveOAuthConfig}
+            disabled={isLoading}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            Save OAuth Configuration
+          </button>
+        </div>
+      </div>
+
+      {/* New Path Rule Modal */}
+      <AnimatePresence>
+        {showNewPathModal && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-black bg-opacity-50 z-[70]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNewPathModal(false)}
+            />
+            <motion.div
+              className="fixed inset-0 z-[71] flex items-center justify-center p-4"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Path Rule</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Path Pattern</label>
+                    <input
+                      type="text"
+                      value={newPath.pattern}
+                      onChange={(e) => setNewPath({ ...newPath, pattern: e.target.value })}
+                      placeholder="/api/v1/*"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Authentication Type</label>
+                    <select
+                      value={newPath.authType}
+                      onChange={(e) => setNewPath({ ...newPath, authType: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="none">No Authentication</option>
+                      <option value="api_key">API Key</option>
+                      <option value="oauth">OAuth Redirect</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Rate Limit</label>
+                    <input
+                      type="text"
+                      value={newPath.rateLimit}
+                      onChange={(e) => setNewPath({ ...newPath, rateLimit: e.target.value })}
+                      placeholder="100/min"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">On Unauthorized</label>
+                    <select
+                      value={newPath.unauthorizedAction}
+                      onChange={(e) => setNewPath({ ...newPath, unauthorizedAction: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="401">Return 401 Unauthorized</option>
+                      <option value="403">Return 403 Forbidden</option>
+                      <option value="redirect">Redirect to Auth URL</option>
+                      <option value="custom">Custom JSON Response</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowNewPathModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addPathRule}
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Add Rule
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* New API Key Modal */}
+      <AnimatePresence>
+        {showNewKeyModal && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-black bg-opacity-50 z-[70]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNewKeyModal(false)}
+            />
+            <motion.div
+              className="fixed inset-0 z-[71] flex items-center justify-center p-4"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Add API Key</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Key Name</label>
+                    <input
+                      type="text"
+                      value={newKey.name}
+                      onChange={(e) => setNewKey({ ...newKey, name: e.target.value })}
+                      placeholder="Production API Key"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={newKey.autoGenerate}
+                        onChange={(e) => setNewKey({ ...newKey, autoGenerate: e.target.checked })}
+                        className="h-4 w-4 text-blue-600"
+                      />
+                      <span className="text-sm text-gray-700">Auto-generate secure key</span>
+                    </label>
+                  </div>
+
+                  {!newKey.autoGenerate && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                      <input
+                        type="text"
+                        value={newKey.key}
+                        onChange={(e) => setNewKey({ ...newKey, key: e.target.value })}
+                        placeholder="sk_your_custom_key_here"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowNewKeyModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addApiKey}
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {newKey.autoGenerate ? 'Generate' : 'Add'} Key
                   </button>
                 </div>
               </div>
@@ -1422,13 +1955,14 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                       { id: 'metrics', label: 'Metrics', icon: ChevronRight },
                       { id: 'settings', label: 'Settings', icon: Shield },
                       { id: 'ssl', label: 'SSL Certificate', icon: Lock },
-                      { id: 'diagnostics', label: 'Diagnostics', icon: Stethoscope }
+                      { id: 'diagnostics', label: 'Diagnostics', icon: Stethoscope },
+                      { id: 'protected', label: 'Protected Routes', icon: Key }
                     ].map((section) => (
                       <button
                         key={section.id}
                         onClick={() => {
                           setActiveSection(section.id);
-                          if (section.id !== 'ssl' && section.id !== 'diagnostics') {
+                          if (section.id !== 'ssl' && section.id !== 'diagnostics' && section.id !== 'protected') {
                             setTimeout(() => {
                               document.getElementById(`section-${section.id}`)?.scrollIntoView({ behavior: 'smooth' });
                             }, 100);
@@ -1468,6 +2002,14 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                     <div className="px-6 lg:px-8 py-8">
                       <h2 className="text-lg font-semibold text-gray-900 mb-6">Application Diagnostics</h2>
                       <Diagnostics vhost={vhost} />
+                    </div>
+                  </div>
+                ) : activeSection === 'protected' ? (
+                  /* Protected Routes Section - Full height */
+                  <div className="flex-1 overflow-y-auto bg-white">
+                    <div className="px-6 lg:px-8 py-8">
+                      <h2 className="text-lg font-semibold text-gray-900 mb-6">Protected Routes & Authentication</h2>
+                      <ProtectedRoutes vhost={vhost} isEditing={isEditing} />
                     </div>
                   </div>
                 ) : (
