@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Key, Globe, ChevronRight, Trash2, Plus, Lock, Unlock, Copy, Check, AlertCircle, X, Info, Eye, EyeOff } from 'lucide-react';
+import { Shield, Key, Globe, ChevronRight, Trash2, Plus, Lock, Unlock, Copy, Check, AlertCircle, X, Info, Eye, EyeOff, Settings, Network, Zap, ArrowRight, ExternalLink, Users, Sparkles, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -9,30 +9,22 @@ interface ProtectedRoutesTabProps {
 }
 
 export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutesTabProps) {
-  const [activeSection, setActiveSection] = useState<'routes' | 'oauth' | 'custom' | 'keys'>('routes');
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false);
   const [pathRules, setPathRules] = useState<any[]>([]);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showAddRouteForm, setShowAddRouteForm] = useState(false);
-  const [showAddKeyForm, setShowAddKeyForm] = useState(false);
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState(false);
-  const [showKeys, setShowKeys] = useState<Set<string>>(new Set());
-  
+  const [showAddRouteModal, setShowAddRouteModal] = useState(false);
+  const [selectedAuthMethod, setSelectedAuthMethod] = useState<'apiKey' | 'oauth' | 'custom'>('apiKey');
+  const [showKeyDetails, setShowKeyDetails] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [showOAuthModal, setShowOAuthModal] = useState(false);
+  const [showCustomAuthModal, setShowCustomAuthModal] = useState(false);
+
   const [newRoute, setNewRoute] = useState({
     pattern: '/*',
     authType: 'apiKey',
     requiredKey: '',
-    rateLimit: { enabled: false, requests: 100, window: 60 },
-    unauthorizedAction: 'redirect',
     unauthorizedRedirect: '/login'
-  });
-
-  const [newApiKey, setNewApiKey] = useState({
-    name: '',
-    key: '',
-    autoGenerate: true
   });
 
   const [oauthConfig, setOauthConfig] = useState({
@@ -47,8 +39,9 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     cookieSettings: {
       setAuthToken: true,
       tokenCookieName: 'auth_token',
-      additionalClaims: [] as string[], // Claims from auth payload to store in cookies
-      cookieExpiry: 3600 // seconds
+      additionalClaims: [] as { claimName: string; cookieName: string }[],
+      cookieExpiry: 3600,
+      mapToEnvVars: false // For containers only - maps cookies to env vars
     }
   });
 
@@ -56,15 +49,14 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     enabled: false,
     authUrl: '',
     method: 'POST',
-    headers: {} as Record<string, string>,
-    bodyParams: {} as Record<string, string>,
+    unauthorizedRedirect: '/login',
     responseMapping: {
       tokenField: 'token',
       userIdField: 'userId',
       additionalFields: [] as { responseField: string; cookieName: string }[]
     },
-    unauthorizedRedirect: '/login',
-    cookieExpiry: 3600
+    cookieExpiry: 3600,
+    mapToEnvVars: false // For containers only - maps cookies to env vars
   });
 
   // Load auth configuration
@@ -93,6 +85,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     if (!newState) {
       setIsLoading(true);
       try {
+        // Clear all auth rules
         for (const rule of pathRules) {
           await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths/${rule.id}`, {
             method: 'DELETE'
@@ -115,7 +108,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
         setIsLoading(false);
       }
     } else {
-      toast.success('Protection enabled - add routes to protect');
+      toast.success('Protection enabled - configure your authentication');
     }
   };
 
@@ -131,6 +124,23 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
   const addRoute = async () => {
     setIsLoading(true);
     try {
+      // If API key auth and no keys exist, create one first
+      if (newRoute.authType === 'apiKey' && apiKeys.length === 0) {
+        const newKey = generateApiKey();
+        const keyResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Auto-generated Key', key: newKey })
+        });
+        
+        if (keyResponse.ok) {
+          const keyData = await keyResponse.json();
+          setApiKeys([...apiKeys, { ...keyData.keyInfo, key: newKey }]);
+          toast.success(`API Key generated: ${newKey}`, { duration: 10000 });
+        }
+      }
+
+      // Add the route
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,8 +150,9 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
       if (response.ok) {
         const data = await response.json();
         setPathRules([...pathRules, data.rule]);
-        setShowAddRouteForm(false);
-        toast.success('Route added');
+        setShowAddRouteModal(false);
+        setNewRoute({ pattern: '/*', authType: 'apiKey', requiredKey: '', unauthorizedRedirect: '/login' });
+        toast.success('Route protection added');
       }
     } catch (error) {
       toast.error('Failed to add route');
@@ -162,22 +173,21 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     }
   };
 
-  const addApiKey = async () => {
+  const createApiKey = async (name: string) => {
     setIsLoading(true);
     try {
-      const keyValue = newApiKey.autoGenerate ? generateApiKey() : newApiKey.key;
+      const keyValue = generateApiKey();
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newApiKey.name, key: keyValue })
+        body: JSON.stringify({ name, key: keyValue })
       });
       
       if (response.ok) {
         const data = await response.json();
         setApiKeys([...apiKeys, { ...data.keyInfo, key: keyValue }]);
-        setGeneratedKey(keyValue);
-        setNewApiKey({ name: '', key: '', autoGenerate: true });
-        toast.success('API key created - Save it now!');
+        setShowKeyDetails(keyValue);
+        toast.success('API key created successfully');
       }
     } catch (error) {
       toast.error('Failed to create API key');
@@ -198,635 +208,870 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     }
   };
 
-  const copyApiKey = async (key: string) => {
-    await navigator.clipboard.writeText(key);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedKey(text);
+    setTimeout(() => setCopiedKey(null), 2000);
+    toast.success('Copied to clipboard');
   };
+
+  if (!isProtectionEnabled) {
+    return (
+      <div className="space-y-6">
+        {/* Enable Protection Card */}
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-8 text-center">
+          <div className="max-w-md mx-auto">
+            <div className="p-4 bg-white rounded-2xl shadow-lg inline-block mb-4">
+              <Shield className="h-12 w-12 text-blue-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Route Protection</h2>
+            <p className="text-gray-600 mb-6">
+              Secure your application routes with API keys, OAuth, or custom authentication
+            </p>
+            <button
+              onClick={toggleProtection}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transition-all"
+            >
+              <Lock className="h-4 w-4 inline mr-2" />
+              Enable Protection
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Protection Toggle */}
-      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-medium text-gray-900 flex items-center">
-              <Lock className="w-4 h-4 mr-2" />
-              Enable Route Protection
-            </h3>
-            <p className="text-xs text-gray-600 mt-1">
-              Require authentication for specific routes
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <Shield className="h-6 w-6" />
+              Route Protection Active
+            </h2>
+            <p className="text-blue-100 mt-1">
+              {pathRules.length} routes protected • {apiKeys.length} API keys
             </p>
           </div>
           <button
             onClick={toggleProtection}
-            disabled={isLoading}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              isProtectionEnabled ? 'bg-green-600' : 'bg-gray-300'
-            } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className="px-4 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 transition-all"
           >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                isProtectionEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
+            <Unlock className="h-4 w-4 inline mr-2" />
+            Disable
           </button>
         </div>
       </div>
 
-      {isProtectionEnabled && (
-        <>
-          {/* Tab Navigation */}
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveSection('routes')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'routes'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Protected Routes
-              </button>
-              <button
-                onClick={() => setActiveSection('oauth')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'oauth'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                OAuth
-              </button>
-              <button
-                onClick={() => setActiveSection('custom')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'custom'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Custom Auth
-              </button>
-              <button
-                onClick={() => setActiveSection('keys')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'keys'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                API Keys ({apiKeys.length})
-              </button>
-            </nav>
+      {/* Protected Routes */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Protected Routes</h3>
+          <button
+            onClick={() => setShowAddRouteModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all"
+          >
+            <Plus className="h-4 w-4 inline mr-2" />
+            Add Route
+          </button>
+        </div>
+
+        {pathRules.length === 0 ? (
+          <div className="text-center py-8">
+            <Globe className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500">No protected routes yet</p>
           </div>
-
-          {/* Protected Routes Section */}
-          {activeSection === 'routes' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-gray-900">Routes</h4>
-                {!showAddRouteForm && (
-                  <button
-                    onClick={() => setShowAddRouteForm(true)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Route
-                  </button>
-                )}
-              </div>
-
-              {pathRules.map((rule) => (
-                <div key={rule.id} className="flex items-center justify-between p-2 bg-gray-50 rounded mb-2">
-                  <div className="flex items-center gap-2">
-                    <code className="text-sm">{rule.pattern}</code>
-                    <span className={`px-2 py-0.5 text-xs rounded ${
-                      rule.authType === 'apiKey' ? 'bg-blue-100 text-blue-700' : 
-                      rule.authType === 'custom' ? 'bg-green-100 text-green-700' :
-                      'bg-purple-100 text-purple-700'
-                    }`}>
-                      {rule.authType}
-                    </span>
-                    {rule.unauthorizedRedirect && (
-                      <span className="text-xs text-gray-500">→ {rule.unauthorizedRedirect}</span>
-                    )}
+        ) : (
+          <div className="space-y-2">
+            {pathRules.map((rule) => (
+              <div key={rule.id} className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Globe className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <code className="text-sm font-medium">{rule.pattern}</code>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          rule.authType === 'apiKey' ? 'bg-blue-100 text-blue-700' :
+                          rule.authType === 'oauth' ? 'bg-purple-100 text-purple-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {rule.authType === 'apiKey' ? 'API Key' :
+                           rule.authType === 'oauth' ? 'OAuth 2.0' : 'Custom'}
+                        </span>
+                        <span className="text-xs text-gray-500">→ {rule.unauthorizedRedirect}</span>
+                      </div>
+                    </div>
                   </div>
                   <button
                     onClick={() => deletePathRule(rule.id)}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Authentication Configuration */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* API Keys */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium text-gray-900 flex items-center gap-2">
+              <Key className="h-4 w-4 text-blue-500" />
+              API Keys
+            </h4>
+            <button
+              onClick={() => createApiKey(`Key-${Date.now()}`)}
+              className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
+          {apiKeys.length === 0 ? (
+            <p className="text-sm text-gray-500">No API keys</p>
+          ) : (
+            <div className="space-y-2">
+              {apiKeys.map((key) => (
+                <div key={key.id} className="p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{key.name}</span>
+                    <button
+                      onClick={() => deleteApiKey(key.id)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {key.key && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="text-xs text-gray-500">sk_••••</code>
+                      <button
+                        onClick={() => copyToClipboard(key.key)}
+                        className="p-1 hover:bg-gray-200 rounded"
+                      >
+                        {copiedKey === key.key ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
-
-              {showAddRouteForm && (
-                <div className="border-t pt-3 mt-3 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      value={newRoute.pattern}
-                      onChange={(e) => setNewRoute({ ...newRoute, pattern: e.target.value })}
-                      placeholder="Path pattern"
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                    <select
-                      value={newRoute.authType}
-                      onChange={(e) => setNewRoute({ ...newRoute, authType: e.target.value })}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
-                    >
-                      <option value="apiKey">API Key</option>
-                      <option value="oauth">OAuth</option>
-                      <option value="custom">Custom Auth</option>
-                    </select>
-                  </div>
-                  <input
-                    type="text"
-                    value={newRoute.unauthorizedRedirect}
-                    onChange={(e) => setNewRoute({ ...newRoute, unauthorizedRedirect: e.target.value })}
-                    placeholder="Unauthorized redirect URL (e.g., /login)"
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowAddRouteForm(false)}
-                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addRoute}
-                      disabled={isLoading}
-                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
+        </div>
 
-          {/* OAuth Configuration Section */}
-          {activeSection === 'oauth' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow p-4">
-              <h4 className="font-medium text-gray-900 mb-4">OAuth Configuration</h4>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                  <span className="text-sm">Enable OAuth</span>
-                  <button
-                    onClick={() => setOauthConfig({ ...oauthConfig, enabled: !oauthConfig.enabled })}
-                    className={`relative inline-flex h-5 w-10 items-center rounded-full ${
-                      oauthConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white ${
-                      oauthConfig.enabled ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
+        {/* OAuth Configuration */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium text-gray-900 flex items-center gap-2">
+              <Users className="h-4 w-4 text-purple-500" />
+              OAuth 2.0
+            </h4>
+            <div className={`h-2 w-2 rounded-full ${oauthConfig.enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+          </div>
+          
+          <button
+            onClick={() => setShowOAuthModal(true)}
+            className="w-full px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
+          >
+            {oauthConfig.enabled ? 'Edit OAuth Config' : 'Configure OAuth'}
+          </button>
+        </div>
 
-                {oauthConfig.enabled && (
-                  <>
-                    <input
-                      type="url"
-                      value={oauthConfig.authUrl}
-                      onChange={(e) => setOauthConfig({ ...oauthConfig, authUrl: e.target.value })}
-                      placeholder="Authorization URL"
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                    />
-                    <input
-                      type="url"
-                      value={oauthConfig.tokenUrl}
-                      onChange={(e) => setOauthConfig({ ...oauthConfig, tokenUrl: e.target.value })}
-                      placeholder="Token URL"
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={oauthConfig.clientId}
-                        onChange={(e) => setOauthConfig({ ...oauthConfig, clientId: e.target.value })}
-                        placeholder="Client ID"
-                        className="px-3 py-2 border border-gray-300 rounded text-sm"
-                      />
-                      <input
-                        type="password"
-                        value={oauthConfig.clientSecret}
-                        onChange={(e) => setOauthConfig({ ...oauthConfig, clientSecret: e.target.value })}
-                        placeholder="Client Secret"
-                        className="px-3 py-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                    
-                    <input
-                      type="text"
-                      value={oauthConfig.unauthorizedRedirect}
-                      onChange={(e) => setOauthConfig({ ...oauthConfig, unauthorizedRedirect: e.target.value })}
-                      placeholder="Unauthorized redirect URL (e.g., /login)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                    />
+        {/* Custom Auth */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium text-gray-900 flex items-center gap-2">
+              <Settings className="h-4 w-4 text-green-500" />
+              Custom Auth
+            </h4>
+            <div className={`h-2 w-2 rounded-full ${customAuthConfig.enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+          </div>
+          
+          <button
+            onClick={() => setShowCustomAuthModal(true)}
+            className="w-full px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
+          >
+            {customAuthConfig.enabled ? 'Edit Custom Auth' : 'Configure Custom'}
+          </button>
+        </div>
+      </div>
 
-                    {/* Cookie Settings */}
-                    <div className="border-t pt-3">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Cookie Settings</p>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-xs">Set Auth Token in Cookie</span>
-                          <button
-                            onClick={() => setOauthConfig({
-                              ...oauthConfig, 
-                              cookieSettings: {
-                                ...oauthConfig.cookieSettings,
-                                setAuthToken: !oauthConfig.cookieSettings.setAuthToken
-                              }
-                            })}
-                            className={`relative inline-flex h-4 w-8 items-center rounded-full ${
-                              oauthConfig.cookieSettings.setAuthToken ? 'bg-blue-600' : 'bg-gray-300'
-                            }`}
-                          >
-                            <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white ${
-                              oauthConfig.cookieSettings.setAuthToken ? 'translate-x-4' : 'translate-x-1'
-                            }`} />
-                          </button>
-                        </div>
+      {/* Add Route Modal */}
+      {showAddRouteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-6 max-w-md w-full mx-4"
+          >
+            <h3 className="text-lg font-semibold mb-4">Add Protected Route</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Path Pattern</label>
+                <input
+                  type="text"
+                  value={newRoute.pattern}
+                  onChange={(e) => setNewRoute({ ...newRoute, pattern: e.target.value })}
+                  placeholder="/api/* or /admin/*"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-                        {oauthConfig.cookieSettings.setAuthToken && (
-                          <>
-                            <input
-                              type="text"
-                              value={oauthConfig.cookieSettings.tokenCookieName}
-                              onChange={(e) => setOauthConfig({
-                                ...oauthConfig,
-                                cookieSettings: {
-                                  ...oauthConfig.cookieSettings,
-                                  tokenCookieName: e.target.value
-                                }
-                              })}
-                              placeholder="Token cookie name"
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                            
-                            <input
-                              type="number"
-                              value={oauthConfig.cookieSettings.cookieExpiry}
-                              onChange={(e) => setOauthConfig({
-                                ...oauthConfig,
-                                cookieSettings: {
-                                  ...oauthConfig.cookieSettings,
-                                  cookieExpiry: parseInt(e.target.value)
-                                }
-                              })}
-                              placeholder="Cookie expiry (seconds)"
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-
-                            <div>
-                              <p className="text-xs text-gray-600 mb-1">Additional Claims to Store in Cookies:</p>
-                              <input
-                                type="text"
-                                value={oauthConfig.cookieSettings.additionalClaims.join(', ')}
-                                onChange={(e) => setOauthConfig({
-                                  ...oauthConfig,
-                                  cookieSettings: {
-                                    ...oauthConfig.cookieSettings,
-                                    additionalClaims: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                                  }
-                                })}
-                                placeholder="e.g., email, name, user_id (comma-separated)"
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded text-sm">
-                      Save OAuth Config
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Authentication Method</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['apiKey', 'oauth', 'custom'].map((method) => (
+                    <button
+                      key={method}
+                      onClick={() => setNewRoute({ ...newRoute, authType: method })}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        newRoute.authType === method
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {method === 'apiKey' && <Key className="h-5 w-5 mx-auto mb-1 text-blue-600" />}
+                      {method === 'oauth' && <Users className="h-5 w-5 mx-auto mb-1 text-purple-600" />}
+                      {method === 'custom' && <Settings className="h-5 w-5 mx-auto mb-1 text-green-600" />}
+                      <span className="text-xs font-medium">
+                        {method === 'apiKey' ? 'API Key' : method === 'oauth' ? 'OAuth' : 'Custom'}
+                      </span>
                     </button>
-                  </>
-                )}
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unauthorized Redirect</label>
+                <input
+                  type="text"
+                  value={newRoute.unauthorizedRedirect}
+                  onChange={(e) => setNewRoute({ ...newRoute, unauthorizedRedirect: e.target.value })}
+                  placeholder="/login"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowAddRouteModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addRoute}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {isLoading ? 'Adding...' : 'Add Route'}
+                </button>
               </div>
             </div>
-          )}
+          </motion.div>
+        </div>
+      )}
 
-          {/* Custom Auth Section */}
-          {activeSection === 'custom' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow p-4">
-              <h4 className="font-medium text-gray-900 mb-4">Custom Authentication</h4>
+      {/* Key Details Modal */}
+      {showKeyDetails && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-6 max-w-md w-full mx-4"
+          >
+            <div className="text-center">
+              <div className="p-3 bg-green-100 rounded-full inline-block mb-4">
+                <Sparkles className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">API Key Created!</h3>
+              <p className="text-sm text-gray-600 mb-4">Save this key now - it won't be shown again</p>
               
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                  <span className="text-sm">Enable Custom Auth</span>
-                  <button
-                    onClick={() => setCustomAuthConfig({ ...customAuthConfig, enabled: !customAuthConfig.enabled })}
-                    className={`relative inline-flex h-5 w-10 items-center rounded-full ${
-                      customAuthConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white ${
-                      customAuthConfig.enabled ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
+              <div className="p-3 bg-gray-100 rounded-lg mb-4">
+                <code className="text-sm break-all">{showKeyDetails}</code>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => copyToClipboard(showKeyDetails)}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                >
+                  <Copy className="h-4 w-4 inline mr-2" />
+                  Copy Key
+                </button>
+                <button
+                  onClick={() => setShowKeyDetails(null)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* OAuth Configuration Modal */}
+      {showOAuthModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 my-8"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <Users className="h-6 w-6 text-purple-500" />
+                OAuth 2.0 Configuration
+              </h3>
+              <button
+                onClick={() => setShowOAuthModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* OAuth URLs */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">OAuth Endpoints</h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Authorization URL</label>
+                  <input
+                    type="url"
+                    value={oauthConfig.authUrl}
+                    onChange={(e) => setOauthConfig({ ...oauthConfig, authUrl: e.target.value })}
+                    placeholder="https://auth.example.com/authorize"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Token URL</label>
+                  <input
+                    type="url"
+                    value={oauthConfig.tokenUrl}
+                    onChange={(e) => setOauthConfig({ ...oauthConfig, tokenUrl: e.target.value })}
+                    placeholder="https://auth.example.com/token"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
 
-                {customAuthConfig.enabled && (
-                  <>
-                    <div>
-                      <label className="text-xs font-medium text-gray-700">Authentication Endpoint</label>
-                      <input
-                        type="url"
-                        value={customAuthConfig.authUrl}
-                        onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, authUrl: e.target.value })}
-                        placeholder="https://api.example.com/auth/verify"
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm mt-1"
-                      />
-                    </div>
+              {/* OAuth Credentials */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">Credentials</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+                    <input
+                      type="text"
+                      value={oauthConfig.clientId}
+                      onChange={(e) => setOauthConfig({ ...oauthConfig, clientId: e.target.value })}
+                      placeholder="your-client-id"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client Secret</label>
+                    <input
+                      type="password"
+                      value={oauthConfig.clientSecret}
+                      onChange={(e) => setOauthConfig({ ...oauthConfig, clientSecret: e.target.value })}
+                      placeholder="your-client-secret"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Redirect URI</label>
+                  <input
+                    type="url"
+                    value={oauthConfig.redirectUri}
+                    onChange={(e) => setOauthConfig({ ...oauthConfig, redirectUri: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Scope</label>
+                  <input
+                    type="text"
+                    value={oauthConfig.scope}
+                    onChange={(e) => setOauthConfig({ ...oauthConfig, scope: e.target.value })}
+                    placeholder="openid email profile"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+              {/* Redirect & Cookie Settings */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">Advanced Settings</h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unauthorized Redirect</label>
+                  <input
+                    type="text"
+                    value={oauthConfig.unauthorizedRedirect}
+                    onChange={(e) => setOauthConfig({ ...oauthConfig, unauthorizedRedirect: e.target.value })}
+                    placeholder="/login"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                
+                <div className="p-4 bg-purple-50 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Store Auth Token in Cookie</span>
+                    <button
+                      onClick={() => setOauthConfig({
+                        ...oauthConfig,
+                        cookieSettings: {
+                          ...oauthConfig.cookieSettings,
+                          setAuthToken: !oauthConfig.cookieSettings.setAuthToken
+                        }
+                      })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        oauthConfig.cookieSettings.setAuthToken ? 'bg-purple-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        oauthConfig.cookieSettings.setAuthToken ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {oauthConfig.cookieSettings.setAuthToken && (
+                    <>
                       <div>
-                        <label className="text-xs font-medium text-gray-700">HTTP Method</label>
-                        <select
-                          value={customAuthConfig.method}
-                          onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, method: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm mt-1"
-                        >
-                          <option value="POST">POST</option>
-                          <option value="GET">GET</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-700">Cookie Expiry (seconds)</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Cookie Name</label>
                         <input
-                          type="number"
-                          value={customAuthConfig.cookieExpiry}
-                          onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, cookieExpiry: parseInt(e.target.value) })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm mt-1"
+                          type="text"
+                          value={oauthConfig.cookieSettings.tokenCookieName}
+                          onChange={(e) => setOauthConfig({
+                            ...oauthConfig,
+                            cookieSettings: {
+                              ...oauthConfig.cookieSettings,
+                              tokenCookieName: e.target.value
+                            }
+                          })}
+                          className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
                         />
                       </div>
-                    </div>
-
-                    <input
-                      type="text"
-                      value={customAuthConfig.unauthorizedRedirect}
-                      onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, unauthorizedRedirect: e.target.value })}
-                      placeholder="Unauthorized redirect URL (e.g., /login)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                    />
-
-                    {/* Response Mapping */}
-                    <div className="border-t pt-3">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Response Field Mapping</p>
-                      
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={customAuthConfig.responseMapping.tokenField}
-                            onChange={(e) => setCustomAuthConfig({
-                              ...customAuthConfig,
-                              responseMapping: {
-                                ...customAuthConfig.responseMapping,
-                                tokenField: e.target.value
-                              }
-                            })}
-                            placeholder="Token field name (e.g., token)"
-                            className="px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                          <input
-                            type="text"
-                            value={customAuthConfig.responseMapping.userIdField}
-                            onChange={(e) => setCustomAuthConfig({
-                              ...customAuthConfig,
-                              responseMapping: {
-                                ...customAuthConfig.responseMapping,
-                                userIdField: e.target.value
-                              }
-                            })}
-                            placeholder="User ID field (e.g., userId)"
-                            className="px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">Additional Fields to Store in Cookies:</p>
-                          <div className="space-y-1">
-                            {customAuthConfig.responseMapping.additionalFields.map((field, idx) => (
-                              <div key={idx} className="flex gap-2">
-                                <input
-                                  type="text"
-                                  value={field.responseField}
-                                  onChange={(e) => {
-                                    const fields = [...customAuthConfig.responseMapping.additionalFields];
-                                    fields[idx] = { ...fields[idx], responseField: e.target.value };
-                                    setCustomAuthConfig({
-                                      ...customAuthConfig,
-                                      responseMapping: {
-                                        ...customAuthConfig.responseMapping,
-                                        additionalFields: fields
-                                      }
-                                    });
-                                  }}
-                                  placeholder="Response field"
-                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                                />
-                                <input
-                                  type="text"
-                                  value={field.cookieName}
-                                  onChange={(e) => {
-                                    const fields = [...customAuthConfig.responseMapping.additionalFields];
-                                    fields[idx] = { ...fields[idx], cookieName: e.target.value };
-                                    setCustomAuthConfig({
-                                      ...customAuthConfig,
-                                      responseMapping: {
-                                        ...customAuthConfig.responseMapping,
-                                        additionalFields: fields
-                                      }
-                                    });
-                                  }}
-                                  placeholder="Cookie name"
-                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                                />
-                                <button
-                                  onClick={() => {
-                                    const fields = customAuthConfig.responseMapping.additionalFields.filter((_, i) => i !== idx);
-                                    setCustomAuthConfig({
-                                      ...customAuthConfig,
-                                      responseMapping: {
-                                        ...customAuthConfig.responseMapping,
-                                        additionalFields: fields
-                                      }
-                                    });
-                                  }}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                            <button
-                              onClick={() => {
-                                setCustomAuthConfig({
-                                  ...customAuthConfig,
-                                  responseMapping: {
-                                    ...customAuthConfig.responseMapping,
-                                    additionalFields: [
-                                      ...customAuthConfig.responseMapping.additionalFields,
-                                      { responseField: '', cookieName: '' }
-                                    ]
-                                  }
-                                });
-                              }}
-                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
-                            >
-                              <Plus className="h-3 w-3 inline mr-1" />
-                              Add Field Mapping
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded text-sm">
-                      Save Custom Auth Config
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* API Keys Section */}
-          {activeSection === 'keys' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-gray-900">API Keys</h4>
-                {!showAddKeyForm && (
-                  <button
-                    onClick={() => {
-                      setShowAddKeyForm(true);
-                      setGeneratedKey(null);
-                    }}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Generate Key
-                  </button>
-                )}
-              </div>
-
-              {apiKeys.map((key) => (
-                <div key={key.id} className="flex items-center justify-between p-2 bg-gray-50 rounded mb-2">
-                  <div>
-                    <p className="text-sm font-medium">{key.name}</p>
-                    <div className="flex items-center gap-2">
-                      {showKeys.has(key.id) && key.key ? (
-                        <>
-                          <code className="text-xs">{key.key}</code>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Additional Claims to Store in Cookies</label>
+                        <div className="space-y-2">
+                          {oauthConfig.cookieSettings.additionalClaims.map((claim, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <input
+                                type="text"
+                                value={claim.claimName}
+                                onChange={(e) => {
+                                  const claims = [...oauthConfig.cookieSettings.additionalClaims];
+                                  claims[idx] = { ...claims[idx], claimName: e.target.value };
+                                  setOauthConfig({
+                                    ...oauthConfig,
+                                    cookieSettings: {
+                                      ...oauthConfig.cookieSettings,
+                                      additionalClaims: claims
+                                    }
+                                  });
+                                }}
+                                placeholder="Claim name (e.g., email)"
+                                className="flex-1 px-3 py-1 border border-gray-300 rounded text-sm"
+                              />
+                              <input
+                                type="text"
+                                value={claim.cookieName}
+                                onChange={(e) => {
+                                  const claims = [...oauthConfig.cookieSettings.additionalClaims];
+                                  claims[idx] = { ...claims[idx], cookieName: e.target.value };
+                                  setOauthConfig({
+                                    ...oauthConfig,
+                                    cookieSettings: {
+                                      ...oauthConfig.cookieSettings,
+                                      additionalClaims: claims
+                                    }
+                                  });
+                                }}
+                                placeholder="Cookie name"
+                                className="flex-1 px-3 py-1 border border-gray-300 rounded text-sm"
+                              />
+                              <button
+                                onClick={() => {
+                                  const claims = oauthConfig.cookieSettings.additionalClaims.filter((_, i) => i !== idx);
+                                  setOauthConfig({
+                                    ...oauthConfig,
+                                    cookieSettings: {
+                                      ...oauthConfig.cookieSettings,
+                                      additionalClaims: claims
+                                    }
+                                  });
+                                }}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
                           <button
                             onClick={() => {
-                              const newShowKeys = new Set(showKeys);
-                              newShowKeys.delete(key.id);
-                              setShowKeys(newShowKeys);
+                              setOauthConfig({
+                                ...oauthConfig,
+                                cookieSettings: {
+                                  ...oauthConfig.cookieSettings,
+                                  additionalClaims: [
+                                    ...oauthConfig.cookieSettings.additionalClaims,
+                                    { claimName: '', cookieName: '' }
+                                  ]
+                                }
+                              });
                             }}
-                            className="p-0.5 hover:bg-gray-200 rounded"
+                            className="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
                           >
-                            <EyeOff className="h-3 w-3" />
+                            <Plus className="h-3 w-3 inline mr-1" />
+                            Add Claim Mapping
                           </button>
-                        </>
-                      ) : (
-                        <>
-                          <code className="text-xs text-gray-500">sk_••••••••</code>
-                          {key.key && (
+                        </div>
+                      </div>
+                      
+                      {/* Container Environment Variable Mapping */}
+                      {vhost.type === 'container' && (
+                        <div className="p-3 bg-purple-100 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-sm font-medium text-purple-900">Map to Container Env Variables</span>
+                              <p className="text-xs text-purple-700 mt-1">
+                                Automatically set cookies as environment variables in the container
+                              </p>
+                            </div>
                             <button
-                              onClick={() => {
-                                const newShowKeys = new Set(showKeys);
-                                newShowKeys.add(key.id);
-                                setShowKeys(newShowKeys);
-                              }}
-                              className="p-0.5 hover:bg-gray-200 rounded"
+                              onClick={() => setOauthConfig({
+                                ...oauthConfig,
+                                cookieSettings: {
+                                  ...oauthConfig.cookieSettings,
+                                  mapToEnvVars: !oauthConfig.cookieSettings.mapToEnvVars
+                                }
+                              })}
+                              className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
+                                oauthConfig.cookieSettings.mapToEnvVars ? 'bg-purple-600' : 'bg-gray-300'
+                              }`}
                             >
-                              <Eye className="h-3 w-3" />
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                                oauthConfig.cookieSettings.mapToEnvVars ? 'translate-x-6' : 'translate-x-1'
+                              }`} />
                             </button>
+                          </div>
+                          {oauthConfig.cookieSettings.mapToEnvVars && (
+                            <div className="mt-2 p-2 bg-white/50 rounded text-xs text-purple-800">
+                              <strong>⚠️ Container will restart on authentication to apply env variables</strong>
+                              <ul className="mt-1 ml-4 list-disc">
+                                <li>Cookie names → UPPERCASE env variables</li>
+                                <li>Example: <code>auth_token</code> → <code>AUTH_TOKEN</code></li>
+                                <li>Safe during login (no active session)</li>
+                              </ul>
+                            </div>
                           )}
-                        </>
+                        </div>
                       )}
-                      {key.key && (
-                        <button
-                          onClick={() => copyApiKey(key.key)}
-                          className="p-0.5 hover:bg-gray-200 rounded"
-                        >
-                          {copiedKey ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => deleteApiKey(key.id)}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Cookie Expiry (seconds)</label>
+                        <input
+                          type="number"
+                          value={oauthConfig.cookieSettings.cookieExpiry}
+                          onChange={(e) => setOauthConfig({
+                            ...oauthConfig,
+                            cookieSettings: {
+                              ...oauthConfig.cookieSettings,
+                              cookieExpiry: parseInt(e.target.value)
+                            }
+                          })}
+                          className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
-              ))}
+              </div>
 
-              {showAddKeyForm && (
-                <div className="border-t pt-3 mt-3 space-y-2">
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <button
+                  onClick={() => setShowOAuthModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setOauthConfig({ ...oauthConfig, enabled: true });
+                    setShowOAuthModal(false);
+                    toast.success('OAuth configuration saved');
+                  }}
+                  className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+                >
+                  Save Configuration
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Custom Auth Configuration Modal */}
+      {showCustomAuthModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 my-8"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <Settings className="h-6 w-6 text-green-500" />
+                Custom Authentication Configuration
+              </h3>
+              <button
+                onClick={() => setShowCustomAuthModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Auth Endpoint */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">Authentication Endpoint</h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Auth URL</label>
+                  <input
+                    type="url"
+                    value={customAuthConfig.authUrl}
+                    onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, authUrl: e.target.value })}
+                    placeholder="https://api.example.com/auth/verify"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">HTTP Method</label>
+                    <select
+                      value={customAuthConfig.method}
+                      onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, method: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="POST">POST</option>
+                      <option value="GET">GET</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cookie Expiry (seconds)</label>
+                    <input
+                      type="number"
+                      value={customAuthConfig.cookieExpiry}
+                      onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, cookieExpiry: parseInt(e.target.value) })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unauthorized Redirect</label>
                   <input
                     type="text"
-                    value={newApiKey.name}
-                    onChange={(e) => setNewApiKey({ ...newApiKey, name: e.target.value })}
-                    placeholder="Key name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    value={customAuthConfig.unauthorizedRedirect}
+                    onChange={(e) => setCustomAuthConfig({ ...customAuthConfig, unauthorizedRedirect: e.target.value })}
+                    placeholder="/login"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   />
-                  
-                  {!newApiKey.autoGenerate && (
-                    <input
-                      type="text"
-                      value={newApiKey.key}
-                      onChange={(e) => setNewApiKey({ ...newApiKey, key: e.target.value })}
-                      placeholder="Custom API key"
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono"
-                    />
-                  )}
+                </div>
+              </div>
 
-                  {generatedKey && (
-                    <div className="p-2 bg-green-50 border border-green-200 rounded">
-                      <p className="text-xs font-medium text-green-900 mb-1">Generated Key - Save it!</p>
-                      <code className="text-xs font-mono break-all">{generatedKey}</code>
+              {/* Response Field Mapping */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">Response Field Mapping</h4>
+                <div className="p-4 bg-green-50 rounded-lg space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Token Field</label>
+                      <input
+                        type="text"
+                        value={customAuthConfig.responseMapping.tokenField}
+                        onChange={(e) => setCustomAuthConfig({
+                          ...customAuthConfig,
+                          responseMapping: {
+                            ...customAuthConfig.responseMapping,
+                            tokenField: e.target.value
+                          }
+                        })}
+                        placeholder="token"
+                        className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">User ID Field</label>
+                      <input
+                        type="text"
+                        value={customAuthConfig.responseMapping.userIdField}
+                        onChange={(e) => setCustomAuthConfig({
+                          ...customAuthConfig,
+                          responseMapping: {
+                            ...customAuthConfig.responseMapping,
+                            userIdField: e.target.value
+                          }
+                        })}
+                        placeholder="userId"
+                        className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Additional Fields to Store in Cookies</label>
+                    <div className="space-y-2">
+                      {customAuthConfig.responseMapping.additionalFields.map((field, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input
+                            type="text"
+                            value={field.responseField}
+                            onChange={(e) => {
+                              const fields = [...customAuthConfig.responseMapping.additionalFields];
+                              fields[idx] = { ...fields[idx], responseField: e.target.value };
+                              setCustomAuthConfig({
+                                ...customAuthConfig,
+                                responseMapping: {
+                                  ...customAuthConfig.responseMapping,
+                                  additionalFields: fields
+                                }
+                              });
+                            }}
+                            placeholder="Response field name"
+                            className="flex-1 px-3 py-1 border border-gray-300 rounded text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={field.cookieName}
+                            onChange={(e) => {
+                              const fields = [...customAuthConfig.responseMapping.additionalFields];
+                              fields[idx] = { ...fields[idx], cookieName: e.target.value };
+                              setCustomAuthConfig({
+                                ...customAuthConfig,
+                                responseMapping: {
+                                  ...customAuthConfig.responseMapping,
+                                  additionalFields: fields
+                                }
+                              });
+                            }}
+                            placeholder="Cookie name"
+                            className="flex-1 px-3 py-1 border border-gray-300 rounded text-sm"
+                          />
+                          <button
+                            onClick={() => {
+                              const fields = customAuthConfig.responseMapping.additionalFields.filter((_, i) => i !== idx);
+                              setCustomAuthConfig({
+                                ...customAuthConfig,
+                                responseMapping: {
+                                  ...customAuthConfig.responseMapping,
+                                  additionalFields: fields
+                                }
+                              });
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setCustomAuthConfig({
+                            ...customAuthConfig,
+                            responseMapping: {
+                              ...customAuthConfig.responseMapping,
+                              additionalFields: [
+                                ...customAuthConfig.responseMapping.additionalFields,
+                                { responseField: '', cookieName: '' }
+                              ]
+                            }
+                          });
+                        }}
+                        className="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+                      >
+                        <Plus className="h-3 w-3 inline mr-1" />
+                        Add Field Mapping
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Container Environment Variable Mapping */}
+                  {vhost.type === 'container' && (
+                    <div className="p-3 bg-green-100 rounded-lg mt-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-medium text-green-900">Map to Container Env Variables</span>
+                          <p className="text-xs text-green-700 mt-1">
+                            Automatically set response fields as environment variables in the container
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setCustomAuthConfig({
+                            ...customAuthConfig,
+                            mapToEnvVars: !customAuthConfig.mapToEnvVars
+                          })}
+                          className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
+                            customAuthConfig.mapToEnvVars ? 'bg-green-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            customAuthConfig.mapToEnvVars ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                      </div>
+                      {customAuthConfig.mapToEnvVars && (
+                        <div className="mt-2 p-2 bg-white/50 rounded text-xs text-green-800">
+                          <strong>⚠️ Container will restart on authentication to apply env variables</strong>
+                          <ul className="mt-1 ml-4 list-disc">
+                            <li>Cookie names → UPPERCASE env variables</li>
+                            <li>Example: <code>user_id</code> → <code>USER_ID</code></li>
+                            <li>Safe during login (no active session)</li>
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        setShowAddKeyForm(false);
-                        setGeneratedKey(null);
-                      }}
-                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm"
-                    >
-                      {generatedKey ? 'Done' : 'Cancel'}
-                    </button>
-                    {!generatedKey && (
-                      <button
-                        onClick={addApiKey}
-                        disabled={isLoading}
-                        className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-                      >
-                        Generate
-                      </button>
-                    )}
-                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <button
+                  onClick={() => setShowCustomAuthModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setCustomAuthConfig({ ...customAuthConfig, enabled: true });
+                    setShowCustomAuthModal(false);
+                    toast.success('Custom auth configuration saved');
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                >
+                  Save Configuration
+                </button>
+              </div>
             </div>
-          )}
-        </>
+          </motion.div>
+        </div>
       )}
     </div>
   );
