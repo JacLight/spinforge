@@ -214,11 +214,28 @@ router.post('/', async (req, res) => {
         
         // Don't expose port - container will be accessed internally through network
         
-        // Add environment variables
-        if (config.env && config.env.length > 0) {
-          config.env.forEach(env => {
-            dockerCmd += ` -e "${env.key}=${env.value}"`;
-          });
+        // Add environment variables - handle both object and array formats
+        if (config.env) {
+          console.log('Environment variables found during creation:', JSON.stringify(config.env, null, 2));
+          if (Array.isArray(config.env) && config.env.length > 0) {
+            // Old array format [{key, value}]
+            console.log('Processing as array format with', config.env.length, 'items');
+            config.env.forEach(env => {
+              if (env.key && env.value !== undefined) {
+                console.log(`  Adding env var: ${env.key}=${env.value}`);
+                dockerCmd += ` -e "${env.key}=${env.value}"`;
+              }
+            });
+          } else if (typeof config.env === 'object' && !Array.isArray(config.env) && Object.keys(config.env).length > 0) {
+            // New object format {KEY: value}
+            console.log('Processing as object format with', Object.keys(config.env).length, 'keys');
+            Object.entries(config.env).forEach(([key, value]) => {
+              if (key && value !== undefined) {
+                console.log(`  Adding env var: ${key}=${value}`);
+                dockerCmd += ` -e "${key}=${value}"`;
+              }
+            });
+          }
         }
         
         // Add volume mounts
@@ -365,11 +382,28 @@ router.put('/:domain', async (req, res) => {
         dockerCmd += ` -e LANG=C.UTF-8`;
         dockerCmd += ` -e LC_ALL=C.UTF-8`;
         
-        // Add environment variables
-        if (config.env && config.env.length > 0) {
-          config.env.forEach(env => {
-            dockerCmd += ` -e "${env.key}=${env.value}"`;
-          });
+        // Add environment variables - handle both object and array formats
+        if (config.env) {
+          console.log('Environment variables found during creation:', JSON.stringify(config.env, null, 2));
+          if (Array.isArray(config.env) && config.env.length > 0) {
+            // Old array format [{key, value}]
+            console.log('Processing as array format with', config.env.length, 'items');
+            config.env.forEach(env => {
+              if (env.key && env.value !== undefined) {
+                console.log(`  Adding env var: ${env.key}=${env.value}`);
+                dockerCmd += ` -e "${env.key}=${env.value}"`;
+              }
+            });
+          } else if (typeof config.env === 'object' && !Array.isArray(config.env) && Object.keys(config.env).length > 0) {
+            // New object format {KEY: value}
+            console.log('Processing as object format with', Object.keys(config.env).length, 'keys');
+            Object.entries(config.env).forEach(([key, value]) => {
+              if (key && value !== undefined) {
+                console.log(`  Adding env var: ${key}=${value}`);
+                dockerCmd += ` -e "${key}=${value}"`;
+              }
+            });
+          }
         }
         
         // Add volume mounts

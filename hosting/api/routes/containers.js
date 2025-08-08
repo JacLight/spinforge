@@ -108,6 +108,8 @@ router.post('/:domain/container/rebuild', async (req, res) => {
     }
     
     console.log(`Rebuilding container for ${domain}...`);
+    console.log('Full site config:', JSON.stringify(site, null, 2));
+    console.log('Container config:', JSON.stringify(site.containerConfig, null, 2));
     
     // Stop and remove old container
     try {
@@ -128,11 +130,34 @@ router.post('/:domain/container/rebuild', async (req, res) => {
     dockerCmd += ` -e LANG=C.UTF-8`;
     dockerCmd += ` -e LC_ALL=C.UTF-8`;
     
-    // Add environment variables
-    if (config.env && config.env.length > 0) {
-      config.env.forEach(env => {
-        dockerCmd += ` -e "${env.key}=${env.value}"`;
-      });
+    // Add environment variables - handle both object and array formats
+    if (config.env) {
+      console.log('Environment variables found:', JSON.stringify(config.env, null, 2));
+      console.log('Type of env:', typeof config.env);
+      console.log('Is Array:', Array.isArray(config.env));
+      console.log('Object keys:', typeof config.env === 'object' ? Object.keys(config.env) : 'N/A');
+      
+      if (Array.isArray(config.env) && config.env.length > 0) {
+        // Old array format [{key, value}]
+        console.log('Processing as array format with', config.env.length, 'items');
+        config.env.forEach((env, idx) => {
+          console.log(`  [${idx}] key="${env.key}", value="${env.value}"`);
+          if (env.key && env.value !== undefined) {
+            dockerCmd += ` -e "${env.key}=${env.value}"`;
+          }
+        });
+      } else if (typeof config.env === 'object' && !Array.isArray(config.env) && Object.keys(config.env).length > 0) {
+        // New object format {KEY: value}
+        console.log('Processing as object format with', Object.keys(config.env).length, 'keys');
+        Object.entries(config.env).forEach(([key, value]) => {
+          console.log(`  Adding env var: ${key}=${value}`);
+          dockerCmd += ` -e "${key}=${value}"`;
+        });
+      } else {
+        console.log('Environment variables present but empty or invalid format');
+      }
+    } else {
+      console.log('No environment variables found in config');
     }
     
     // Add volume mounts

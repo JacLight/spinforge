@@ -741,7 +741,17 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
         </div>
       )}
 
-      {vhost.type === 'container' && <ContainerManagement vhost={vhost} />}
+      {vhost.type === 'container' && (
+        <>
+          <ContainerManagement vhost={vhost} />
+          <ContainerEnvironmentVariables 
+            vhost={vhost}
+            isEditing={isEditing}
+            formData={formData}
+            setFormData={setFormData}
+          />
+        </>
+      )}
 
       {vhost.type === 'loadbalancer' && (
         <LoadBalancerSection
@@ -753,6 +763,202 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
           onStickySessionChange={handleStickySessionChange}
         />
       )}
+    </div>
+  );
+}
+
+// Container Environment Variables Component
+function ContainerEnvironmentVariables({ vhost, isEditing, formData, setFormData }: {
+  vhost: any;
+  isEditing: boolean;
+  formData: any;
+  setFormData: (data: any) => void;
+}) {
+  const [newEnvKey, setNewEnvKey] = useState('');
+  const [newEnvValue, setNewEnvValue] = useState('');
+
+  const addEnvVar = () => {
+    if (newEnvKey && newEnvValue) {
+      // Ensure env is always an object, not an array
+      const currentEnv = formData.containerConfig?.env || {};
+      const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
+      
+      setFormData({
+        ...formData,
+        containerConfig: {
+          ...formData.containerConfig,
+          env: {
+            ...cleanEnv,
+            [newEnvKey]: newEnvValue
+          }
+        }
+      });
+      
+      setNewEnvKey('');
+      setNewEnvValue('');
+      toast.success(`Added environment variable: ${newEnvKey}`);
+    }
+  };
+
+  const removeEnvVar = (key: string) => {
+    const currentEnv = formData.containerConfig?.env || {};
+    const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
+    const { [key]: _, ...restEnv } = cleanEnv;
+    
+    setFormData({
+      ...formData,
+      containerConfig: {
+        ...formData.containerConfig,
+        env: restEnv
+      }
+    });
+    toast.success(`Removed environment variable: ${key}`);
+  };
+
+  const updateEnvVar = (oldKey: string, newKey: string, value: string) => {
+    const currentEnv = formData.containerConfig?.env || {};
+    const cleanEnv = Array.isArray(currentEnv) ? {} : currentEnv;
+    
+    // If key changed, remove old key
+    if (oldKey !== newKey) {
+      const { [oldKey]: _, ...restEnv } = cleanEnv;
+      setFormData({
+        ...formData,
+        containerConfig: {
+          ...formData.containerConfig,
+          env: {
+            ...restEnv,
+            [newKey]: value
+          }
+        }
+      });
+    } else {
+      // Just update value
+      setFormData({
+        ...formData,
+        containerConfig: {
+          ...formData.containerConfig,
+          env: {
+            ...cleanEnv,
+            [newKey]: value
+          }
+        }
+      });
+    }
+  };
+
+  // Get clean environment variables
+  const getCleanEnvVars = () => {
+    const env = formData.containerConfig?.env || {};
+    if (Array.isArray(env)) {
+      return {};
+    }
+    // Filter out any numeric keys or invalid entries
+    return Object.entries(env).reduce((acc, [key, value]) => {
+      if (!isNaN(Number(key)) || typeof value === 'object') {
+        return acc;
+      }
+      return { ...acc, [key]: value };
+    }, {} as Record<string, string>);
+  };
+
+  const envVars = getCleanEnvVars();
+  const envEntries = Object.entries(envVars);
+
+  return (
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+      <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <Package className="h-5 w-5 text-purple-500" />
+        Environment Variables
+      </h3>
+
+      <div className="space-y-4">
+        {/* Display existing environment variables */}
+        {envEntries.length > 0 ? (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Current Variables</label>
+            {envEntries.map(([key, value]) => (
+              <div key={key} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                {isEditing ? (
+                  <>
+                    <input
+                      type="text"
+                      value={key}
+                      onChange={(e) => updateEnvVar(key, e.target.value, value as string)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm font-mono"
+                      placeholder="KEY"
+                    />
+                    <span className="text-gray-500">=</span>
+                    <input
+                      type="text"
+                      value={value as string}
+                      onChange={(e) => updateEnvVar(key, key, e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm font-mono"
+                      placeholder="VALUE"
+                    />
+                    <button
+                      onClick={() => removeEnvVar(key)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex-1 font-mono text-sm">
+                    <span className="text-blue-600">{key}</span>
+                    <span className="text-gray-500 mx-2">=</span>
+                    <span className="text-gray-700">{value}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 bg-gray-50 rounded-lg text-center">
+            <p className="text-sm text-gray-500">No environment variables configured</p>
+            {!isEditing && (
+              <p className="text-xs text-gray-400 mt-1">Click Edit to add environment variables</p>
+            )}
+          </div>
+        )}
+
+        {/* Add new environment variable */}
+        {isEditing && (
+          <div className="pt-4 border-t">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Add New Variable</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newEnvKey}
+                onChange={(e) => setNewEnvKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))}
+                placeholder="KEY"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                onKeyPress={(e) => e.key === 'Enter' && newEnvValue && addEnvVar()}
+              />
+              <span className="flex items-center text-gray-500">=</span>
+              <input
+                type="text"
+                value={newEnvValue}
+                onChange={(e) => setNewEnvValue(e.target.value)}
+                placeholder="VALUE"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                onKeyPress={(e) => e.key === 'Enter' && newEnvKey && addEnvVar()}
+              />
+              <button
+                onClick={addEnvVar}
+                disabled={!newEnvKey || !newEnvValue}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Environment variables will be available in your container. Keys are automatically uppercased.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

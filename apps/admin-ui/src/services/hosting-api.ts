@@ -90,7 +90,7 @@ export interface VHost {
   containerConfig?: {
     image: string;
     port: number;
-    env?: Array<{ key: string; value: string }>;
+    env?: Record<string, string> | Array<{ key: string; value: string }>; // Support both formats
     restartPolicy?: string;
     volumes?: Array<{ source: string; target: string }>;
     networks?: string[];
