@@ -38,9 +38,22 @@ interface RouteConfig {
     authUrl: string;
     method: 'GET' | 'POST';
     headers?: { [key: string]: string };
+    // Token extraction configuration
+    tokenSource?: 'header' | 'query' | 'body' | 'cookie';
+    tokenLocation?: {
+      // For header source
+      headerName?: string; // e.g., "Authorization", "X-Auth-Token"
+      headerPrefix?: string; // e.g., "Bearer ", "Token "
+      // For query/body source
+      paramName?: string; // e.g., "token", "auth_token", "X-Auth-Token"
+      // For cookie source
+      cookieName?: string; // e.g., "auth_token", "session"
+    };
+    // Cookie name to store the main auth token
+    tokenCookieName?: string; // e.g., "auth_token", "session_token", "jwt"
     // Map response fields to cookies and/or env vars
     responseMappings?: {
-      responsePath: string; // e.g., "data.user.id", "token"
+      responsePath: string; // e.g., "data.user.id", "token", or for query: "X-Email"
       cookieName?: string; // Store in cookie
       envVarName?: string; // Store in env var (container only)
     }[];
@@ -281,13 +294,140 @@ function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhos
         <ol className="text-sm text-amber-800 space-y-1.5 list-decimal list-inside">
           <li>User visits protected route → Redirected to your auth URL with <code className="bg-amber-100 px-1 rounded text-xs">?return_url=original_url</code></li>
           <li>Your auth service handles login (form, SSO, etc.)</li>
-          <li>After success, redirect to: <code className="bg-amber-100 px-1 rounded text-xs">{`https://${vhost.domain}/_auth/callback`}</code></li>
-          <li>Include user data as query params (they become cookies based on mappings below)</li>
+          <li>After success, auth service returns with token (location configurable below)</li>
+          <li>SpinForge extracts token and user data based on your configuration</li>
         </ol>
-        <div className="mt-3 p-2 bg-white rounded border border-amber-300">
-          <p className="text-xs text-amber-900">
-            <strong>Example callback:</strong><br/>
-            <code className="text-xs break-all">{`${vhost.domain}/_auth/callback?return_url=/dashboard&user=john@example.com&orgid=org_123&role=admin`}</code>
+      </div>
+      
+      {/* Token Source Configuration */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
+        <h5 className="font-semibold text-blue-900 flex items-center gap-2">
+          <Key className="h-4 w-4" />
+          Token Extraction Settings
+        </h5>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Token Source</label>
+            <select
+              value={config.tokenSource || 'query'}
+              onChange={(e) => onChange({ ...config, tokenSource: e.target.value, tokenLocation: {} })}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="query">Query Parameters (URL)</option>
+              <option value="header">HTTP Headers</option>
+              <option value="cookie">Cookies</option>
+              <option value="body">Request Body (JSON)</option>
+            </select>
+          </div>
+          
+          {config.tokenSource === 'header' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Header Name</label>
+              <input
+                type="text"
+                value={config.tokenLocation?.headerName || 'Authorization'}
+                onChange={(e) => onChange({ 
+                  ...config, 
+                  tokenLocation: { ...config.tokenLocation, headerName: e.target.value }
+                })}
+                placeholder="Authorization"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          )}
+          
+          {config.tokenSource === 'header' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Header Prefix (optional)</label>
+              <input
+                type="text"
+                value={config.tokenLocation?.headerPrefix || ''}
+                onChange={(e) => onChange({ 
+                  ...config, 
+                  tokenLocation: { ...config.tokenLocation, headerPrefix: e.target.value }
+                })}
+                placeholder="Bearer "
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          )}
+          
+          {(config.tokenSource === 'query' || config.tokenSource === 'body') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Token Parameter Name</label>
+              <input
+                type="text"
+                value={config.tokenLocation?.paramName || 'X-Auth-Token'}
+                onChange={(e) => onChange({ 
+                  ...config, 
+                  tokenLocation: { ...config.tokenLocation, paramName: e.target.value }
+                })}
+                placeholder="X-Auth-Token"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          )}
+          
+          {config.tokenSource === 'cookie' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cookie Name</label>
+              <input
+                type="text"
+                value={config.tokenLocation?.cookieName || 'auth_token'}
+                onChange={(e) => onChange({ 
+                  ...config, 
+                  tokenLocation: { ...config.tokenLocation, cookieName: e.target.value }
+                })}
+                placeholder="auth_token"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          )}
+        </div>
+        
+        {/* Token Cookie Name Configuration */}
+        <div className="col-span-full">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Token Cookie Name</label>
+          <input
+            type="text"
+            value={config.tokenCookieName || 'auth_token'}
+            onChange={(e) => {
+              // Automatically convert hyphens to underscores for cookie names
+              const sanitized = e.target.value.replace(/-/g, '_');
+              onChange({ ...config, tokenCookieName: sanitized });
+              if (e.target.value.includes('-')) {
+                toast.info('Cookie names must use underscores - converted automatically', {
+                  duration: 2000,
+                  position: 'bottom-right',
+                });
+              }
+            }}
+            placeholder="auth_token"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {config.tokenCookieName?.includes('_') ? 
+              '✓ Using underscores (nginx compatible)' : 
+              'Cookie name will be stored with underscores (nginx requirement)'}
+          </p>
+        </div>
+        
+        <div className="p-2 bg-white rounded border border-blue-300 col-span-full">
+          <p className="text-xs text-blue-900">
+            <strong>Example for {config.tokenSource || 'query'}:</strong><br/>
+            {config.tokenSource === 'query' && (
+              <code className="text-xs">{`${vhost.domain}/?${config.tokenLocation?.paramName || 'X-Auth-Token'}=jwt_token&X-Email=user@example.com`}</code>
+            )}
+            {config.tokenSource === 'header' && (
+              <code className="text-xs">{`${config.tokenLocation?.headerName || 'Authorization'}: ${config.tokenLocation?.headerPrefix || ''}jwt_token`}</code>
+            )}
+            {config.tokenSource === 'cookie' && (
+              <code className="text-xs">{`Cookie: ${config.tokenLocation?.cookieName || 'auth_token'}=jwt_token`}</code>
+            )}
+            {config.tokenSource === 'body' && (
+              <code className="text-xs">{`{ "${config.tokenLocation?.paramName || 'token'}": "jwt_token", "email": "user@example.com" }`}</code>
+            )}
           </p>
         </div>
       </div>
@@ -371,8 +511,22 @@ function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhos
       {/* Response Mappings */}
       <div className="border-t border-green-200 pt-6">
         <div className="flex items-center justify-between mb-4">
-          <h5 className="text-base font-semibold text-gray-900">Response Field Mappings</h5>
-          <span className="text-sm text-gray-500">Map response data to storage</span>
+          <h5 className="text-base font-semibold text-gray-900">Data Field Mappings</h5>
+          <span className="text-sm text-gray-500">Map auth data fields to cookies/env vars</span>
+        </div>
+        
+        <div className="mb-3 p-2 bg-gray-50 rounded text-xs text-gray-600">
+          <strong>Field names depend on token source:</strong>
+          <ul className="mt-1 space-y-0.5">
+            <li>• <strong>Query:</strong> Use param names (e.g., "X_Email", "X_Org_Id")</li>
+            <li>• <strong>Header:</strong> Use header names (e.g., "X-User-Email", "X-Organization")</li>
+            <li>• <strong>Body:</strong> Use JSON paths (e.g., "user.email", "org.id")</li>
+            <li>• <strong>Cookie:</strong> Use cookie names with underscores (e.g., "user_email", "org_id")</li>
+          </ul>
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+            <strong className="text-yellow-800">⚠️ Important:</strong>
+            <span className="text-yellow-700"> Cookie names MUST use underscores (_) not hyphens (-). Nginx automatically converts hyphens to underscores.</span>
+          </div>
         </div>
         
         {/* Existing mappings */}
@@ -413,20 +567,49 @@ function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhos
               <input
                 type="text"
                 value={responseMapping.responsePath}
-                onChange={(e) => setResponseMapping({ ...responseMapping, responsePath: e.target.value })}
-                placeholder="data.userId or token"
+                onChange={(e) => {
+                  // For query params, convert hyphens to underscores
+                  const value = e.target.value;
+                  if (config.tokenSource === 'query' && value.includes('-')) {
+                    const sanitized = value.replace(/-/g, '_');
+                    setResponseMapping({ ...responseMapping, responsePath: sanitized });
+                    toast.info('Query param names use underscores - converted automatically', {
+                      duration: 2000,
+                      position: 'bottom-right',
+                    });
+                  } else {
+                    setResponseMapping({ ...responseMapping, responsePath: value });
+                  }
+                }}
+                placeholder={config.tokenSource === 'query' ? 'X_Email or X_Org_Id' : 'data.userId or token'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
+              {config.tokenSource === 'query' && responseMapping.responsePath?.includes('_') && (
+                <p className="mt-1 text-xs text-green-600">✓ Using underscores for query param</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Cookie Name (optional)</label>
               <input
                 type="text"
                 value={responseMapping.cookieName}
-                onChange={(e) => setResponseMapping({ ...responseMapping, cookieName: e.target.value })}
+                onChange={(e) => {
+                  // Automatically convert hyphens to underscores for cookie names
+                  const sanitized = e.target.value.replace(/-/g, '_');
+                  setResponseMapping({ ...responseMapping, cookieName: sanitized });
+                  if (e.target.value.includes('-')) {
+                    toast.info('Cookie names use underscores - hyphens converted automatically', {
+                      duration: 2000,
+                      position: 'bottom-right',
+                    });
+                  }
+                }}
                 placeholder="user_id"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
+              {responseMapping.cookieName && responseMapping.cookieName.includes('_') && (
+                <p className="mt-1 text-xs text-green-600">✓ Using underscores (nginx compatible)</p>
+              )}
             </div>
             {vhost.type === 'container' && (
               <div>

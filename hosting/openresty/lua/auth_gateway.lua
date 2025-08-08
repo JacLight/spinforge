@@ -87,9 +87,9 @@ local function is_auth_enabled(domain)
     return is_enabled
 end
 
--- Get path rules for domain (with caching)
-local function get_path_rules(domain)
-    local cache_key = "paths:" .. domain
+-- Get routes for domain (with caching) - Updated for route-based auth
+local function get_routes(domain)
+    local cache_key = "routes:" .. domain
     local cached = auth_cache:get(cache_key)
     
     if cached then
@@ -101,20 +101,29 @@ local function get_path_rules(domain)
         return nil
     end
     
-    local paths_json, err = red:get("auth:" .. domain .. ":paths")
+    -- Check both new routes format and legacy paths format
+    local routes_json, err = red:get("auth:" .. domain .. ":routes")
+    if not routes_json or routes_json == ngx.null then
+        -- Fallback to legacy paths format for backward compatibility
+        routes_json, err = red:get("auth:" .. domain .. ":paths")
+    end
+    
     return_redis_connection(red)
     
-    if err or not paths_json or paths_json == ngx.null then
+    if err or not routes_json or routes_json == ngx.null then
         return nil
     end
     
-    local paths = cjson.decode(paths_json)
+    local routes = cjson.decode(routes_json)
     
     -- Cache for 60 seconds
-    auth_cache:set(cache_key, paths_json, CACHE_TTL)
+    auth_cache:set(cache_key, routes_json, CACHE_TTL)
     
-    return paths
+    return routes
 end
+
+-- Legacy alias
+local get_path_rules = get_routes
 
 -- Check if path matches pattern (supports wildcards)
 local function path_matches(path, pattern)
@@ -340,18 +349,58 @@ local function handle_oauth_callback()
     ngx.redirect(state_data.return_path or "/")
 end
 
+-- Handle custom auth callback
+local function handle_custom_auth_callback()
+    local args = ngx.req.get_uri_args()
+    local return_url = args.return_url
+    local auth_token = args.token or args.auth_token
+    
+    -- Get cookies from query params (if auth service passes them)
+    local cookies_to_set = {}
+    
+    -- Check for user data in query params
+    for key, value in pairs(args) do
+        if key ~= "return_url" and key ~= "token" and key ~= "auth_token" then
+            -- Set as cookie (auth service should pass user data)
+            table.insert(cookies_to_set, key .. "=" .. ngx.escape_uri(value) .. "; Path=/; HttpOnly; SameSite=Lax")
+        end
+    end
+    
+    -- Set auth session cookie if token provided
+    if auth_token then
+        table.insert(cookies_to_set, "auth_token=" .. auth_token .. "; Path=/; HttpOnly; SameSite=Lax")
+    end
+    
+    -- Set all cookies
+    if #cookies_to_set > 0 then
+        ngx.header["Set-Cookie"] = cookies_to_set
+    end
+    
+    -- Redirect to original URL or homepage
+    ngx.redirect(return_url or "/")
+end
+
 -- Main authentication handler
 local function authenticate()
     local host = ngx.var.host
     local path = ngx.var.uri
+    
+    ngx.log(ngx.INFO, "Auth: Checking auth for domain: ", host, " path: ", path)
     
     -- Special handling for OAuth callback
     if path == "/_oauth/callback" then
         return handle_oauth_callback()
     end
     
+    -- Special handling for custom auth callback
+    if path == "/_auth/callback" then
+        return handle_custom_auth_callback()
+    end
+    
     -- Quick check: is auth enabled for this domain?
     local auth_enabled = is_auth_enabled(host)
+    
+    ngx.log(ngx.INFO, "Auth: Auth enabled for ", host, ": ", auth_enabled and "yes" or "no")
     
     -- Set quick check cache for router to use (5 minute TTL for negative results)
     -- This prevents the router from even calling authenticate() for domains without auth
@@ -370,38 +419,45 @@ local function authenticate()
         if invalid == "1" then
             -- Clear cache for this domain
             auth_cache:delete("enabled:" .. host)
-            auth_cache:delete("paths:" .. host)
+            auth_cache:delete("routes:" .. host)
+            auth_cache:delete("paths:" .. host) -- Also clear old cache key
             red:del("auth:" .. host .. ":cache_invalid")
         end
         return_redis_connection(red)
     end
     
-    -- Get path rules
-    local rules = get_path_rules(host)
-    if not rules or #rules == 0 then
-        return -- No path rules configured
+    -- Get routes (updated for route-based auth)
+    local routes = get_routes(host)
+    ngx.log(ngx.INFO, "Auth: Found ", routes and #routes or 0, " routes for ", host)
+    
+    if not routes or #routes == 0 then
+        return -- No routes configured
     end
     
-    -- Find matching rule for current path
-    local rule = find_matching_rule(path, rules)
-    if not rule then
+    -- Find matching route for current path
+    local route = find_matching_rule(path, routes)
+    if not route then
+        ngx.log(ngx.INFO, "Auth: No matching route found for path: ", path)
         return -- Path not protected
     end
     
+    ngx.log(ngx.INFO, "Auth: Found matching route for path: ", path, " auth type: ", route.authType)
+    
     -- Check rate limit first (before auth)
-    if not check_rate_limit(host, path, rule) then
+    if route.rateLimit and not check_rate_limit(host, path, route) then
         ngx.status = ngx.HTTP_TOO_MANY_REQUESTS
-        ngx.header["Retry-After"] = rule.rateLimit.window
+        ngx.header["Retry-After"] = "60"
         ngx.say('{"error": "Rate limit exceeded"}')
         return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
     end
     
-    -- Check authentication based on rule type
+    -- Check authentication based on route type
     local authenticated = false
     
-    if rule.authType == "none" then
+    if route.authType == "none" then
         authenticated = true
-    elseif rule.authType == "apiKey" then
+        ngx.log(ngx.INFO, "Auth: No auth required for this route")
+    elseif route.authType == "apiKey" then
         -- Check for API key in header or query param
         local key = ngx.req.get_headers()["X-API-Key"] or
                    ngx.req.get_headers()["Authorization"] or
@@ -412,7 +468,7 @@ local function authenticate()
         end
         
         authenticated = validate_api_key(host, key)
-    elseif rule.authType == "oauth" then
+    elseif route.authType == "oauth" then
         -- Check for OAuth token in cookie or header
         local auth_cookie = ngx.var.cookie_auth_token
         local auth_header = ngx.req.get_headers()["Authorization"]
@@ -424,7 +480,187 @@ local function authenticate()
             -- Redirect to OAuth provider
             return handle_oauth_redirect(host, ngx.var.request_uri)
         end
-    elseif rule.authType == "basic" then
+    elseif route.authType == "custom" then
+        -- SMART AUTH: Automatically check query, headers, and cookies for auth tokens
+        local config = route.customAuthConfig or {}
+        -- Don't redeclare authenticated - use the outer scope variable
+        local auth_data = {}
+        
+        ngx.log(ngx.INFO, "Auth: Custom auth check for ", host, " path: ", path)
+        
+        -- Helper function for case-insensitive key lookup
+        local function find_key_ci(tbl, key)
+            if not tbl or not key then return nil end
+            -- First try exact match
+            if tbl[key] then return tbl[key] end
+            -- Then try case-insensitive match
+            local lower_key = key:lower()
+            for k, v in pairs(tbl) do
+                if k:lower() == lower_key then
+                    return v
+                end
+            end
+            return nil
+        end
+        
+        -- 1. FIRST CHECK COOKIES (for subsequent requests after initial auth)
+        local token_cookie_name = (config.tokenCookieName or "auth_token"):gsub("-", "_")
+        local cookie_var = "cookie_" .. token_cookie_name
+        local auth_cookie = ngx.var[cookie_var]
+        
+        ngx.log(ngx.INFO, "Auth: Checking cookie '", token_cookie_name, "' (var: ", cookie_var, ") = ", auth_cookie or "NOT FOUND")
+        
+        -- Try direct cookie access as fallback
+        if not auth_cookie then
+            local cookie_header = ngx.var.http_cookie
+            if cookie_header then
+                for cookie in cookie_header:gmatch("([^;]+)") do
+                    local name, value = cookie:match("^%s*([^=]+)=(.+)%s*$")
+                    if name == token_cookie_name then
+                        auth_cookie = value
+                        ngx.log(ngx.INFO, "Auth: Found cookie via direct parsing: ", name, " = ", value)
+                        break
+                    end
+                end
+            end
+        end
+        
+        if auth_cookie and auth_cookie ~= "" then
+            authenticated = true
+            ngx.log(ngx.INFO, "Auth: ✓ Authenticated via cookie: ", token_cookie_name)
+        else
+            -- Check mapped cookies
+            if config.responseMappings then
+                for _, mapping in ipairs(config.responseMappings) do
+                    if mapping.cookieName then
+                        local cookie_name = mapping.cookieName:gsub("-", "_")
+                        local cookie_value = ngx.var["cookie_" .. cookie_name]
+                        if cookie_value and cookie_value ~= "" then
+                            authenticated = true
+                            ngx.log(ngx.INFO, "Auth: ✓ Authenticated via mapped cookie: ", cookie_name)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- 2. IF NOT AUTHENTICATED BY COOKIE, CHECK QUERY PARAMS (for auth service redirects)
+        local args = ngx.req.get_uri_args()
+        local found_in_query = false
+        
+        -- Only check query params if not already authenticated by cookie
+        if not authenticated then
+        
+            -- Check for configured token parameter
+            local token_param = config.tokenLocation and config.tokenLocation.paramName
+            if token_param then
+                local token_value = find_key_ci(args, token_param)
+                if token_value then
+                    found_in_query = true
+                    auth_data["auth_token"] = token_value
+                    ngx.log(ngx.INFO, "Auth: Found token in query param: ", token_param)
+                end
+            end
+            
+            -- Check for ALL configured response mappings (these define what to extract)
+            if config.responseMappings then
+                for _, mapping in ipairs(config.responseMappings) do
+                    local value = find_key_ci(args, mapping.responsePath)
+                    if value then
+                        found_in_query = true
+                        auth_data[mapping.responsePath] = value
+                        
+                        -- If this mapping is marked as the token, store it
+                        if mapping.isToken or mapping.responsePath == (token_param or "") then
+                            auth_data["auth_token"] = value
+                        end
+                    end
+                end
+            end
+            
+            -- If tokens found in query, set cookies and redirect to clean URL
+            if found_in_query then
+                local cookies_to_set = {}
+                
+                -- Set auth token cookie (already defined above)
+                if auth_data["auth_token"] then
+                    table.insert(cookies_to_set, token_cookie_name .. "=" .. ngx.escape_uri(auth_data["auth_token"]) .. "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
+                end
+                
+                -- Set mapped cookies
+                if config.responseMappings then
+                    for _, mapping in ipairs(config.responseMappings) do
+                        if auth_data[mapping.responsePath] and mapping.cookieName then
+                            local safe_cookie_name = mapping.cookieName:gsub("-", "_")
+                            table.insert(cookies_to_set, safe_cookie_name .. "=" .. ngx.escape_uri(auth_data[mapping.responsePath]) .. "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
+                        end
+                    end
+                end
+                
+                ngx.header["Set-Cookie"] = cookies_to_set
+                ngx.log(ngx.INFO, "Auth: Found tokens in query, setting cookies and redirecting")
+                ngx.redirect(ngx.var.scheme .. "://" .. host .. path)
+                return
+            end
+        end  -- End of "if not authenticated" block for query params
+        
+        -- 3. CHECK HEADERS (for API requests)
+        if not authenticated and not found_in_query then
+            local headers = ngx.req.get_headers()
+            
+            -- Check for configured header
+            local header_name = config.tokenLocation and config.tokenLocation.headerName
+            if header_name then
+                local auth_header = find_key_ci(headers, header_name)
+                if auth_header then
+                    -- Remove prefix if configured
+                    local prefix = config.tokenLocation.headerPrefix
+                    if prefix and prefix ~= "" then
+                        local prefix_len = #prefix
+                        if auth_header:sub(1, prefix_len):lower() == prefix:lower() then
+                            auth_header = auth_header:sub(prefix_len + 1):gsub("^%s+", "")
+                        end
+                    end
+                    authenticated = true
+                    ngx.log(ngx.INFO, "Auth: Authenticated via header: ", header_name)
+                end
+            end
+            
+            -- Also check response mappings for headers
+            if not authenticated and config.responseMappings then
+                for _, mapping in ipairs(config.responseMappings) do
+                    local value = find_key_ci(headers, mapping.responsePath)
+                    if value then
+                        authenticated = true
+                        break
+                    end
+                end
+            end
+        end
+        
+        -- All cookie checking has been moved to the beginning
+        
+        -- If still not authenticated, redirect to auth URL
+        if not authenticated then
+            -- Build redirect URL with return parameter - use only path to avoid double encoding
+            local auth_url = config.authUrl or route.unauthorizedRedirect
+            local current_url = ngx.var.scheme .. "://" .. host .. path
+            local separator = auth_url:find("?") and "&" or "?"
+            
+            -- Encode the return URL
+            local return_url = ngx.escape_uri(current_url)
+            
+            -- Redirect with return_url parameter
+            local redirect_url = auth_url .. separator .. "return_url=" .. return_url
+            
+            ngx.log(ngx.INFO, "Auth: Not authenticated, redirecting to: ", redirect_url)
+            ngx.redirect(redirect_url)
+            return
+        else
+            ngx.log(ngx.INFO, "Auth: Successfully authenticated via custom auth")
+        end
+    elseif route.authType == "basic" then
         -- Check HTTP Basic Auth
         local auth_header = ngx.req.get_headers()["Authorization"]
         if auth_header and auth_header:sub(1, 6) == "Basic " then
@@ -435,15 +671,14 @@ local function authenticate()
     
     -- Handle authentication failure
     if not authenticated then
-        if rule.unauthorizedAction == "redirect" and rule.unauthorizedRedirect then
-            return ngx.redirect(rule.unauthorizedRedirect)
+        if route.unauthorizedRedirect then
+            return ngx.redirect(route.unauthorizedRedirect)
         else
             -- Return error response
             ngx.status = ngx.HTTP_UNAUTHORIZED
             ngx.header["Content-Type"] = "application/json"
             
-            local response = rule.unauthorizedResponse or '{"error": "Unauthorized"}'
-            ngx.say(response)
+            ngx.say('{"error": "Unauthorized"}')
             return ngx.exit(ngx.HTTP_UNAUTHORIZED)
         end
     end
