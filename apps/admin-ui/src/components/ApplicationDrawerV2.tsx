@@ -11,7 +11,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { hostingAPI } from "../services/hosting-api";
 import { toast } from "sonner";
 import SSLCertificateManager from "./SSLCertificateManager";
-import ProtectedRoutesTabV2 from './ApplicationDrawer/tabs/ProtectedRoutesTabV2';
+import ProtectedRoutesTab from './ApplicationDrawer/tabs/ProtectedRoutesTabV2';
 import {
   X,
   Globe,
@@ -463,7 +463,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
 
 // Protected Routes Component (wrapper for V2)
 function ProtectedRoutes({ vhost, isEditing }: { vhost: any; isEditing: boolean }) {
-  return <ProtectedRoutesTabV2 vhost={vhost} isEditing={isEditing} />;
+  return <ProtectedRoutesTab vhost={vhost} isEditing={isEditing} />;
 }
 
 // Diagnostics Component

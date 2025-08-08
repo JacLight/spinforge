@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import OverviewTab from './tabs/OverviewTab';
 import MetricsTab from './tabs/MetricsTab';
 import DiagnosticsTab from './tabs/DiagnosticsTab';
-import ProtectedRoutesTab from './tabs/ProtectedRoutesTab';
+import ProtectedRoutesTab from './tabs/ProtectedRoutesTabV2';
 import AdvancedSettingsTab from './tabs/AdvancedSettingsTab';
 import SSLCertificateManager from '../SSLCertificateManager';
 

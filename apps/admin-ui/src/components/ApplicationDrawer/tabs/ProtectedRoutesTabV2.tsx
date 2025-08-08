@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Key, Globe, Trash2, Plus, Lock, Unlock, Copy, Check, Settings, Users, Sparkles, Edit, X, AlertCircle, ChevronRight } from 'lucide-react';
+import { Shield, Key, Globe, Trash2, Plus, Lock, Unlock, Copy, Check, Settings, Users, Sparkles, Edit, X, AlertCircle, ChevronRight, Cookie } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -25,24 +25,363 @@ interface RouteConfig {
     authUrl: string;
     tokenUrl: string;
     scope: string;
-    cookieMapping?: { claimName: string; cookieName: string }[];
-    mapToEnvVars?: boolean; // Container only
+    redirectUri?: string;
+    // Map claims to cookies and/or env vars
+    claimMappings?: {
+      claimPath: string; // e.g., "user.email", "roles[0]", "sub"
+      cookieName?: string; // Store in cookie
+      envVarName?: string; // Store in env var (container only)
+    }[];
   };
   // Custom Auth specific
   customAuthConfig?: {
     authUrl: string;
     method: 'GET' | 'POST';
-    responseMapping?: { responseField: string; cookieName: string }[];
-    mapToEnvVars?: boolean; // Container only
+    headers?: { [key: string]: string };
+    // Map response fields to cookies and/or env vars
+    responseMappings?: {
+      responsePath: string; // e.g., "data.user.id", "token"
+      cookieName?: string; // Store in cookie
+      envVarName?: string; // Store in env var (container only)
+    }[];
   };
 }
 
-export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRoutesTabProps) {
+// OAuth Inline Configuration Component
+function OAuthInlineConfig({ config, vhost, onChange }: { config: any; vhost: any; onChange: (config: any) => void }) {
+  const [claimMapping, setClaimMapping] = useState({ claimPath: '', cookieName: '', envVarName: '' });
+
+  const addClaimMapping = () => {
+    if (claimMapping.claimPath && (claimMapping.cookieName || claimMapping.envVarName)) {
+      const mappings = config.claimMappings || [];
+      onChange({
+        ...config,
+        claimMappings: [...mappings, { ...claimMapping }]
+      });
+      setClaimMapping({ claimPath: '', cookieName: '', envVarName: '' });
+    }
+  };
+
+  const removeClaimMapping = (index: number) => {
+    const mappings = [...(config.claimMappings || [])];
+    mappings.splice(index, 1);
+    onChange({ ...config, claimMappings: mappings });
+  };
+
+  return (
+    <div className="p-3 bg-purple-50 rounded-lg space-y-3">
+      <h4 className="font-medium text-gray-900">OAuth 2.0 Configuration</h4>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Authorization URL</label>
+          <input
+            type="url"
+            value={config.authUrl || ''}
+            onChange={(e) => onChange({ ...config, authUrl: e.target.value })}
+            placeholder="https://auth.example.com/authorize"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Token URL</label>
+          <input
+            type="url"
+            value={config.tokenUrl || ''}
+            onChange={(e) => onChange({ ...config, tokenUrl: e.target.value })}
+            placeholder="https://auth.example.com/token"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Client ID</label>
+          <input
+            type="text"
+            value={config.clientId || ''}
+            onChange={(e) => onChange({ ...config, clientId: e.target.value })}
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Client Secret</label>
+          <input
+            type="password"
+            value={config.clientSecret || ''}
+            onChange={(e) => onChange({ ...config, clientSecret: e.target.value })}
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Scope</label>
+          <input
+            type="text"
+            value={config.scope || ''}
+            onChange={(e) => onChange({ ...config, scope: e.target.value })}
+            placeholder="openid profile email"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Redirect URI (optional)</label>
+          <input
+            type="text"
+            value={config.redirectUri || ''}
+            onChange={(e) => onChange({ ...config, redirectUri: e.target.value })}
+            placeholder="https://app.example.com/callback"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Claim Mappings */}
+      <div className="border-t pt-3">
+        <h5 className="text-sm font-medium text-gray-900 mb-2">Claim Mappings (Token → Cookies/Env)</h5>
+        
+        {/* Existing mappings */}
+        {config.claimMappings?.map((mapping: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 mb-2 p-2 bg-white rounded">
+            <code className="text-xs flex-1">{mapping.claimPath}</code>
+            <span className="text-xs text-gray-500">→</span>
+            {mapping.cookieName && (
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                🍪 {mapping.cookieName}
+              </span>
+            )}
+            {mapping.envVarName && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                📦 {mapping.envVarName}
+              </span>
+            )}
+            <button
+              onClick={() => removeClaimMapping(index)}
+              className="text-red-500 hover:text-red-700"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+
+        {/* Add new mapping */}
+        <div className="grid grid-cols-4 gap-2">
+          <input
+            type="text"
+            value={claimMapping.claimPath}
+            onChange={(e) => setClaimMapping({ ...claimMapping, claimPath: e.target.value })}
+            placeholder="user.email"
+            className="px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+          <input
+            type="text"
+            value={claimMapping.cookieName}
+            onChange={(e) => setClaimMapping({ ...claimMapping, cookieName: e.target.value })}
+            placeholder="Cookie name"
+            className="px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+          {vhost.type === 'container' && (
+            <input
+              type="text"
+              value={claimMapping.envVarName}
+              onChange={(e) => setClaimMapping({ ...claimMapping, envVarName: e.target.value })}
+              placeholder="ENV_VAR"
+              className="px-2 py-1 border border-gray-300 rounded text-xs"
+            />
+          )}
+          <button
+            onClick={addClaimMapping}
+            className="px-2 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600"
+          >
+            Add
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Map OAuth token claims to cookies {vhost.type === 'container' && 'or environment variables'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Custom Auth Inline Configuration Component
+function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhost: any; onChange: (config: any) => void }) {
+  const [responseMapping, setResponseMapping] = useState({ responsePath: '', cookieName: '', envVarName: '' });
+  const [header, setHeader] = useState({ key: '', value: '' });
+
+  const addResponseMapping = () => {
+    if (responseMapping.responsePath && (responseMapping.cookieName || responseMapping.envVarName)) {
+      const mappings = config.responseMappings || [];
+      onChange({
+        ...config,
+        responseMappings: [...mappings, { ...responseMapping }]
+      });
+      setResponseMapping({ responsePath: '', cookieName: '', envVarName: '' });
+    }
+  };
+
+  const removeResponseMapping = (index: number) => {
+    const mappings = [...(config.responseMappings || [])];
+    mappings.splice(index, 1);
+    onChange({ ...config, responseMappings: mappings });
+  };
+
+  const addHeader = () => {
+    if (header.key && header.value) {
+      onChange({
+        ...config,
+        headers: { ...config.headers, [header.key]: header.value }
+      });
+      setHeader({ key: '', value: '' });
+    }
+  };
+
+  return (
+    <div className="p-3 bg-green-50 rounded-lg space-y-3">
+      <h4 className="font-medium text-gray-900">Custom Authentication Configuration</h4>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">Authentication Endpoint</label>
+          <input
+            type="url"
+            value={config.authUrl || ''}
+            onChange={(e) => onChange({ ...config, authUrl: e.target.value })}
+            placeholder="https://api.example.com/auth/verify"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-700 mb-1">HTTP Method</label>
+          <select
+            value={config.method || 'POST'}
+            onChange={(e) => onChange({ ...config, method: e.target.value as 'GET' | 'POST' })}
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          >
+            <option value="POST">POST</option>
+            <option value="GET">GET</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Custom Headers */}
+      <div>
+        <h5 className="text-sm font-medium text-gray-900 mb-2">Custom Headers</h5>
+        {Object.entries(config.headers || {}).map(([key, value]) => (
+          <div key={key} className="flex items-center gap-2 mb-1">
+            <code className="text-xs bg-white px-2 py-1 rounded">{key}: {value as string}</code>
+            <button
+              onClick={() => {
+                const headers = { ...config.headers };
+                delete headers[key];
+                onChange({ ...config, headers });
+              }}
+              className="text-red-500 hover:text-red-700"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={header.key}
+            onChange={(e) => setHeader({ ...header, key: e.target.value })}
+            placeholder="Header name"
+            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+          <input
+            type="text"
+            value={header.value}
+            onChange={(e) => setHeader({ ...header, value: e.target.value })}
+            placeholder="Header value"
+            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+          <button
+            onClick={addHeader}
+            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Response Mappings */}
+      <div className="border-t pt-3">
+        <h5 className="text-sm font-medium text-gray-900 mb-2">Response Mappings (JSON → Cookies/Env)</h5>
+        
+        {/* Existing mappings */}
+        {config.responseMappings?.map((mapping: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 mb-2 p-2 bg-white rounded">
+            <code className="text-xs flex-1">{mapping.responsePath}</code>
+            <span className="text-xs text-gray-500">→</span>
+            {mapping.cookieName && (
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                🍪 {mapping.cookieName}
+              </span>
+            )}
+            {mapping.envVarName && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                📦 {mapping.envVarName}
+              </span>
+            )}
+            <button
+              onClick={() => removeResponseMapping(index)}
+              className="text-red-500 hover:text-red-700"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+
+        {/* Add new mapping */}
+        <div className="grid grid-cols-4 gap-2">
+          <input
+            type="text"
+            value={responseMapping.responsePath}
+            onChange={(e) => setResponseMapping({ ...responseMapping, responsePath: e.target.value })}
+            placeholder="data.userId"
+            className="px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+          <input
+            type="text"
+            value={responseMapping.cookieName}
+            onChange={(e) => setResponseMapping({ ...responseMapping, cookieName: e.target.value })}
+            placeholder="Cookie name"
+            className="px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+          {vhost.type === 'container' && (
+            <input
+              type="text"
+              value={responseMapping.envVarName}
+              onChange={(e) => setResponseMapping({ ...responseMapping, envVarName: e.target.value })}
+              placeholder="ENV_VAR"
+              className="px-2 py-1 border border-gray-300 rounded text-xs"
+            />
+          )}
+          <button
+            onClick={addResponseMapping}
+            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+          >
+            Add
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Map auth response fields to cookies {vhost.type === 'container' && 'or environment variables'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutesTabProps) {
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false);
   const [routes, setRoutes] = useState<RouteConfig[]>([]);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showRouteModal, setShowRouteModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState<RouteConfig | null>(null);
   const [showKeyDetails, setShowKeyDetails] = useState<string | null>(null);
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
@@ -53,6 +392,7 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
     authType: 'apiKey',
     unauthorizedRedirect: '/login'
   });
+  const [showInlineForm, setShowInlineForm] = useState(false);
 
   // Load configuration
   useEffect(() => {
@@ -118,7 +458,7 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
 
       if (response.ok) {
         await loadAuthConfig();
-        setShowRouteModal(false);
+        setShowInlineForm(false);
         setEditingRoute(null);
         setNewRoute({ id: '', pattern: '', authType: 'apiKey', unauthorizedRedirect: '/login' });
         toast.success(editingRoute ? 'Route updated' : 'Route added');
@@ -173,16 +513,6 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
     toast.success('Copied to clipboard');
   };
 
-  const openRouteModal = (route?: RouteConfig) => {
-    if (route) {
-      setEditingRoute(route);
-      setNewRoute(route);
-    } else {
-      setEditingRoute(null);
-      setNewRoute({ id: '', pattern: '', authType: 'apiKey', unauthorizedRedirect: '/login' });
-    }
-    setShowRouteModal(true);
-  };
 
   if (!isProtectionEnabled) {
     return (
@@ -237,14 +567,155 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-900">Protected Routes</h3>
-          <button
-            onClick={() => openRouteModal()}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all"
-          >
-            <Plus className="h-4 w-4 inline mr-2" />
-            Add Route
-          </button>
+          {!showInlineForm && (
+            <button
+              onClick={() => {
+                setShowInlineForm(true);
+                setEditingRoute(null);
+                setNewRoute({ id: '', pattern: '', authType: 'apiKey', unauthorizedRedirect: '/login' });
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all"
+            >
+              <Plus className="h-4 w-4 inline mr-2" />
+              Add Route
+            </button>
+          )}
         </div>
+
+        {/* Inline Form */}
+        {showInlineForm && (
+          <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+            <div className="space-y-4">
+              {/* Route Pattern */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Route Pattern</label>
+                  <input
+                    type="text"
+                    value={newRoute.pattern}
+                    onChange={(e) => setNewRoute({ ...newRoute, pattern: e.target.value })}
+                    placeholder="/api/* or /admin/* or /protected/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unauthorized Redirect</label>
+                  <input
+                    type="text"
+                    value={newRoute.unauthorizedRedirect}
+                    onChange={(e) => setNewRoute({ ...newRoute, unauthorizedRedirect: e.target.value })}
+                    placeholder="/login or /unauthorized"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Auth Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Authentication Method</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['apiKey', 'oauth', 'custom'] as const).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setNewRoute({ ...newRoute, authType: type })}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        newRoute.authType === type
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {type === 'apiKey' && <Key className="h-4 w-4 text-blue-600" />}
+                        {type === 'oauth' && <Users className="h-4 w-4 text-purple-600" />}
+                        {type === 'custom' && <Settings className="h-4 w-4 text-green-600" />}
+                        <span className="text-sm font-medium">
+                          {type === 'apiKey' ? 'API Key' : type === 'oauth' ? 'OAuth 2.0' : 'Custom Auth'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dynamic Configuration Based on Auth Type */}
+              {newRoute.authType === 'apiKey' && (
+                <div className="p-3 bg-blue-50 rounded-lg space-y-3">
+                  <h4 className="font-medium text-gray-900">API Key Configuration</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-700 mb-1">Header Name</label>
+                      <select
+                        value={newRoute.apiKeyConfig?.headerName || 'X-API-Key'}
+                        onChange={(e) => setNewRoute({
+                          ...newRoute,
+                          apiKeyConfig: { ...newRoute.apiKeyConfig, headerName: e.target.value }
+                        })}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      >
+                        <option value="X-API-Key">X-API-Key</option>
+                        <option value="Authorization">Authorization Bearer</option>
+                        <option value="API-Key">API-Key</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-700 mb-1">Specific Key (optional)</label>
+                      <select
+                        value={newRoute.apiKeyConfig?.keyId || ''}
+                        onChange={(e) => setNewRoute({
+                          ...newRoute,
+                          apiKeyConfig: { ...newRoute.apiKeyConfig, keyId: e.target.value }
+                        })}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      >
+                        <option value="">Any valid API key</option>
+                        {apiKeys.map(key => (
+                          <option key={key.id} value={key.id}>{key.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {newRoute.authType === 'oauth' && (
+                <OAuthInlineConfig 
+                  config={newRoute.oauthConfig || {}}
+                  vhost={vhost}
+                  onChange={(config) => setNewRoute({ ...newRoute, oauthConfig: config })}
+                />
+              )}
+
+              {newRoute.authType === 'custom' && (
+                <CustomAuthInlineConfig
+                  config={newRoute.customAuthConfig || {}}
+                  vhost={vhost}
+                  onChange={(config) => setNewRoute({ ...newRoute, customAuthConfig: config })}
+                />
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={saveRoute}
+                  disabled={isLoading || !newRoute.pattern}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm"
+                >
+                  {isLoading ? 'Saving...' : editingRoute ? 'Update Route' : 'Add Route'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowInlineForm(false);
+                    setEditingRoute(null);
+                    setNewRoute({ id: '', pattern: '', authType: 'apiKey', unauthorizedRedirect: '/login' });
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {routes.length === 0 ? (
           <div className="text-center py-12">
@@ -285,7 +756,9 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          openRouteModal(route);
+                          setEditingRoute(route);
+                          setNewRoute(route);
+                          setShowInlineForm(true);
                         }}
                         className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
                       >
@@ -336,20 +809,27 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Provider:</span>
-                                <code className="text-gray-900">{new URL(route.oauthConfig.authUrl).hostname}</code>
+                                <code className="text-gray-900">{route.oauthConfig.authUrl ? new URL(route.oauthConfig.authUrl).hostname : 'Not set'}</code>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Client ID:</span>
-                                <code className="text-gray-900">{route.oauthConfig.clientId.substring(0, 10)}...</code>
+                                <code className="text-gray-900">{route.oauthConfig.clientId ? route.oauthConfig.clientId.substring(0, 10) + '...' : 'Not set'}</code>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Scope:</span>
-                                <code className="text-gray-900">{route.oauthConfig.scope}</code>
+                                <code className="text-gray-900">{route.oauthConfig.scope || 'Not set'}</code>
                               </div>
-                              {vhost.type === 'container' && route.oauthConfig.mapToEnvVars && (
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Container Env Vars:</span>
-                                  <span className="text-purple-700 font-medium">✓ Enabled</span>
+                              {route.oauthConfig.claimMappings && route.oauthConfig.claimMappings.length > 0 && (
+                                <div className="mt-2">
+                                  <span className="text-gray-600 text-xs">Mappings:</span>
+                                  <div className="mt-1 space-y-1">
+                                    {route.oauthConfig.claimMappings.map((m: any, i: number) => (
+                                      <div key={i} className="text-xs">
+                                        {m.cookieName && <span className="bg-orange-100 text-orange-700 px-1 rounded">🍪 {m.cookieName}</span>}
+                                        {m.envVarName && <span className="bg-blue-100 text-blue-700 px-1 rounded ml-1">📦 {m.envVarName}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -362,16 +842,23 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Endpoint:</span>
-                                <code className="text-gray-900">{route.customAuthConfig.authUrl}</code>
+                                <code className="text-gray-900">{route.customAuthConfig.authUrl || 'Not set'}</code>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Method:</span>
-                                <code className="text-gray-900">{route.customAuthConfig.method}</code>
+                                <code className="text-gray-900">{route.customAuthConfig.method || 'POST'}</code>
                               </div>
-                              {vhost.type === 'container' && route.customAuthConfig.mapToEnvVars && (
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Container Env Vars:</span>
-                                  <span className="text-green-700 font-medium">✓ Enabled</span>
+                              {route.customAuthConfig.responseMappings && route.customAuthConfig.responseMappings.length > 0 && (
+                                <div className="mt-2">
+                                  <span className="text-gray-600 text-xs">Mappings:</span>
+                                  <div className="mt-1 space-y-1">
+                                    {route.customAuthConfig.responseMappings.map((m: any, i: number) => (
+                                      <div key={i} className="text-xs">
+                                        {m.cookieName && <span className="bg-orange-100 text-orange-700 px-1 rounded">🍪 {m.cookieName}</span>}
+                                        {m.envVarName && <span className="bg-blue-100 text-blue-700 px-1 rounded ml-1">📦 {m.envVarName}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -427,296 +914,6 @@ export default function ProtectedRoutesTabV2({ vhost, isEditing }: ProtectedRout
         )}
       </div>
 
-      {/* Route Configuration Modal */}
-      {showRouteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold">
-                {editingRoute ? 'Edit Protected Route' : 'Add Protected Route'}
-              </h3>
-              <button
-                onClick={() => setShowRouteModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Route Pattern */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Route Pattern</label>
-                <input
-                  type="text"
-                  value={newRoute.pattern}
-                  onChange={(e) => setNewRoute({ ...newRoute, pattern: e.target.value })}
-                  placeholder="/api/* or /admin/* or /protected/*"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">Use * for wildcard matching</p>
-              </div>
-
-              {/* Auth Type Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Authentication Method</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(['apiKey', 'oauth', 'custom'] as const).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setNewRoute({ ...newRoute, authType: type })}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        newRoute.authType === type
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      {type === 'apiKey' && <Key className="h-6 w-6 mx-auto mb-2 text-blue-600" />}
-                      {type === 'oauth' && <Users className="h-6 w-6 mx-auto mb-2 text-purple-600" />}
-                      {type === 'custom' && <Settings className="h-6 w-6 mx-auto mb-2 text-green-600" />}
-                      <span className="text-sm font-medium">
-                        {type === 'apiKey' ? 'API Key' : type === 'oauth' ? 'OAuth 2.0' : 'Custom Auth'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Auth Configuration Based on Type */}
-              {newRoute.authType === 'apiKey' && (
-                <div className="p-4 bg-blue-50 rounded-lg space-y-4">
-                  <h4 className="font-medium text-gray-900">API Key Settings</h4>
-                  
-                  {apiKeys.length > 0 ? (
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-2">Select API Key (optional)</label>
-                      <select
-                        value={newRoute.apiKeyConfig?.keyId || ''}
-                        onChange={(e) => setNewRoute({
-                          ...newRoute,
-                          apiKeyConfig: { ...newRoute.apiKeyConfig, keyId: e.target.value }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      >
-                        <option value="">Any valid API key</option>
-                        {apiKeys.map(key => (
-                          <option key={key.id} value={key.id}>{key.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-yellow-50 rounded-lg">
-                      <p className="text-sm text-yellow-800">
-                        <AlertCircle className="h-4 w-4 inline mr-1" />
-                        An API key will be generated automatically when you save this route
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-2">Header Name</label>
-                    <select
-                      value={newRoute.apiKeyConfig?.headerName || 'X-API-Key'}
-                      onChange={(e) => setNewRoute({
-                        ...newRoute,
-                        apiKeyConfig: { ...newRoute.apiKeyConfig, headerName: e.target.value }
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="X-API-Key">X-API-Key</option>
-                      <option value="Authorization">Authorization Bearer</option>
-                      <option value="API-Key">API-Key</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {newRoute.authType === 'oauth' && (
-                <div className="p-4 bg-purple-50 rounded-lg space-y-4">
-                  <h4 className="font-medium text-gray-900">OAuth 2.0 Configuration</h4>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Authorization URL</label>
-                      <input
-                        type="url"
-                        value={newRoute.oauthConfig?.authUrl || ''}
-                        onChange={(e) => setNewRoute({
-                          ...newRoute,
-                          oauthConfig: { ...newRoute.oauthConfig, authUrl: e.target.value }
-                        })}
-                        placeholder="https://auth.example.com/authorize"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Token URL</label>
-                      <input
-                        type="url"
-                        value={newRoute.oauthConfig?.tokenUrl || ''}
-                        onChange={(e) => setNewRoute({
-                          ...newRoute,
-                          oauthConfig: { ...newRoute.oauthConfig, tokenUrl: e.target.value }
-                        })}
-                        placeholder="https://auth.example.com/token"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Client ID</label>
-                      <input
-                        type="text"
-                        value={newRoute.oauthConfig?.clientId || ''}
-                        onChange={(e) => setNewRoute({
-                          ...newRoute,
-                          oauthConfig: { ...newRoute.oauthConfig, clientId: e.target.value }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Client Secret</label>
-                      <input
-                        type="password"
-                        value={newRoute.oauthConfig?.clientSecret || ''}
-                        onChange={(e) => setNewRoute({
-                          ...newRoute,
-                          oauthConfig: { ...newRoute.oauthConfig, clientSecret: e.target.value }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {vhost.type === 'container' && (
-                    <div className="flex items-center justify-between p-3 bg-purple-100 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-purple-900">Map to Container Env Variables</p>
-                        <p className="text-xs text-purple-700">Container will restart on auth</p>
-                      </div>
-                      <button
-                        onClick={() => setNewRoute({
-                          ...newRoute,
-                          oauthConfig: { 
-                            ...newRoute.oauthConfig, 
-                            mapToEnvVars: !newRoute.oauthConfig?.mapToEnvVars 
-                          }
-                        })}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                          newRoute.oauthConfig?.mapToEnvVars ? 'bg-purple-600' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          newRoute.oauthConfig?.mapToEnvVars ? 'translate-x-6' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {newRoute.authType === 'custom' && (
-                <div className="p-4 bg-green-50 rounded-lg space-y-4">
-                  <h4 className="font-medium text-gray-900">Custom Auth Configuration</h4>
-                  
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">Authentication Endpoint</label>
-                    <input
-                      type="url"
-                      value={newRoute.customAuthConfig?.authUrl || ''}
-                      onChange={(e) => setNewRoute({
-                        ...newRoute,
-                        customAuthConfig: { ...newRoute.customAuthConfig, authUrl: e.target.value }
-                      })}
-                      placeholder="https://api.example.com/auth/verify"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">HTTP Method</label>
-                    <select
-                      value={newRoute.customAuthConfig?.method || 'POST'}
-                      onChange={(e) => setNewRoute({
-                        ...newRoute,
-                        customAuthConfig: { 
-                          ...newRoute.customAuthConfig, 
-                          method: e.target.value as 'GET' | 'POST' 
-                        }
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="POST">POST</option>
-                      <option value="GET">GET</option>
-                    </select>
-                  </div>
-
-                  {vhost.type === 'container' && (
-                    <div className="flex items-center justify-between p-3 bg-green-100 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-green-900">Map to Container Env Variables</p>
-                        <p className="text-xs text-green-700">Container will restart on auth</p>
-                      </div>
-                      <button
-                        onClick={() => setNewRoute({
-                          ...newRoute,
-                          customAuthConfig: { 
-                            ...newRoute.customAuthConfig, 
-                            mapToEnvVars: !newRoute.customAuthConfig?.mapToEnvVars 
-                          }
-                        })}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                          newRoute.customAuthConfig?.mapToEnvVars ? 'bg-green-600' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          newRoute.customAuthConfig?.mapToEnvVars ? 'translate-x-6' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Unauthorized Redirect */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Unauthorized Redirect</label>
-                <input
-                  type="text"
-                  value={newRoute.unauthorizedRedirect}
-                  onChange={(e) => setNewRoute({ ...newRoute, unauthorizedRedirect: e.target.value })}
-                  placeholder="/login or /unauthorized"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t">
-                <button
-                  onClick={() => setShowRouteModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveRoute}
-                  disabled={isLoading || !newRoute.pattern}
-                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {isLoading ? 'Saving...' : editingRoute ? 'Update Route' : 'Add Route'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
 
       {/* Key Details Modal */}
       {showKeyDetails && (

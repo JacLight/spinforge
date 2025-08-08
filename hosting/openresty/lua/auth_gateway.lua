@@ -63,7 +63,10 @@ local function is_auth_enabled(domain)
     -- Not in cache, check Redis
     local red, err = get_redis_connection()
     if not red then
-        return false -- Default to no auth if Redis is down
+        -- Default to no auth if Redis is down
+        -- Also cache this to avoid repeated connection attempts
+        auth_cache:set(cache_key, "0", 10) -- Short TTL for error case
+        return false
     end
     
     local enabled, err = red:get("auth:" .. domain .. ":enabled")
@@ -71,12 +74,15 @@ local function is_auth_enabled(domain)
     
     if err then
         ngx.log(ngx.ERR, "Failed to check auth enabled: ", err)
+        auth_cache:set(cache_key, "0", 10) -- Short TTL for error case
         return false
     end
     
     -- Cache the result
     local is_enabled = enabled == "1"
-    auth_cache:set(cache_key, is_enabled and "1" or "0", CACHE_TTL)
+    -- Use different TTLs: longer for "no auth" since it changes less frequently
+    local ttl = is_enabled and CACHE_TTL or 300 -- 1 minute for enabled, 5 minutes for disabled
+    auth_cache:set(cache_key, is_enabled and "1" or "0", ttl)
     
     return is_enabled
 end
@@ -345,8 +351,16 @@ local function authenticate()
     end
     
     -- Quick check: is auth enabled for this domain?
-    if not is_auth_enabled(host) then
+    local auth_enabled = is_auth_enabled(host)
+    
+    -- Set quick check cache for router to use (5 minute TTL for negative results)
+    -- This prevents the router from even calling authenticate() for domains without auth
+    local quick_check_key = "quick:" .. host
+    if not auth_enabled then
+        auth_cache:set(quick_check_key, "0", 300) -- Cache "no auth" for 5 minutes
         return -- No auth configured, pass through
+    else
+        auth_cache:set(quick_check_key, "1", 60) -- Cache "has auth" for 1 minute
     end
     
     -- Check if cache needs invalidation

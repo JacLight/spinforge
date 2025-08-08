@@ -146,9 +146,21 @@ if ngx.ctx.route_processed then
     return
 end
 
--- Run authentication check if module is available
+-- Run authentication check ONLY if auth module is available AND domain might have auth
+-- We do a quick cache check first to avoid the overhead for most domains
 if auth_gateway and auth_gateway.authenticate then
-    auth_gateway.authenticate()
+    -- Check if this domain potentially has auth (quick cache check)
+    local auth_cache = ngx.shared.auth_cache
+    local quick_check_key = "quick:" .. host
+    local has_auth = auth_cache:get(quick_check_key)
+    
+    -- Only run auth if:
+    -- 1. We haven't checked this domain before (has_auth is nil), OR
+    -- 2. We know this domain has auth enabled (has_auth == "1")
+    if has_auth == nil or has_auth == "1" then
+        auth_gateway.authenticate()
+    end
+    -- If has_auth == "0", we skip auth entirely (cached negative result)
 end
 
 -- Special diagnostic endpoint for load balancers
