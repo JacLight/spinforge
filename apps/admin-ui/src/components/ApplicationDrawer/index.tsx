@@ -39,7 +39,7 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
       memoryLimit: '512m',
       healthCheck: {}
     },
-    backends: vhost?.backends || [],
+    backends: vhost?.backends || vhost?.backendConfigs || [],
     domains: vhost?.domains || [vhost?.domain],
     // Advanced settings
     requestTimeout: vhost?.requestTimeout || 60,

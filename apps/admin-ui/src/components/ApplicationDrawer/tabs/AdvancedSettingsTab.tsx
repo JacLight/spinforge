@@ -11,11 +11,12 @@ interface AdvancedSettingsTabProps {
 export default function AdvancedSettingsTab({ vhost, isEditing, formData, setFormData }: AdvancedSettingsTabProps) {
   const [editingBackendIndex, setEditingBackendIndex] = useState<number | null>(null);
   const [newRoutingRule, setNewRoutingRule] = useState({
-    type: 'header',
+    type: 'cookie',
     matchType: 'exact',
     name: '',
     value: '',
-    targetLabel: ''
+    targetLabel: '',
+    priority: 1
   });
 
   // Load balancer specific handlers
@@ -28,16 +29,21 @@ export default function AdvancedSettingsTab({ vhost, isEditing, formData, setFor
   const addRoutingRule = () => {
     if (newRoutingRule.name && newRoutingRule.value && newRoutingRule.targetLabel) {
       const rules = formData.routingRules || [];
+      const newRule = {
+        ...newRoutingRule,
+        priority: rules.length + 1
+      };
       setFormData({ 
         ...formData, 
-        routingRules: [...rules, newRoutingRule] 
+        routingRules: [...rules, newRule] 
       });
       setNewRoutingRule({
-        type: 'header',
+        type: 'cookie',
         matchType: 'exact',
         name: '',
         value: '',
-        targetLabel: ''
+        targetLabel: '',
+        priority: 1
       });
     }
   };
@@ -505,86 +511,181 @@ export default function AdvancedSettingsTab({ vhost, isEditing, formData, setFor
         </div>
       </div>
 
-      {/* Routing Rules */}
-      {isEditing && (
+      {/* Routing Rules for Load Balancer */}
+      {vhost.type === 'loadbalancer' && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <h3 className="text-md font-semibold text-gray-900 mb-4">Advanced Routing Rules</h3>
+          <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Activity className="h-5 w-5 text-purple-500" />
+            A/B Testing & Routing Rules
+          </h3>
           
-          <div className="space-y-3">
-            {(formData.routingRules || []).map((rule: any, index: number) => (
-              <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">
-                    {rule.type} Rule #{index + 1}
-                  </span>
-                  <button
-                    onClick={() => removeRoutingRule(index)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p>Match: {rule.name} {rule.matchType} "{rule.value}"</p>
-                  <p>Target: {rule.targetLabel}</p>
-                </div>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Route traffic to specific backends based on cookies, headers, or query parameters. Perfect for A/B testing and canary deployments.
+            </p>
+
+            {/* Existing Rules */}
+            {(formData.routingRules || []).length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-700">Active Rules</h4>
+                {formData.routingRules.map((rule: any, index: number) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            rule.type === 'cookie' ? 'bg-yellow-100 text-yellow-700' :
+                            rule.type === 'header' ? 'bg-blue-100 text-blue-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {rule.type.toUpperCase()}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            Priority {rule.priority || index + 1}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">Field:</span>
+                            <code className="ml-1 px-1 py-0.5 bg-white rounded">{rule.name}</code>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Match:</span>
+                            <code className="ml-1 px-1 py-0.5 bg-white rounded">{rule.matchType}</code>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Value:</span>
+                            <code className="ml-1 px-1 py-0.5 bg-white rounded">{rule.value}</code>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <ChevronRight className="h-3 w-3 text-gray-400" />
+                          <span className="text-sm text-gray-600">Routes to:</span>
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                            {rule.targetLabel}
+                          </span>
+                        </div>
+                      </div>
+                      {isEditing && (
+                        <button
+                          onClick={() => removeRoutingRule(index)}
+                          className="ml-4 p-1.5 text-red-600 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
             
             {/* Add New Rule */}
-            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-              <h5 className="text-sm font-medium text-gray-700">Add Routing Rule</h5>
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  value={newRoutingRule.type}
-                  onChange={(e) => setNewRoutingRule({ ...newRoutingRule, type: e.target.value })}
-                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="header">Header</option>
-                  <option value="cookie">Cookie</option>
-                  <option value="query">Query Parameter</option>
-                </select>
-                <select
-                  value={newRoutingRule.matchType}
-                  onChange={(e) => setNewRoutingRule({ ...newRoutingRule, matchType: e.target.value })}
-                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="exact">Exact Match</option>
-                  <option value="prefix">Prefix Match</option>
-                  <option value="regex">Regex Match</option>
-                </select>
+            {isEditing && (
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                <h5 className="text-sm font-semibold text-gray-800 mb-3">Add New Routing Rule</h5>
+                
+                <div className="space-y-3">
+                  {/* Rule Type and Match Type */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Rule Type</label>
+                      <select
+                        value={newRoutingRule.type}
+                        onChange={(e) => setNewRoutingRule({ ...newRoutingRule, type: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="cookie">Cookie</option>
+                        <option value="header">Header</option>
+                        <option value="query">Query Parameter</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Match Type</label>
+                      <select
+                        value={newRoutingRule.matchType}
+                        onChange={(e) => setNewRoutingRule({ ...newRoutingRule, matchType: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="exact">Exact Match</option>
+                        <option value="prefix">Prefix Match</option>
+                        <option value="regex">Regex Pattern</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {/* Name and Value */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {newRoutingRule.type === 'cookie' ? 'Cookie Name' :
+                         newRoutingRule.type === 'header' ? 'Header Name' :
+                         'Parameter Name'}
+                      </label>
+                      <input
+                        type="text"
+                        value={newRoutingRule.name}
+                        onChange={(e) => setNewRoutingRule({ ...newRoutingRule, name: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                        placeholder={
+                          newRoutingRule.type === 'cookie' ? 'session_id' :
+                          newRoutingRule.type === 'header' ? 'X-Feature-Flag' :
+                          'feature'
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Match Value</label>
+                      <input
+                        type="text"
+                        value={newRoutingRule.value}
+                        onChange={(e) => setNewRoutingRule({ ...newRoutingRule, value: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                        placeholder={
+                          newRoutingRule.matchType === 'regex' ? '^v2-.*' : 'beta-version'
+                        }
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Target Backend */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Target Backend</label>
+                    {(formData.backends || []).length > 0 ? (
+                      <select
+                        value={newRoutingRule.targetLabel}
+                        onChange={(e) => setNewRoutingRule({ ...newRoutingRule, targetLabel: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="">Select backend...</option>
+                        {(formData.backends || []).map((backend: any, idx: number) => {
+                          const backendLabel = backend.label || `backend-${idx + 1}`;
+                          return (
+                            <option key={idx} value={backendLabel}>
+                              {backendLabel} - {backend.url || 'No URL configured'}
+                              {backend.enabled === false && ' (Disabled)'}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    ) : (
+                      <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-500">
+                        No backends configured. Add backends first.
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={addRoutingRule}
+                    disabled={!newRoutingRule.name || !newRoutingRule.value || !newRoutingRule.targetLabel}
+                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Routing Rule
+                  </button>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  value={newRoutingRule.name}
-                  onChange={(e) => setNewRoutingRule({ ...newRoutingRule, name: e.target.value })}
-                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
-                  placeholder="Name (e.g., user_id)"
-                />
-                <input
-                  type="text"
-                  value={newRoutingRule.value}
-                  onChange={(e) => setNewRoutingRule({ ...newRoutingRule, value: e.target.value })}
-                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
-                  placeholder="Value to match"
-                />
-              </div>
-              <input
-                type="text"
-                value={newRoutingRule.targetLabel}
-                onChange={(e) => setNewRoutingRule({ ...newRoutingRule, targetLabel: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
-                placeholder="Target backend label"
-              />
-              <button
-                onClick={addRoutingRule}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Rule
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}

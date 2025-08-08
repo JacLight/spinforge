@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { Shield, Globe, Server, Activity, CheckCircle, XCircle, Plus, Trash2, ExternalLink, ChevronRight, AlertTriangle, Package, Network, Edit2, Settings, Play, Square, RotateCcw, RefreshCw, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -9,9 +9,330 @@ interface OverviewTabProps {
   setFormData: (data: any) => void;
 }
 
+// Memoized Load Balancer Component to prevent re-renders
+const LoadBalancerSection = memo(({ 
+  vhost, 
+  isEditing, 
+  backends, 
+  stickySessionDuration,
+  onBackendsChange,
+  onStickySessionChange 
+}: {
+  vhost: any;
+  isEditing: boolean;
+  backends: any[];
+  stickySessionDuration: number;
+  onBackendsChange: (backends: any[]) => void;
+  onStickySessionChange: (duration: number) => void;
+}) => {
+  const [editingBackendIndex, setEditingBackendIndex] = useState<number | null>(null);
+  const [tempBackend, setTempBackend] = useState<any>(null);
+  const [localBackends, setLocalBackends] = useState(backends);
+  const [localStickyDuration, setLocalStickyDuration] = useState(stickySessionDuration);
+
+  // Only update parent when editing is done
+  const handleSaveBackend = useCallback((index: number) => {
+    const updatedBackends = [...localBackends];
+    updatedBackends[index] = tempBackend;
+    setLocalBackends(updatedBackends);
+    onBackendsChange(updatedBackends);
+    setEditingBackendIndex(null);
+    setTempBackend(null);
+  }, [localBackends, tempBackend, onBackendsChange]);
+
+  const handleAddBackend = useCallback(() => {
+    const newBackend = { 
+      url: 'http://backend:3000', 
+      weight: 1, 
+      enabled: true,
+      label: `backend-${localBackends.length + 1}`,
+      isLocal: false,
+      healthCheck: {
+        path: '/health',
+        interval: 10,
+        timeout: 5,
+        unhealthyThreshold: 3,
+        healthyThreshold: 2
+      }
+    };
+    const updated = [...localBackends, newBackend];
+    setLocalBackends(updated);
+    onBackendsChange(updated);
+  }, [localBackends, onBackendsChange]);
+
+  const handleRemoveBackend = useCallback((index: number) => {
+    const updated = localBackends.filter((_, i) => i !== index);
+    setLocalBackends(updated);
+    onBackendsChange(updated);
+  }, [localBackends, onBackendsChange]);
+
+  // Update sticky session on blur, not on every change
+  const handleStickySessionBlur = useCallback(() => {
+    onStickySessionChange(localStickyDuration);
+  }, [localStickyDuration, onStickySessionChange]);
+
+  return (
+    <div className="space-y-6">
+      {/* Backend Servers Section */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Network className="h-5 w-5 text-green-500" />
+          Backend Servers
+        </h3>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              {localBackends.length} backend servers configured
+            </p>
+            {isEditing && (
+              <button
+                onClick={handleAddBackend}
+                className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Add Backend
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {localBackends.map((backend: any, index: number) => (
+              <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="p-4 bg-gray-50">
+                  {editingBackendIndex === index && isEditing ? (
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 -m-4 p-4 border-l-4 border-blue-500">
+                      <div className="space-y-3">
+                        {/* Backend URL and Label */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Backend URL</label>
+                            <input
+                              type="text"
+                              value={tempBackend?.url || backend.url}
+                              onChange={(e) => setTempBackend({ ...(tempBackend || backend), url: e.target.value })}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="http://backend:3000"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Label (for routing)</label>
+                            <input
+                              type="text"
+                              value={tempBackend?.label || backend.label || ''}
+                              onChange={(e) => setTempBackend({ ...(tempBackend || backend), label: e.target.value })}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="backend-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Weight and Toggles */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Weight</label>
+                            <input
+                              type="number"
+                              value={tempBackend?.weight || backend.weight || 1}
+                              onChange={(e) => setTempBackend({ ...(tempBackend || backend), weight: parseInt(e.target.value) || 1 })}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                              min="1"
+                              max="100"
+                            />
+                          </div>
+                          <div className="flex items-center">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={tempBackend?.isLocal ?? backend.isLocal}
+                                onChange={(e) => setTempBackend({ ...(tempBackend || backend), isLocal: e.target.checked })}
+                                className="h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700">Local Backend</span>
+                            </label>
+                          </div>
+                          <div className="flex items-center">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={tempBackend?.enabled ?? backend.enabled !== false}
+                                onChange={(e) => setTempBackend({ ...(tempBackend || backend), enabled: e.target.checked })}
+                                className="h-4 w-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Enabled</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Health Check Configuration */}
+                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                          <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                            <Activity className="h-3 w-3" />
+                            Health Check Configuration
+                          </h4>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Path</label>
+                              <input
+                                type="text"
+                                value={tempBackend?.healthCheck?.path || backend.healthCheck?.path || '/health'}
+                                onChange={(e) => setTempBackend({ 
+                                  ...(tempBackend || backend), 
+                                  healthCheck: { ...(tempBackend?.healthCheck || backend.healthCheck), path: e.target.value }
+                                })}
+                                className="w-full px-2 py-1.5 bg-gray-50 border border-gray-300 rounded text-sm focus:bg-white focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Interval (s)</label>
+                              <input
+                                type="number"
+                                value={tempBackend?.healthCheck?.interval || backend.healthCheck?.interval || 10}
+                                onChange={(e) => setTempBackend({ 
+                                  ...(tempBackend || backend), 
+                                  healthCheck: { ...(tempBackend?.healthCheck || backend.healthCheck), interval: parseInt(e.target.value) || 10 }
+                                })}
+                                className="w-full px-2 py-1.5 bg-gray-50 border border-gray-300 rounded text-sm focus:bg-white focus:ring-1 focus:ring-blue-500"
+                                min="1"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Timeout (s)</label>
+                              <input
+                                type="number"
+                                value={tempBackend?.healthCheck?.timeout || backend.healthCheck?.timeout || 5}
+                                onChange={(e) => setTempBackend({ 
+                                  ...(tempBackend || backend), 
+                                  healthCheck: { ...(tempBackend?.healthCheck || backend.healthCheck), timeout: parseInt(e.target.value) || 5 }
+                                })}
+                                className="w-full px-2 py-1.5 bg-gray-50 border border-gray-300 rounded text-sm focus:bg-white focus:ring-1 focus:ring-blue-500"
+                                min="1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSaveBackend(index)}
+                            className="flex-1 px-3 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg text-sm font-medium hover:from-green-700 hover:to-green-800 transition-all"
+                          >
+                            Save Changes
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingBackendIndex(null);
+                              setTempBackend(null);
+                            }}
+                            className="flex-1 px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {backend.enabled !== false ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <div>
+                          <code className="text-sm font-medium">{backend.url || `Backend ${index + 1}`}</code>
+                          {backend.label && (
+                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                              {backend.label}
+                            </span>
+                          )}
+                          {backend.isLocal && (
+                            <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                              Local
+                            </span>
+                          )}
+                          <div className="flex gap-4 mt-1 text-xs text-gray-500">
+                            <span>Weight: {backend.weight || 1}</span>
+                            {backend.healthCheck && (
+                              <span>Health: {backend.healthCheck.path}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {isEditing && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingBackendIndex(index);
+                              setTempBackend(backend);
+                            }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveBackend(index)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Sessions */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Settings className="h-5 w-5 text-blue-500" />
+          Sticky Sessions
+        </h3>
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Keep users connected to the same backend server for session persistence.
+          </p>
+          {isEditing ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Session Duration (seconds)
+              </label>
+              <input
+                type="number"
+                value={localStickyDuration}
+                onChange={(e) => setLocalStickyDuration(parseInt(e.target.value) || 0)}
+                onBlur={handleStickySessionBlur}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                min="0"
+                placeholder="3600 (1 hour)"
+              />
+              <p className="text-xs text-gray-500 mt-1">Set to 0 to disable sticky sessions</p>
+            </div>
+          ) : (
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <span className="text-sm">
+                {localStickyDuration > 0 
+                  ? `Enabled - ${localStickyDuration} seconds`
+                  : 'Disabled'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+LoadBalancerSection.displayName = 'LoadBalancerSection';
+
 export default function OverviewTab({ vhost, isEditing, formData, setFormData }: OverviewTabProps) {
   const [newDomain, setNewDomain] = useState('');
-  const [editingBackendIndex, setEditingBackendIndex] = useState<number | null>(null);
   
   const domains = formData.domains || [vhost.domain];
 
@@ -29,27 +350,14 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
     }
   };
 
-  // Backend management for load balancer
-  const addBackend = () => {
-    const newBackend = { url: 'http://backend:3000', weight: 1, enabled: true };
-    setFormData({ 
-      ...formData, 
-      backends: [...(formData.backends || []), newBackend] 
-    });
-  };
+  // Callbacks for load balancer memoized component
+  const handleBackendsChange = useCallback((backends: any[]) => {
+    setFormData({ ...formData, backends });
+  }, [formData, setFormData]);
 
-  const updateBackend = (index: number, backend: any) => {
-    const updatedBackends = [...formData.backends];
-    updatedBackends[index] = backend;
-    setFormData({ ...formData, backends: updatedBackends });
-  };
-
-  const removeBackend = (index: number) => {
-    setFormData({ 
-      ...formData, 
-      backends: formData.backends.filter((_: any, i: number) => i !== index) 
-    });
-  };
+  const handleStickySessionChange = useCallback((duration: number) => {
+    setFormData({ ...formData, stickySessionDuration: duration });
+  }, [formData, setFormData]);
 
 
   return (
@@ -436,101 +744,14 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
       {vhost.type === 'container' && <ContainerManagement vhost={vhost} />}
 
       {vhost.type === 'loadbalancer' && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Network className="h-5 w-5 text-green-500" />
-            Load Balancer Configuration
-          </h3>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                {formData.backends?.length || 0} backend servers configured
-              </p>
-              {isEditing && (
-                <button
-                  onClick={addBackend}
-                  className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center gap-1"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Backend
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              {(formData.backends || []).map((backend: any, index: number) => (
-                <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                  {editingBackendIndex === index && isEditing ? (
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={backend.url}
-                        onChange={(e) => updateBackend(index, { ...backend, url: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        placeholder="http://backend:3000"
-                      />
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          value={backend.weight || 1}
-                          onChange={(e) => updateBackend(index, { ...backend, weight: parseInt(e.target.value) })}
-                          className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          placeholder="Weight"
-                        />
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={backend.enabled !== false}
-                            onChange={(e) => updateBackend(index, { ...backend, enabled: e.target.checked })}
-                            className="h-4 w-4 text-blue-600"
-                          />
-                          <span className="text-sm">Enabled</span>
-                        </label>
-                        <button
-                          onClick={() => setEditingBackendIndex(null)}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-sm"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {backend.enabled !== false ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-red-500" />
-                        )}
-                        <code className="text-sm">{backend.url || `Backend ${index + 1}`}</code>
-                        <span className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs">
-                          Weight: {backend.weight || 1}
-                        </span>
-                      </div>
-                      {isEditing && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setEditingBackendIndex(index)}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => removeBackend(index)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <LoadBalancerSection
+          vhost={vhost}
+          isEditing={isEditing}
+          backends={formData.backends || []}
+          stickySessionDuration={formData.stickySessionDuration || 0}
+          onBackendsChange={handleBackendsChange}
+          onStickySessionChange={handleStickySessionChange}
+        />
       )}
     </div>
   );
