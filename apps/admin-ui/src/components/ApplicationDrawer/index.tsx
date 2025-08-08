@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Info, Globe, ChevronRight, Shield, Lock, Stethoscope, Key, Settings, Edit2, Save, Trash2, Power, Activity, Calendar } from 'lucide-react';
+import { X, Info, Globe, ChevronRight, Shield, Lock, Stethoscope, Key, Settings, Edit2, Save, Trash2, Power, Activity, Calendar, RefreshCw, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hostingAPI } from '../../services/hosting-api';
@@ -189,6 +189,15 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
                       <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                         {vhost.domain}
                       </h2>
+                      <a
+                        href={`http://${vhost.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors group"
+                        title="View Site"
+                      >
+                        <ExternalLink className="h-5 w-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
+                      </a>
                       <div className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${
                         vhost.enabled !== false 
                           ? 'bg-green-100 text-green-700' 
@@ -241,6 +250,19 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
                       </>
                     ) : (
                       <>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            if (onRefresh) onRefresh();
+                            toast.success('Application refreshed');
+                          }}
+                          className="group p-2.5 bg-white/80 backdrop-blur-xl border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 shadow-lg hover:shadow-xl"
+                          title="Refresh"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </motion.button>
+                        
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
