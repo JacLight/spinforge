@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Key, Globe, Trash2, Plus, Lock, Unlock, Copy, Check, Settings, Users, Sparkles, Edit, X, AlertCircle, ChevronRight, Cookie } from 'lucide-react';
+import { Shield, Key, Globe, Trash2, Plus, Lock, Unlock, Copy, Check, Settings, Users, Sparkles, Edit, X, AlertCircle, ChevronRight, Cookie, Info, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -69,139 +69,163 @@ function OAuthInlineConfig({ config, vhost, onChange }: { config: any; vhost: an
   };
 
   return (
-    <div className="p-3 bg-purple-50 rounded-lg space-y-3">
-      <h4 className="font-medium text-gray-900">OAuth 2.0 Configuration</h4>
+    <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-purple-500 rounded-lg">
+          <Users className="h-5 w-5 text-white" />
+        </div>
+        <h4 className="text-lg font-semibold text-gray-900">OAuth 2.0 Configuration</h4>
+      </div>
       
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Authorization URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Authorization URL</label>
           <input
             type="url"
             value={config.authUrl || ''}
             onChange={(e) => onChange({ ...config, authUrl: e.target.value })}
             placeholder="https://auth.example.com/authorize"
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Token URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Token URL</label>
           <input
             type="url"
             value={config.tokenUrl || ''}
             onChange={(e) => onChange({ ...config, tokenUrl: e.target.value })}
             placeholder="https://auth.example.com/token"
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Client ID</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Client ID</label>
           <input
             type="text"
             value={config.clientId || ''}
             onChange={(e) => onChange({ ...config, clientId: e.target.value })}
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            placeholder="your-client-id"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Client Secret</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Client Secret</label>
           <input
             type="password"
             value={config.clientSecret || ''}
             onChange={(e) => onChange({ ...config, clientSecret: e.target.value })}
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            placeholder="your-client-secret"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Scope</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Scope</label>
           <input
             type="text"
             value={config.scope || ''}
             onChange={(e) => onChange({ ...config, scope: e.target.value })}
             placeholder="openid profile email"
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Redirect URI (optional)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Redirect URI (optional)</label>
           <input
             type="text"
             value={config.redirectUri || ''}
             onChange={(e) => onChange({ ...config, redirectUri: e.target.value })}
             placeholder="https://app.example.com/callback"
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
           />
         </div>
       </div>
 
       {/* Claim Mappings */}
-      <div className="border-t pt-3">
-        <h5 className="text-sm font-medium text-gray-900 mb-2">Claim Mappings (Token → Cookies/Env)</h5>
+      <div className="border-t border-purple-200 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h5 className="text-base font-semibold text-gray-900">Token Claim Mappings</h5>
+          <span className="text-sm text-gray-500">Map token fields to storage</span>
+        </div>
         
         {/* Existing mappings */}
-        {config.claimMappings?.map((mapping: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 mb-2 p-2 bg-white rounded">
-            <code className="text-xs flex-1">{mapping.claimPath}</code>
-            <span className="text-xs text-gray-500">→</span>
-            {mapping.cookieName && (
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
-                🍪 {mapping.cookieName}
-              </span>
-            )}
-            {mapping.envVarName && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                📦 {mapping.envVarName}
-              </span>
-            )}
-            <button
-              onClick={() => removeClaimMapping(index)}
-              className="text-red-500 hover:text-red-700"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
+        <div className="space-y-2 mb-4">
+          {config.claimMappings?.map((mapping: any, index: number) => (
+            <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-200">
+              <code className="flex-1 text-sm font-mono text-purple-700">{mapping.claimPath}</code>
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+              <div className="flex items-center gap-2">
+                {mapping.cookieName && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg">
+                    <Cookie className="h-4 w-4" />
+                    <span className="text-sm font-medium">{mapping.cookieName}</span>
+                  </div>
+                )}
+                {mapping.envVarName && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                    <Package className="h-4 w-4" />
+                    <span className="text-sm font-medium">{mapping.envVarName}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => removeClaimMapping(index)}
+                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
 
         {/* Add new mapping */}
-        <div className="grid grid-cols-4 gap-2">
-          <input
-            type="text"
-            value={claimMapping.claimPath}
-            onChange={(e) => setClaimMapping({ ...claimMapping, claimPath: e.target.value })}
-            placeholder="user.email"
-            className="px-2 py-1 border border-gray-300 rounded text-xs"
-          />
-          <input
-            type="text"
-            value={claimMapping.cookieName}
-            onChange={(e) => setClaimMapping({ ...claimMapping, cookieName: e.target.value })}
-            placeholder="Cookie name"
-            className="px-2 py-1 border border-gray-300 rounded text-xs"
-          />
-          {vhost.type === 'container' && (
-            <input
-              type="text"
-              value={claimMapping.envVarName}
-              onChange={(e) => setClaimMapping({ ...claimMapping, envVarName: e.target.value })}
-              placeholder="ENV_VAR"
-              className="px-2 py-1 border border-gray-300 rounded text-xs"
-            />
-          )}
+        <div className="p-4 bg-purple-50 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Claim Path</label>
+              <input
+                type="text"
+                value={claimMapping.claimPath}
+                onChange={(e) => setClaimMapping({ ...claimMapping, claimPath: e.target.value })}
+                placeholder="user.email or sub"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Cookie Name (optional)</label>
+              <input
+                type="text"
+                value={claimMapping.cookieName}
+                onChange={(e) => setClaimMapping({ ...claimMapping, cookieName: e.target.value })}
+                placeholder="user_email"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            {vhost.type === 'container' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Env Variable (optional)</label>
+                <input
+                  type="text"
+                  value={claimMapping.envVarName}
+                  onChange={(e) => setClaimMapping({ ...claimMapping, envVarName: e.target.value })}
+                  placeholder="USER_EMAIL"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+            )}
+          </div>
           <button
             onClick={addClaimMapping}
-            className="px-2 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600"
+            className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm"
           >
-            Add
+            Add Mapping
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Map OAuth token claims to cookies {vhost.type === 'container' && 'or environment variables'}
-        </p>
       </div>
     </div>
   );
@@ -240,26 +264,52 @@ function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhos
   };
 
   return (
-    <div className="p-3 bg-green-50 rounded-lg space-y-3">
-      <h4 className="font-medium text-gray-900">Custom Authentication Configuration</h4>
+    <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl p-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-green-500 rounded-lg">
+          <Settings className="h-5 w-5 text-white" />
+        </div>
+        <h4 className="text-lg font-semibold text-gray-900">Custom Authentication</h4>
+      </div>
       
-      <div className="grid grid-cols-2 gap-3">
+      {/* Auth Flow Documentation */}
+      <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <h5 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
+          <Info className="h-4 w-4" />
+          How Authentication Works
+        </h5>
+        <ol className="text-sm text-amber-800 space-y-1.5 list-decimal list-inside">
+          <li>User visits protected route → Redirected to your auth URL with <code className="bg-amber-100 px-1 rounded text-xs">?return_url=original_url</code></li>
+          <li>Your auth service handles login (form, SSO, etc.)</li>
+          <li>After success, redirect to: <code className="bg-amber-100 px-1 rounded text-xs">{`https://${vhost.domain}/_auth/callback`}</code></li>
+          <li>Include user data as query params (they become cookies based on mappings below)</li>
+        </ol>
+        <div className="mt-3 p-2 bg-white rounded border border-amber-300">
+          <p className="text-xs text-amber-900">
+            <strong>Example callback:</strong><br/>
+            <code className="text-xs break-all">{`${vhost.domain}/_auth/callback?return_url=/dashboard&user=john@example.com&orgid=org_123&role=admin`}</code>
+          </p>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-gray-700 mb-1">Authentication Endpoint</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Authentication URL</label>
           <input
             type="url"
             value={config.authUrl || ''}
             onChange={(e) => onChange({ ...config, authUrl: e.target.value })}
-            placeholder="https://api.example.com/auth/verify"
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            placeholder="https://auth.example.com/login"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
           />
+          <p className="mt-1 text-xs text-gray-500">Users redirected here with return_url param</p>
         </div>
         <div>
-          <label className="block text-xs text-gray-700 mb-1">HTTP Method</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">HTTP Method</label>
           <select
             value={config.method || 'POST'}
             onChange={(e) => onChange({ ...config, method: e.target.value as 'GET' | 'POST' })}
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
           >
             <option value="POST">POST</option>
             <option value="GET">GET</option>
@@ -267,42 +317,51 @@ function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhos
         </div>
       </div>
 
-      {/* Custom Headers */}
+      {/* Request Headers */}
       <div>
-        <h5 className="text-sm font-medium text-gray-900 mb-2">Custom Headers</h5>
-        {Object.entries(config.headers || {}).map(([key, value]) => (
-          <div key={key} className="flex items-center gap-2 mb-1">
-            <code className="text-xs bg-white px-2 py-1 rounded">{key}: {value as string}</code>
-            <button
-              onClick={() => {
-                const headers = { ...config.headers };
-                delete headers[key];
-                onChange({ ...config, headers });
-              }}
-              className="text-red-500 hover:text-red-700"
-            >
-              <X className="h-3 w-3" />
+        <div className="flex items-center justify-between mb-3">
+          <h5 className="text-base font-semibold text-gray-900">Request Headers</h5>
+          <span className="text-sm text-gray-500">Headers sent to auth endpoint</span>
+        </div>
+        
+        <div className="space-y-2 mb-3">
+          {Object.entries(config.headers || {}).map(([key, value]) => (
+            <div key={key} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-green-200">
+              <code className="flex-1 text-sm font-mono">
+                <span className="text-green-700">{key}:</span> <span className="text-gray-700">{value as string}</span>
+              </code>
+              <button
+                onClick={() => {
+                  const headers = { ...config.headers };
+                  delete headers[key];
+                  onChange({ ...config, headers });
+                }}
+                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <X className="h-4 w-4" />
             </button>
-          </div>
-        ))}
-        <div className="flex gap-2">
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex gap-3">
           <input
             type="text"
             value={header.key}
             onChange={(e) => setHeader({ ...header, key: e.target.value })}
-            placeholder="Header name"
-            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+            placeholder="Header name (e.g., X-API-Key)"
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
           />
           <input
             type="text"
             value={header.value}
             onChange={(e) => setHeader({ ...header, value: e.target.value })}
             placeholder="Header value"
-            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
           />
           <button
             onClick={addHeader}
-            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+            className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
           >
             Add
           </button>
@@ -310,68 +369,85 @@ function CustomAuthInlineConfig({ config, vhost, onChange }: { config: any; vhos
       </div>
 
       {/* Response Mappings */}
-      <div className="border-t pt-3">
-        <h5 className="text-sm font-medium text-gray-900 mb-2">Response Mappings (JSON → Cookies/Env)</h5>
+      <div className="border-t border-green-200 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h5 className="text-base font-semibold text-gray-900">Response Field Mappings</h5>
+          <span className="text-sm text-gray-500">Map response data to storage</span>
+        </div>
         
         {/* Existing mappings */}
-        {config.responseMappings?.map((mapping: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 mb-2 p-2 bg-white rounded">
-            <code className="text-xs flex-1">{mapping.responsePath}</code>
-            <span className="text-xs text-gray-500">→</span>
-            {mapping.cookieName && (
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
-                🍪 {mapping.cookieName}
-              </span>
-            )}
-            {mapping.envVarName && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                📦 {mapping.envVarName}
-              </span>
-            )}
-            <button
-              onClick={() => removeResponseMapping(index)}
-              className="text-red-500 hover:text-red-700"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
+        <div className="space-y-2 mb-4">
+          {config.responseMappings?.map((mapping: any, index: number) => (
+            <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-green-200">
+              <code className="flex-1 text-sm font-mono text-green-700">{mapping.responsePath}</code>
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+              <div className="flex items-center gap-2">
+                {mapping.cookieName && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg">
+                    <Cookie className="h-4 w-4" />
+                    <span className="text-sm font-medium">{mapping.cookieName}</span>
+                  </div>
+                )}
+                {mapping.envVarName && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                    <Package className="h-4 w-4" />
+                    <span className="text-sm font-medium">{mapping.envVarName}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => removeResponseMapping(index)}
+                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
 
         {/* Add new mapping */}
-        <div className="grid grid-cols-4 gap-2">
-          <input
-            type="text"
-            value={responseMapping.responsePath}
-            onChange={(e) => setResponseMapping({ ...responseMapping, responsePath: e.target.value })}
-            placeholder="data.userId"
-            className="px-2 py-1 border border-gray-300 rounded text-xs"
-          />
-          <input
-            type="text"
-            value={responseMapping.cookieName}
-            onChange={(e) => setResponseMapping({ ...responseMapping, cookieName: e.target.value })}
-            placeholder="Cookie name"
-            className="px-2 py-1 border border-gray-300 rounded text-xs"
-          />
-          {vhost.type === 'container' && (
-            <input
-              type="text"
-              value={responseMapping.envVarName}
-              onChange={(e) => setResponseMapping({ ...responseMapping, envVarName: e.target.value })}
-              placeholder="ENV_VAR"
-              className="px-2 py-1 border border-gray-300 rounded text-xs"
-            />
-          )}
+        <div className="p-4 bg-green-50 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Response Path</label>
+              <input
+                type="text"
+                value={responseMapping.responsePath}
+                onChange={(e) => setResponseMapping({ ...responseMapping, responsePath: e.target.value })}
+                placeholder="data.userId or token"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Cookie Name (optional)</label>
+              <input
+                type="text"
+                value={responseMapping.cookieName}
+                onChange={(e) => setResponseMapping({ ...responseMapping, cookieName: e.target.value })}
+                placeholder="user_id"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
+            </div>
+            {vhost.type === 'container' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Env Variable (optional)</label>
+                <input
+                  type="text"
+                  value={responseMapping.envVarName}
+                  onChange={(e) => setResponseMapping({ ...responseMapping, envVarName: e.target.value })}
+                  placeholder="USER_ID"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            )}
+          </div>
           <button
             onClick={addResponseMapping}
-            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+            className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
           >
-            Add
+            Add Mapping
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Map auth response fields to cookies {vhost.type === 'container' && 'or environment variables'}
-        </p>
       </div>
     </div>
   );

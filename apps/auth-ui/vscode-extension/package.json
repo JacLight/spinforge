@@ -1,0 +1,62 @@
+{
+  "name": "appmint-auth",
+  "displayName": "AppMint Authentication",
+  "description": "Authentication extension for AppMint - users must authenticate before using the app",
+  "version": "0.0.1",
+  "publisher": "appmint",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "appmint-auth.login",
+        "title": "AppMint: Login"
+      },
+      {
+        "command": "appmint-auth.loginWebview",
+        "title": "AppMint: Login (Full Screen)"
+      },
+      {
+        "command": "appmint-auth.logout",
+        "title": "AppMint: Logout"
+      },
+      {
+        "command": "appmint-auth.status",
+        "title": "AppMint: Authentication Status"
+      }
+    ],
+    "configuration": {
+      "title": "AppMint Authentication",
+      "properties": {
+        "appmint-auth.apiUrl": {
+          "type": "string",
+          "default": "https://appengine.appmint.io",
+          "description": "AppMint API URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.3"
+  },
+  "dependencies": {
+    "axios": "^1.10.0"
+  }
+}
