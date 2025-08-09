@@ -169,6 +169,35 @@ router.post('/', async (req, res) => {
       }
     }
     
+    // Handle Load Balancer configuration
+    if (site.type === 'loadbalancer') {
+      // Ensure backends array exists and is valid
+      if (!site.backends || !Array.isArray(site.backends) || site.backends.length === 0) {
+        return res.status(400).json({ error: 'Load balancer requires at least one backend server' });
+      }
+      
+      // Validate each backend
+      site.backends = site.backends.map((backend, index) => ({
+        url: backend.url || '',
+        label: backend.label || `backend-${index + 1}`,
+        weight: backend.weight || 1,
+        enabled: backend.enabled !== false,
+        isLocal: backend.isLocal || false,
+        healthCheck: backend.healthCheck || {
+          path: '/health',
+          interval: 10,
+          timeout: 5,
+          unhealthyThreshold: 3,
+          healthyThreshold: 2
+        }
+      }));
+      
+      // Set default sticky session if not provided
+      site.stickySessionDuration = site.stickySessionDuration || 0;
+      
+      console.log(`Load balancer configuration for ${site.domain}:`, JSON.stringify(site.backends, null, 2));
+    }
+    
     // Handle Docker Compose deployment
     if (site.type === 'container' && site.composeConfig) {
       try {
@@ -336,6 +365,31 @@ router.put('/:domain', async (req, res) => {
       if (!site.target.match(/^https?:\/\//)) {
         return res.status(400).json({ error: 'Proxy target must start with http:// or https://' });
       }
+    }
+    
+    // Handle Load Balancer backend updates
+    if (site.type === 'loadbalancer' && updates.backends) {
+      // Validate backends
+      if (!Array.isArray(updates.backends)) {
+        return res.status(400).json({ error: 'Backends must be an array' });
+      }
+      
+      site.backends = updates.backends.map((backend, index) => ({
+        url: backend.url || '',
+        label: backend.label || `backend-${index + 1}`,
+        weight: backend.weight || 1,
+        enabled: backend.enabled !== false,
+        isLocal: backend.isLocal || false,
+        healthCheck: backend.healthCheck || {
+          path: '/health',
+          interval: 10,
+          timeout: 5,
+          unhealthyThreshold: 3,
+          healthyThreshold: 2
+        }
+      }));
+      
+      console.log(`Updated load balancer backends for ${domain}:`, JSON.stringify(site.backends, null, 2));
     }
     
     // Check if container configuration changed and needs rebuild

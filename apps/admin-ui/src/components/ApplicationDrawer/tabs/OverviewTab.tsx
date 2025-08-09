@@ -1,6 +1,8 @@
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { Shield, Globe, Server, Activity, CheckCircle, XCircle, Plus, Trash2, ExternalLink, ChevronRight, AlertTriangle, Package, Network, Edit2, Settings, Play, Square, RotateCcw, RefreshCw, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { hostingAPI } from '../../../services/hosting-api';
 
 interface OverviewTabProps {
   vhost: any;
@@ -29,6 +31,17 @@ const LoadBalancerSection = memo(({
   const [tempBackend, setTempBackend] = useState<any>(null);
   const [localBackends, setLocalBackends] = useState(backends);
   const [localStickyDuration, setLocalStickyDuration] = useState(stickySessionDuration);
+  const [searchQuery, setSearchQuery] = useState<{[key: number]: string}>({});
+  const [showSuggestions, setShowSuggestions] = useState<{[key: number]: boolean}>({});
+  
+  // Fetch existing applications for local backend selection
+  const { data: existingApps } = useQuery({
+    queryKey: ['applications'],
+    queryFn: () => hostingAPI.listVHosts(),
+    select: (data) => data.filter((app: any) => 
+      app.type === 'container' || app.type === 'proxy' || app.type === 'static'
+    )
+  });
 
   // Only update parent when editing is done
   const handleSaveBackend = useCallback((index: number) => {
@@ -103,65 +116,144 @@ const LoadBalancerSection = memo(({
                   {editingBackendIndex === index && isEditing ? (
                     <div className="bg-gradient-to-br from-blue-50 to-purple-50 -m-4 p-4 border-l-4 border-blue-500">
                       <div className="space-y-3">
-                        {/* Backend URL and Label */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Backend URL</label>
-                            <input
-                              type="text"
-                              value={tempBackend?.url || backend.url}
-                              onChange={(e) => setTempBackend({ ...(tempBackend || backend), url: e.target.value })}
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              placeholder="http://backend:3000"
-                            />
+                        {/* Modern Toggle and URL Input */}
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTempBackend({ 
+                                  ...(tempBackend || backend), 
+                                  isLocal: !(tempBackend?.isLocal ?? backend.isLocal),
+                                  url: ''
+                                });
+                                setSearchQuery({...searchQuery, [index]: ''});
+                              }}
+                              className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
+                                (tempBackend?.isLocal ?? backend.isLocal) ? 'bg-blue-600' : 'bg-gray-300'
+                              }`}
+                            >
+                              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform ${
+                                (tempBackend?.isLocal ?? backend.isLocal) ? 'translate-x-8' : 'translate-x-1'
+                              }`} />
+                            </button>
+                            <span className="text-sm font-medium text-gray-900">
+                              {(tempBackend?.isLocal ?? backend.isLocal) ? 'Local Service' : 'External URL'}
+                            </span>
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Label (for routing)</label>
+                          
+                          <div className="relative">
                             <input
                               type="text"
-                              value={tempBackend?.label || backend.label || ''}
-                              onChange={(e) => setTempBackend({ ...(tempBackend || backend), label: e.target.value })}
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              placeholder="backend-1"
+                              value={(tempBackend?.isLocal ?? backend.isLocal) ? (searchQuery[index] ?? tempBackend?.url ?? backend.url ?? '') : (tempBackend?.url || backend.url || '')}
+                              onChange={(e) => {
+                                if (tempBackend?.isLocal ?? backend.isLocal) {
+                                  setSearchQuery({...searchQuery, [index]: e.target.value});
+                                  setShowSuggestions({...showSuggestions, [index]: true});
+                                  if (!e.target.value) {
+                                    setTempBackend({ ...(tempBackend || backend), url: '' });
+                                  }
+                                } else {
+                                  setTempBackend({ ...(tempBackend || backend), url: e.target.value });
+                                }
+                              }}
+                              onFocus={() => {
+                                if (tempBackend?.isLocal ?? backend.isLocal) {
+                                  setShowSuggestions({...showSuggestions, [index]: true});
+                                }
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => {
+                                  setShowSuggestions({...showSuggestions, [index]: false});
+                                }, 200);
+                              }}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              placeholder={(tempBackend?.isLocal ?? backend.isLocal) ? "Search services (e.g., api, auth, db)..." : "https://api.example.com"}
                             />
+                            
+                            {/* Autocomplete Dropdown */}
+                            {(tempBackend?.isLocal ?? backend.isLocal) && showSuggestions[index] && existingApps && (
+                              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                                {(() => {
+                                  const query = (searchQuery[index] || '').toLowerCase();
+                                  const filtered = query 
+                                    ? existingApps.filter((app: any) => 
+                                        app.domain.toLowerCase().includes(query) ||
+                                        app.type.toLowerCase().includes(query) ||
+                                        (app.containerConfig?.image && app.containerConfig.image.toLowerCase().includes(query))
+                                      )
+                                    : existingApps;
+                                  
+                                  if (filtered.length === 0) {
+                                    return (
+                                      <div className="p-3 text-sm text-gray-500">
+                                        No services found matching "{searchQuery[index]}"
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  return filtered.slice(0, 100).map((app: any) => {
+                                    const url = app.type === 'container' 
+                                      ? `http://spinforge-${app.domain.replace(/\./g, '-')}:${app.containerConfig?.port || 80}`
+                                      : app.target || `http://${app.domain}`;
+                                    
+                                    return (
+                                      <button
+                                        key={app.domain}
+                                        type="button"
+                                        onClick={() => {
+                                          setTempBackend({ ...(tempBackend || backend), url });
+                                          setSearchQuery({...searchQuery, [index]: url});
+                                          setShowSuggestions({...showSuggestions, [index]: false});
+                                        }}
+                                        className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center justify-between group border-b border-gray-100 last:border-0"
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-sm text-gray-900 truncate">
+                                            {app.domain}
+                                          </div>
+                                          <div className="text-xs text-gray-500 truncate">
+                                            {app.type === 'container' && `${app.containerConfig?.image || 'Container'}`}
+                                            {app.type === 'proxy' && 'Reverse Proxy'}
+                                            {app.type === 'static' && 'Static Site'}
+                                          </div>
+                                        </div>
+                                        <div className="ml-2 text-xs text-gray-400 group-hover:text-blue-600">
+                                          {app.type}
+                                        </div>
+                                      </button>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        {/* Weight and Toggles */}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Weight</label>
+                        {/* Weight and Status */}
+                        <div className="flex gap-3">
+                          <div className="flex-1">
                             <input
                               type="number"
                               value={tempBackend?.weight || backend.weight || 1}
                               onChange={(e) => setTempBackend({ ...(tempBackend || backend), weight: parseInt(e.target.value) || 1 })}
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                              placeholder="Weight"
                               min="1"
                               max="100"
                             />
                           </div>
-                          <div className="flex items-center">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={tempBackend?.isLocal ?? backend.isLocal}
-                                onChange={(e) => setTempBackend({ ...(tempBackend || backend), isLocal: e.target.checked })}
-                                className="h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                              />
-                              <span className="text-sm text-gray-700">Local Backend</span>
-                            </label>
-                          </div>
-                          <div className="flex items-center">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={tempBackend?.enabled ?? backend.enabled !== false}
-                                onChange={(e) => setTempBackend({ ...(tempBackend || backend), enabled: e.target.checked })}
-                                className="h-4 w-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
-                              />
-                              <span className="text-sm text-gray-700">Enabled</span>
-                            </label>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setTempBackend({ ...(tempBackend || backend), enabled: !(tempBackend?.enabled ?? backend.enabled !== false) })}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                              (tempBackend?.enabled ?? backend.enabled !== false)
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
+                          >
+                            {(tempBackend?.enabled ?? backend.enabled !== false) ? 'Active' : 'Inactive'}
+                          </button>
                         </div>
 
                         {/* Health Check Configuration */}
@@ -224,6 +316,7 @@ const LoadBalancerSection = memo(({
                             onClick={() => {
                               setEditingBackendIndex(null);
                               setTempBackend(null);
+                              setSearchQuery({...searchQuery, [index]: ''});
                             }}
                             className="flex-1 px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-all"
                           >
