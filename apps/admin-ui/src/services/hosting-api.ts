@@ -8,18 +8,11 @@
 import axios from 'axios';
 
 // Dynamically determine API URL based on current location
-const getApiBaseUrl = () => {
-  // Use environment variable if set
+export const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
   
-  // In development, always use localhost:8080 for API
-  if (import.meta.env.DEV || window.location.port === '8083') {
-    return 'http://localhost:8080';
-  }
-  
-  // In production, API might be on same origin
   return window.origin;
 };
 

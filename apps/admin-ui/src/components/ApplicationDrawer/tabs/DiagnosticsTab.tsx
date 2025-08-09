@@ -20,6 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiClient } from '../../../services/api-client';
 
 interface DiagnosticsTabProps {
   vhost: any;
@@ -39,11 +40,7 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
   const checkEnvVars = async () => {
     try {
       if (vhost.type === 'container') {
-        const execResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command: 'env' })
-        });
+        const execResponse = await apiClient.post(`/api/sites/${vhost.domain}/container/exec`, { command: 'env' });
         if (execResponse.ok) {
           const result = await execResponse.json();
           const vars: Record<string, string> = {};
@@ -116,11 +113,7 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
     if (cmd) setActiveQuickCommand(cmd);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command })
-      });
+      const response = await apiClient.post(`/api/sites/${vhost.domain}/container/exec`, { command });
 
       if (response.ok) {
         const data = await response.json();

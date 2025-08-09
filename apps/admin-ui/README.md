@@ -36,7 +36,6 @@ The UI will be available at http://localhost:5173 (or the next available port).
 
 The UI connects to:
 - **API Server**: http://localhost:8080 (hosting API)
-- **SpinHub**: http://localhost:9004 (optional, for advanced features)
 - **KeyDB/Redis**: localhost:16378 (used by the API backend)
 
 ## Pages

@@ -11,7 +11,7 @@ export default function MetricsTab({ domain }: MetricsTabProps) {
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['vhost-metrics', domain],
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/metrics/sites/${domain}/metrics`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/metrics/sites/${domain}/metrics`);
       if (!response.ok) throw new Error('Failed to fetch metrics');
       const data = await response.json();
       

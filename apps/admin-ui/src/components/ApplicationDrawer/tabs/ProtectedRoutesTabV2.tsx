@@ -660,7 +660,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
 
   const loadAuthConfig = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth`);
       if (response.ok) {
         const data = await response.json();
         setIsProtectionEnabled(data.enabled || false);
@@ -679,7 +679,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     if (!newState) {
       // Clear all routes
       try {
-        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/clear`, {
+        await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/clear`, {
           method: 'DELETE'
         });
         setRoutes([]);
@@ -709,7 +709,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
         }
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/routes`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/routes`, {
         method: editingRoute ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRoute)
@@ -731,7 +731,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
 
   const deleteRoute = async (routeId: string) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/routes/${routeId}`, {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/routes/${routeId}`, {
         method: 'DELETE'
       });
       setRoutes(routes.filter(r => r.id !== routeId));
@@ -749,7 +749,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, key })

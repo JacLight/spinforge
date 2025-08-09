@@ -1065,7 +1065,7 @@ function ContainerManagement({ vhost }: { vhost: any }) {
   // Check container status
   const checkContainerStatus = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/health`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/health`);
       if (response.ok) {
         const data = await response.json();
         setContainerStatus(data.status);
@@ -1083,7 +1083,7 @@ function ContainerManagement({ vhost }: { vhost: any }) {
   const containerAction = async (action: string) => {
     setIsLoading(prev => ({ ...prev, [action]: true }));
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/${action}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/${action}`, {
         method: 'POST'
       });
 
@@ -1106,7 +1106,7 @@ function ContainerManagement({ vhost }: { vhost: any }) {
   const viewContainerLogs = async () => {
     setIsLoading(prev => ({ ...prev, logs: true }));
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/logs`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/logs`);
       if (response.ok) {
         const data = await response.json();
         // Create a new window/modal to show logs

@@ -25,6 +25,17 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  // Build initial domains array: [primary domain, ...aliases]
+  const initialDomains = (() => {
+    const domains = [vhost?.domain];
+    if (vhost?.aliases && vhost.aliases.length > 0) {
+      domains.push(...vhost.aliases);
+    } else if (vhost?.domains && vhost.domains.length > 1) {
+      domains.push(...vhost.domains.slice(1));
+    }
+    return domains;
+  })();
+
   const [formData, setFormData] = useState({
     enabled: vhost?.enabled !== false,
     target: vhost?.target || '',
@@ -40,7 +51,8 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
       healthCheck: {}
     },
     backends: vhost?.backends || vhost?.backendConfigs || [],
-    domains: vhost?.domains || [vhost?.domain],
+    domains: initialDomains,
+    aliases: vhost?.aliases || [],
     // Advanced settings
     requestTimeout: vhost?.requestTimeout || 60,
     maxRequestSize: vhost?.maxRequestSize || 100,
@@ -92,7 +104,12 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
 
   // Handle save
   const handleSave = () => {
-    updateMutation.mutate(formData);
+    // Extract aliases from domains array (all except the first which is the primary domain)
+    const dataToSave = {
+      ...formData,
+      aliases: formData.domains.slice(1) // All domains except the primary
+    };
+    updateMutation.mutate(dataToSave);
   };
 
   // Handle delete
@@ -129,6 +146,15 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
       containerConfig.env = fixedEnv;
     }
     
+    // Build domains array: [primary domain, ...aliases]
+    const domains = [vhost?.domain];
+    if (vhost?.aliases && vhost.aliases.length > 0) {
+      domains.push(...vhost.aliases);
+    } else if (vhost?.domains && vhost.domains.length > 1) {
+      // Fallback to domains array if it exists
+      domains.push(...vhost.domains.slice(1));
+    }
+    
     setFormData({
       enabled: vhost?.enabled !== false,
       target: vhost?.target || '',
@@ -136,7 +162,8 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
       customerId: vhost?.customerId || '',
       containerConfig,
       backends: vhost?.backends || [],
-      domains: vhost?.domains || [vhost?.domain],
+      domains,
+      aliases: vhost?.aliases || [],
     });
   }, [vhost]);
 

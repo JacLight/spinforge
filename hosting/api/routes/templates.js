@@ -203,9 +203,9 @@ router.post('/:id/deploy', async (req, res) => {
     config.createdAt = new Date().toISOString();
     config.updatedAt = new Date().toISOString();
     
-    // Deploy based on category
+    // Deploy based on category - all types use the sites API
+    // For containers, we need to namespace the container name
     if (templateData.category === 'container') {
-      // For containers, we need to namespace the container name
       // Format: spinforge-{customerName}-{deployName}
       config.containerName = `spinforge-${customerName}-${deployName}`;
       
@@ -226,31 +226,189 @@ router.post('/:id/deploy', async (req, res) => {
           'spinforge.managed': 'true'
         };
       }
-      
-      // Use container deployment logic
-      const axios = require('axios');
-      const response = await axios.post(
-        `http://localhost:${process.env.PORT || 8080}/api/containers/deploy`,
-        config
-      );
-      res.json(response.data);
-    } else if (templateData.category === 'proxy' || templateData.category === 'static' || templateData.category === 'loadbalancer') {
-      // Use site deployment logic
-      // Store with customer namespace in Redis
-      const siteKey = `site:${domain}`;
-      const customerSiteKey = `customer:${customerName}:site:${deployName}`;
-      
-      // Store both for lookup
-      await redisClient.set(siteKey, JSON.stringify(config));
-      await redisClient.set(customerSiteKey, JSON.stringify(config));
-      
-      // Add to customer's site list
-      await redisClient.sadd(`customer:${customerName}:sites`, domain);
-      
-      res.json({ success: true, site: config });
-    } else {
-      res.status(400).json({ error: 'Unknown template category' });
     }
+    
+    // All deployments use the site storage mechanism
+    const siteKey = `site:${domain}`;
+    const customerSiteKey = `customer:${customerName}:site:${deployName}`;
+    
+    // Store both for lookup
+    await redisClient.set(siteKey, JSON.stringify(config));
+    await redisClient.set(customerSiteKey, JSON.stringify(config));
+    
+    // Add to customer's site list
+    await redisClient.sAdd(`customer:${customerName}:sites`, domain);
+    
+    // For container deployments, create docker-compose stack
+    if (templateData.category === 'container' && config.containerConfig) {
+      try {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const fs = require('fs').promises;
+        const path = require('path');
+        const yaml = require('js-yaml');
+        const execAsync = promisify(exec);
+        
+        // Create namespace directory for this deployment
+        const namespace = `${customerName}-${deployName}`;
+        const deploymentDir = path.join('/data/deployments', namespace);
+        
+        // Create deployment directory
+        await fs.mkdir(deploymentDir, { recursive: true });
+        
+        // Build docker-compose configuration
+        const composeConfig = {
+          version: '3.8',
+          networks: {
+            [namespace]: {
+              name: `spinforge-${namespace}`,
+              driver: 'bridge'
+            }
+          },
+          services: {}
+        };
+        
+        // Main application service
+        const mainService = {
+          image: config.containerConfig.image,
+          container_name: config.containerName,
+          restart: config.containerConfig.restartPolicy || 'unless-stopped',
+          networks: [namespace],
+          environment: config.containerConfig.env || {},
+          labels: {
+            ...config.containerConfig.labels,
+            'traefik.enable': 'true',
+            'traefik.http.routers.' + namespace + '.rule': `Host(\`${domain}\`)`,
+            'traefik.http.services.' + namespace + '.loadbalancer.server.port': String(config.containerConfig.port || 80)
+          }
+        };
+        
+        // Add volumes if needed
+        if (config.containerConfig.volumeMounts && config.containerConfig.volumeMounts.length > 0) {
+          mainService.volumes = config.containerConfig.volumeMounts.map(v => 
+            `${namespace}-${v.name}:${v.path}`
+          );
+          
+          // Define named volumes
+          composeConfig.volumes = {};
+          config.containerConfig.volumeMounts.forEach(v => {
+            composeConfig.volumes[`${namespace}-${v.name}`] = {
+              name: `spinforge-${namespace}-${v.name}`
+            };
+          });
+        }
+        
+        // Add the main service
+        composeConfig.services.app = mainService;
+        
+        // Check if this template needs additional services (like database)
+        if (templateData.id === 'wordpress' || config.containerConfig.image.includes('wordpress')) {
+          // Add MySQL service for WordPress
+          composeConfig.services.mysql = {
+            image: 'mysql:8.0',
+            container_name: `${config.containerName}-mysql`,
+            restart: 'unless-stopped',
+            networks: [namespace],
+            environment: {
+              MYSQL_ROOT_PASSWORD: config.containerConfig.env.WORDPRESS_DB_PASSWORD || 'changeme',
+              MYSQL_DATABASE: config.containerConfig.env.WORDPRESS_DB_NAME || 'wordpress',
+              MYSQL_USER: config.containerConfig.env.WORDPRESS_DB_USER || 'wordpress',
+              MYSQL_PASSWORD: config.containerConfig.env.WORDPRESS_DB_PASSWORD || 'changeme'
+            },
+            volumes: [`${namespace}-mysql-data:/var/lib/mysql`],
+            labels: {
+              'spinforge.customer': customerName,
+              'spinforge.deployment': deployName,
+              'spinforge.service': 'mysql'
+            }
+          };
+          
+          // Update WordPress to use local MySQL
+          mainService.environment.WORDPRESS_DB_HOST = 'mysql';
+          mainService.depends_on = ['mysql'];
+          
+          // Add MySQL volume
+          if (!composeConfig.volumes) composeConfig.volumes = {};
+          composeConfig.volumes[`${namespace}-mysql-data`] = {
+            name: `spinforge-${namespace}-mysql-data`
+          };
+        }
+        
+        // Add similar patterns for other stacks (e.g., Drupal, Joomla, Ghost, etc.)
+        if (templateData.id === 'postgresql' || config.containerConfig.image.includes('postgres')) {
+          // PostgreSQL doesn't need additional services, but ensure data persistence
+          if (!mainService.volumes) mainService.volumes = [];
+          mainService.volumes.push(`${namespace}-postgres-data:/var/lib/postgresql/data`);
+          
+          if (!composeConfig.volumes) composeConfig.volumes = {};
+          composeConfig.volumes[`${namespace}-postgres-data`] = {
+            name: `spinforge-${namespace}-postgres-data`
+          };
+        }
+        
+        if (templateData.id === 'mongodb' || config.containerConfig.image.includes('mongo')) {
+          // MongoDB data persistence
+          if (!mainService.volumes) mainService.volumes = [];
+          mainService.volumes.push(`${namespace}-mongo-data:/data/db`);
+          
+          if (!composeConfig.volumes) composeConfig.volumes = {};
+          composeConfig.volumes[`${namespace}-mongo-data`] = {
+            name: `spinforge-${namespace}-mongo-data`
+          };
+        }
+        
+        // Write docker-compose.yml
+        const composeYaml = yaml.dump(composeConfig);
+        await fs.writeFile(path.join(deploymentDir, 'docker-compose.yml'), composeYaml);
+        
+        // Store deployment metadata
+        const metadata = {
+          namespace,
+          domain,
+          customerName,
+          deployName,
+          template: templateData.id,
+          createdAt: new Date().toISOString(),
+          composeFile: path.join(deploymentDir, 'docker-compose.yml')
+        };
+        await fs.writeFile(path.join(deploymentDir, 'metadata.json'), JSON.stringify(metadata, null, 2));
+        
+        console.log(`Deploying stack in namespace: ${namespace}`);
+        
+        // Deploy with docker-compose
+        const { stdout, stderr } = await execAsync(
+          `docker-compose up -d`,
+          { cwd: deploymentDir }
+        );
+        
+        if (stderr && !stderr.includes('WARNING')) {
+          console.error('Docker compose stderr:', stderr);
+        }
+        
+        config.status = 'running';
+        config.namespace = namespace;
+        config.deploymentDir = deploymentDir;
+        
+        // Update nginx to proxy to the container
+        config.target = `http://${config.containerName}:${config.containerConfig.port || 80}`;
+        
+        // Update the site config
+        await redisClient.set(siteKey, JSON.stringify(config));
+        await redisClient.set(customerSiteKey, JSON.stringify(config));
+        
+      } catch (dockerError) {
+        console.error('Docker deployment error:', dockerError);
+        // Still save the config even if container fails
+        config.status = 'error';
+        config.error = dockerError.message;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Deployed ${templateData.name} to ${domain}`,
+      site: config 
+    });
   } catch (error) {
     console.error('Error deploying from template:', error);
     res.status(500).json({ error: error.message });

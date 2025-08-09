@@ -257,7 +257,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   const { data: health, refetch: refetchHealth } = useQuery({
     queryKey: ['container-health', vhost.domain],
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/health`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/health`);
       if (!response.ok) throw new Error('Failed to get container health');
       return response.json();
     },
@@ -274,7 +274,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   const handleContainerAction = async (action: 'start' | 'stop' | 'restart' | 'rebuild') => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/${action}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/${action}`, {
         method: 'POST',
       });
       
@@ -304,7 +304,7 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/logs?lines=200`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/logs?lines=200`);
       if (!response.ok) throw new Error('Failed to fetch logs');
       const data = await response.json();
       setLogs(data.logs);
@@ -484,7 +484,7 @@ function Diagnostics({ vhost }: { vhost: any }) {
     setIsLoading(true);
     setActiveCheck('env');
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: 'env | sort' })
@@ -523,7 +523,7 @@ function Diagnostics({ vhost }: { vhost: any }) {
         backends.map(async (backend: any) => {
           const url = typeof backend === 'string' ? backend : backend.url;
           try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/health/check`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/health/check`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ url })
@@ -583,7 +583,7 @@ function Diagnostics({ vhost }: { vhost: any }) {
     try {
       // Make a request to the site and capture cookies
       const siteUrl = `http://${vhost.domain}`;
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/check-cookies`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/check-cookies`, {
         method: 'GET',
       });
       
@@ -629,7 +629,7 @@ function Diagnostics({ vhost }: { vhost: any }) {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/container/exec`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: customCommand })

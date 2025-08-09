@@ -66,7 +66,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
 
   const loadAuthConfig = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth`);
       if (response.ok) {
         const data = await response.json();
         setIsProtectionEnabled(data.enabled || false);
@@ -105,13 +105,13 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
       try {
         // Clear all auth rules
         for (const rule of pathRules) {
-          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths/${rule.id}`, {
+          await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/paths/${rule.id}`, {
             method: 'DELETE'
           });
         }
         
         for (const key of apiKeys) {
-          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys/${key.id}`, {
+          await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/keys/${key.id}`, {
             method: 'DELETE'
           });
         }
@@ -145,7 +145,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
       // If API key auth and no keys exist, create one first
       if (newRoute.authType === 'apiKey' && apiKeys.length === 0) {
         const newKey = generateApiKey();
-        const keyResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys`, {
+        const keyResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/keys`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: 'Auto-generated Key', key: newKey })
@@ -159,7 +159,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
       }
 
       // Add the route
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/paths`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRoute)
@@ -181,7 +181,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
 
   const deletePathRule = async (ruleId: string) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/paths/${ruleId}`, {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/paths/${ruleId}`, {
         method: 'DELETE'
       });
       setPathRules(pathRules.filter(r => r.id !== ruleId));
@@ -195,7 +195,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
     setIsLoading(true);
     try {
       const keyValue = generateApiKey();
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, key: keyValue })
@@ -216,7 +216,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
 
   const deleteApiKey = async (keyId: string) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/keys/${keyId}`, {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/keys/${keyId}`, {
         method: 'DELETE'
       });
       setApiKeys(apiKeys.filter(k => k.id !== keyId));
@@ -897,7 +897,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/oauth`, {
+                      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/oauth`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ...oauthConfig, enabled: true })
@@ -1159,7 +1159,7 @@ export default function ProtectedRoutesTab({ vhost, isEditing }: ProtectedRoutes
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/sites/${vhost.domain}/auth/custom`, {
+                      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/auth/custom`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ...customAuthConfig, enabled: true })
