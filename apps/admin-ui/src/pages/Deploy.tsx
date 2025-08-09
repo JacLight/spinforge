@@ -440,21 +440,15 @@ export default function Deploy() {
                               <div className="relative">
                                 <input
                                   type="text"
-                                  value={backend.isLocal ? (searchQuery[index] ?? backend.url ?? '') : (backend.url || '')}
+                                  value={backend.url || ''}
                                   onChange={(e) => {
+                                    const newBackends = [...backends];
+                                    newBackends[index] = { ...backend, url: e.target.value };
+                                    setBackends(newBackends);
+                                    
                                     if (backend.isLocal) {
                                       setSearchQuery({...searchQuery, [index]: e.target.value});
                                       setShowSuggestions({...showSuggestions, [index]: true});
-                                      // If user clears the field, also clear the URL
-                                      if (!e.target.value) {
-                                        const newBackends = [...backends];
-                                        newBackends[index] = { ...backend, url: '' };
-                                        setBackends(newBackends);
-                                      }
-                                    } else {
-                                      const newBackends = [...backends];
-                                      newBackends[index] = { ...backend, url: e.target.value };
-                                      setBackends(newBackends);
                                     }
                                   }}
                                   onFocus={() => {
@@ -476,7 +470,7 @@ export default function Deploy() {
                                 {backend.isLocal && showSuggestions[index] && existingApps && (
                                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                                     {(() => {
-                                      const query = (searchQuery[index] || '').toLowerCase();
+                                      const query = (backend.url || '').toLowerCase();
                                       const filtered = query 
                                         ? existingApps.filter((app: any) => 
                                             app.domain.toLowerCase().includes(query) ||
@@ -488,7 +482,7 @@ export default function Deploy() {
                                       if (filtered.length === 0) {
                                         return (
                                           <div className="p-3 text-sm text-gray-500">
-                                            No services found matching "{searchQuery[index]}"
+                                            No services found matching "{backend.url}"
                                           </div>
                                         );
                                       }
@@ -506,7 +500,6 @@ export default function Deploy() {
                                               const newBackends = [...backends];
                                               newBackends[index] = { ...backend, url };
                                               setBackends(newBackends);
-                                              setSearchQuery({...searchQuery, [index]: url});
                                               setShowSuggestions({...showSuggestions, [index]: false});
                                             }}
                                             className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center justify-between group border-b border-gray-100 last:border-0"

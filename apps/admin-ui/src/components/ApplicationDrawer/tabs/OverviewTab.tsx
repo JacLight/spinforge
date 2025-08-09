@@ -145,7 +145,7 @@ const LoadBalancerSection = memo(({
                           <div className="relative">
                             <input
                               type="text"
-                              value={(tempBackend?.isLocal ?? backend.isLocal) ? (searchQuery[index] ?? tempBackend?.url ?? backend.url ?? '') : (tempBackend?.url || backend.url || '')}
+                              value={tempBackend?.url ?? backend.url ?? ''}
                               onChange={(e) => {
                                 if (tempBackend?.isLocal ?? backend.isLocal) {
                                   setSearchQuery({...searchQuery, [index]: e.target.value});

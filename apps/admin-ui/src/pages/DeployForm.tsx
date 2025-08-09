@@ -243,6 +243,7 @@ export default function DeployForm() {
   const [formData, setFormData] = useState<any>({});
   const [isDeploying, setIsDeploying] = useState(false);
   const [backends, setBackends] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<{[key: number]: boolean}>({});
   
   // Fetch existing applications for local backend selection
   const { data: existingApps } = useQuery({
@@ -498,46 +499,12 @@ export default function DeployForm() {
                         </div>
                       </div>
 
-                      {/* Second Row - URL Input or Dropdown */}
+                      {/* Second Row - URL Input with Autocomplete */}
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Backend {backend.isLocal ? 'Application' : 'URL'}
                         </label>
-                        {backend.isLocal ? (
-                          // Dropdown for local applications
-                          <select
-                            value={backend.url || ''}
-                            onChange={(e) => {
-                              const newBackends = [...backends];
-                              const selectedApp = existingApps?.find((app: any) => {
-                                const internalUrl = app.type === 'container' 
-                                  ? `http://${app.containerName || `spinforge-${app.domain.replace(/\./g, '-')}`}:${app.containerConfig?.port || 80}`
-                                  : app.target || `http://${app.domain}`;
-                                return internalUrl === e.target.value;
-                              });
-                              newBackends[index] = { 
-                                ...backend, 
-                                url: e.target.value,
-                                label: backend.label || selectedApp?.domain || ''
-                              };
-                              setBackends(newBackends);
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value="">Select an application...</option>
-                            {existingApps && existingApps.map((app: any) => {
-                              const internalUrl = app.type === 'container' 
-                                ? `http://${app.containerName || `spinforge-${app.domain.replace(/\./g, '-')}`}:${app.containerConfig?.port || 80}`
-                                : app.target || `http://${app.domain}`;
-                              return (
-                                <option key={app.domain} value={internalUrl}>
-                                  {app.domain} ({app.type === 'container' ? `Container: ${app.containerConfig?.image}` : app.type})
-                                </option>
-                              );
-                            })}
-                          </select>
-                        ) : (
-                          // Text input for external URLs
+                        <div className="relative">
                           <input
                             type="text"
                             value={backend.url || ''}
@@ -545,11 +512,83 @@ export default function DeployForm() {
                               const newBackends = [...backends];
                               newBackends[index] = { ...backend, url: e.target.value };
                               setBackends(newBackends);
+                              
+                              if (backend.isLocal) {
+                                setShowSuggestions({...showSuggestions, [index]: true});
+                              }
+                            }}
+                            onFocus={() => {
+                              if (backend.isLocal) {
+                                setShowSuggestions({...showSuggestions, [index]: true});
+                              }
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setShowSuggestions({...showSuggestions, [index]: false});
+                              }, 200);
                             }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="http://backend-server:3000"
+                            placeholder={backend.isLocal ? "Search services (e.g., api, auth, db)..." : "http://backend-server:3000"}
                           />
-                        )}
+                          
+                          {/* Custom Autocomplete Dropdown */}
+                          {backend.isLocal && showSuggestions[index] && existingApps && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                              {(() => {
+                                const query = (backend.url || '').toLowerCase();
+                                const filtered = query 
+                                  ? existingApps.filter((app: any) => 
+                                      app.domain.toLowerCase().includes(query) ||
+                                      app.type.toLowerCase().includes(query) ||
+                                      (app.containerConfig?.image && app.containerConfig.image.toLowerCase().includes(query))
+                                    )
+                                  : existingApps;
+                                
+                                if (filtered.length === 0) {
+                                  return (
+                                    <div className="p-3 text-sm text-gray-500">
+                                      No services found matching "{backend.url}"
+                                    </div>
+                                  );
+                                }
+                                
+                                return filtered.slice(0, 100).map((app: any) => {
+                                  const url = app.type === 'container' 
+                                    ? `http://spinforge-${app.domain.replace(/\./g, '-')}:${app.containerConfig?.port || 80}`
+                                    : app.target || `http://${app.domain}`;
+                                  
+                                  return (
+                                    <button
+                                      key={app.domain}
+                                      type="button"
+                                      onClick={() => {
+                                        const newBackends = [...backends];
+                                        newBackends[index] = { ...backend, url };
+                                        setBackends(newBackends);
+                                        setShowSuggestions({...showSuggestions, [index]: false});
+                                      }}
+                                      className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center justify-between group border-b border-gray-100 last:border-0"
+                                    >
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-sm text-gray-900 truncate">
+                                          {app.domain}
+                                        </div>
+                                        <div className="text-xs text-gray-500 truncate">
+                                          {app.type === 'container' && `${app.containerConfig?.image || 'Container'}`}
+                                          {app.type === 'proxy' && 'Reverse Proxy'}
+                                          {app.type === 'static' && 'Static Site'}
+                                        </div>
+                                      </div>
+                                      <div className="ml-2 text-xs text-gray-400 group-hover:text-blue-600">
+                                        {app.type}
+                                      </div>
+                                    </button>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          )}
+                        </div>
                         {backend.isLocal && backend.url && (
                           <p className="mt-1 text-xs text-gray-500">
                             Internal service name: <code className="bg-gray-100 px-1 rounded">{backend.url}</code>
