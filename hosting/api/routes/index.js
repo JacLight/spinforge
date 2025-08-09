@@ -17,6 +17,7 @@ const miscRoutes = require('./misc');
 const versionRoutes = require('./version');
 const sslRoutes = require('./ssl');
 const authGatewayRoutes = require('./auth-gateway');
+const templatesRoutes = require('./templates');
 
 // Mount routes
 router.use('/sites', sitesRoutes);
@@ -25,6 +26,7 @@ router.use('/containers', containerRoutes); // Also mount at /containers for /co
 router.use('/metrics', metricsRoutes);
 router.use('/health', healthRoutes);
 router.use('/ssl', sslRoutes);
+router.use('/templates', templatesRoutes);
 router.use('/', authGatewayRoutes); // Auth gateway routes under /sites/:domain/auth
 router.use('/', miscRoutes);
 

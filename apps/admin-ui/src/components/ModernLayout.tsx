@@ -27,6 +27,7 @@ import {
   HardDrive,
   User,
   LogOut,
+  FileCode,
 } from "lucide-react";
 import { classNames } from "@/utils/helpers";
 
@@ -70,6 +71,12 @@ const navItems = [
     icon: Upload,
     label: "Deploy",
     color: "from-orange-500 to-orange-600",
+  },
+  {
+    path: "/templates",
+    icon: FileCode,
+    label: "Templates",
+    color: "from-indigo-500 to-indigo-600",
   },
   {
     path: "/customers",

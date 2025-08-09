@@ -34,6 +34,7 @@ import { AdminLogin } from "./components/AdminLogin";
 import { api } from "./services/api";
 import SystemHealthAlert from "./components/SystemHealthAlert";
 import ApplicationDetail from "./pages/ApplicationsDetail";
+import Templates from "./pages/Templates";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -118,6 +119,7 @@ function App() {
           <Route path="/admin-users" element={<AdminUserManagement />} />
           <Route path="/profile" element={<AdminProfile />} />
           <Route path="/dashboard/containers/:domain" element={<ContainerDashboard />} />
+          <Route path="/templates" element={<Templates />} />
         </Routes>
       </ModernLayout>
     </Router>
