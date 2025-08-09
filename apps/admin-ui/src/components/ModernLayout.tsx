@@ -79,6 +79,12 @@ const navItems = [
     color: "from-indigo-500 to-indigo-600",
   },
   {
+    path: "/certificates",
+    icon: Shield,
+    label: "Certificates",
+    color: "from-green-500 to-green-600",
+  },
+  {
     path: "/customers",
     icon: Users,
     label: "Customers",

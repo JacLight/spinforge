@@ -35,6 +35,7 @@ import { api } from "./services/api";
 import SystemHealthAlert from "./components/SystemHealthAlert";
 import ApplicationDetail from "./pages/ApplicationsDetail";
 import Templates from "./pages/Templates";
+import CertificateManager from "./pages/CertificateManager";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -120,6 +121,7 @@ function App() {
           <Route path="/profile" element={<AdminProfile />} />
           <Route path="/dashboard/containers/:domain" element={<ContainerDashboard />} />
           <Route path="/templates" element={<Templates />} />
+          <Route path="/certificates" element={<CertificateManager />} />
         </Routes>
       </ModernLayout>
     </Router>
