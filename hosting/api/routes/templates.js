@@ -263,6 +263,10 @@ router.post('/:id/deploy', async (req, res) => {
             [namespace]: {
               name: `spinforge-${namespace}`,
               driver: 'bridge'
+            },
+            spinforge: {
+              external: true,
+              name: 'spinforge_default'
             }
           },
           services: {}
@@ -273,13 +277,15 @@ router.post('/:id/deploy', async (req, res) => {
           image: config.containerConfig.image,
           container_name: config.containerName,
           restart: config.containerConfig.restartPolicy || 'unless-stopped',
-          networks: [namespace],
+          networks: [namespace, 'spinforge'],  // Connect to both networks
           environment: config.containerConfig.env || {},
           labels: {
             ...config.containerConfig.labels,
-            'traefik.enable': 'true',
-            'traefik.http.routers.' + namespace + '.rule': `Host(\`${domain}\`)`,
-            'traefik.http.services.' + namespace + '.loadbalancer.server.port': String(config.containerConfig.port || 80)
+            'spinforge.domain': domain,
+            'spinforge.namespace': namespace,
+            'spinforge.customer': customerName,
+            'spinforge.deployment': deployName,
+            'spinforge.port': String(config.containerConfig.port || 80)
           }
         };
         
@@ -308,7 +314,7 @@ router.post('/:id/deploy', async (req, res) => {
             image: 'mysql:8.0',
             container_name: `${config.containerName}-mysql`,
             restart: 'unless-stopped',
-            networks: [namespace],
+            networks: [namespace],  // MySQL only needs internal network
             environment: {
               MYSQL_ROOT_PASSWORD: config.containerConfig.env.WORDPRESS_DB_PASSWORD || 'changeme',
               MYSQL_DATABASE: config.containerConfig.env.WORDPRESS_DB_NAME || 'wordpress',
@@ -389,10 +395,27 @@ router.post('/:id/deploy', async (req, res) => {
         config.namespace = namespace;
         config.deploymentDir = deploymentDir;
         
-        // Update nginx to proxy to the container
+        // Since container is on spinforge network, proxy can reach it by container name
         config.target = `http://${config.containerName}:${config.containerConfig.port || 80}`;
         
-        // Update the site config
+        // Create the vhost configuration for the proxy
+        const vhostConfig = {
+          domain: domain,
+          type: 'proxy',
+          target: config.target,
+          ssl_enabled: false,
+          created_at: new Date().toISOString(),
+          template: templateData.id,
+          namespace: namespace,
+          customer: customerName,
+          deployment: deployName
+        };
+        
+        // Register with the proxy (save to Redis where OpenResty will find it)
+        const vhostKey = `vhost:${domain}`;
+        await redisClient.set(vhostKey, JSON.stringify(vhostConfig));
+        
+        // Also save customer mapping
         await redisClient.set(siteKey, JSON.stringify(config));
         await redisClient.set(customerSiteKey, JSON.stringify(config));
         

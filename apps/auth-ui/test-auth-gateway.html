@@ -40,9 +40,9 @@
     <h1>Auth Gateway Test</h1>
     
     <div class="test-section">
-        <h2>Test Traefik Redirect</h2>
-        <p>This simulates a redirect from Traefik to the auth gateway.</p>
-        <button onclick="testTraefikRedirect()">Test Redirect to Auth</button>
+        <h2>Test Proxy Redirect</h2>
+        <p>This simulates a redirect from the proxy to the auth gateway.</p>
+        <button onclick="testProxyRedirect()">Test Redirect to Auth</button>
     </div>
 
     <div class="test-section">
@@ -61,7 +61,7 @@
     </div>
 
     <script>
-        function testTraefikRedirect() {
+        function testProxyRedirect() {
             const returnUrl = encodeURIComponent(window.location.href);
             window.location.href = `http://localhost:5173/login?rd=${returnUrl}`;
         }

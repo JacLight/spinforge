@@ -1648,7 +1648,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                             <div>
                               <span className="text-sm font-medium text-gray-700">Preserve Host Header</span>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                Forward the original host header to the backend server (useful for routing in Kubernetes/Traefik)
+                                Forward the original host header to the backend server (useful for multi-tenant applications)
                               </p>
                             </div>
                           </label>
