@@ -16,7 +16,9 @@ local function get_redis_connection()
     red:set_timeouts(1000, 1000, 1000) -- 1 second timeout
     
     -- Use the same connection settings as router.lua
-    local ok, err = red:connect("keydb", 16378)
+    local redis_host = os.getenv("REDIS_HOST") or "keydb"
+    local redis_port = tonumber(os.getenv("REDIS_PORT") or 16378)
+    local ok, err = red:connect(redis_host, redis_port)
     if not ok then
         ngx.log(ngx.ERR, "Failed to connect to Redis: ", err)
         return nil, err

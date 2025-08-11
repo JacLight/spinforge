@@ -26,8 +26,9 @@ local function get_redis_connection()
     local red = redis:new()
     red:set_timeout(1000) -- 1 second timeout
     
-    -- Use hostname for Redis connection
-    local ok, err = red:connect("keydb", redis_port)
+    -- Use hostname from environment variable for Redis connection
+    local redis_host = _G.redis_host or os.getenv("REDIS_HOST") or "keydb"
+    local ok, err = red:connect(redis_host, redis_port)
     if not ok then
         ngx.log(ngx.ERR, "Failed to connect to Redis: ", err)
         return nil, err
@@ -341,13 +342,18 @@ if site.type == "static" then
     ngx.var.route_type = "static"
     ngx.log(ngx.INFO, "Router: Serving static site from: ", ngx.var.target_root, " for domain: ", host)
 elseif site.type == "proxy" then
-    ngx.var.route_type = "proxy"
+    -- Check if transparent proxy is enabled
+    if site.transparent_proxy then
+        ngx.var.route_type = "transparent_proxy"
+    else
+        ngx.var.route_type = "proxy"
+    end
     ngx.var.proxy_target = site.target or site.upstream
     -- Pass preserve_host setting to nginx
     if site.preserve_host then
         ngx.var.preserve_host = "1"
     end
-    ngx.log(ngx.INFO, "Proxying to: ", ngx.var.proxy_target, " preserve_host: ", site.preserve_host or false)
+    ngx.log(ngx.INFO, "Proxying to: ", ngx.var.proxy_target, " preserve_host: ", site.preserve_host or false, " transparent: ", site.transparent_proxy or false)
 elseif site.type == "container" then
     -- Container sites work like proxy sites
     ngx.var.route_type = "proxy"
