@@ -134,6 +134,30 @@ export default function SettingsTab({ vhost, isEditing, formData, setFormData }:
               )}
             </div>
 
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Transparent Proxy</label>
+                <p className="text-xs text-gray-500 mt-1">Remove proxy identification headers (stealth mode)</p>
+              </div>
+              {isEditing ? (
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.transparentProxy || false}
+                    onChange={(e) => setFormData({ ...formData, transparentProxy: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              ) : (
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  formData.transparentProxy ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {formData.transparentProxy ? 'Enabled' : 'Disabled'}
+                </span>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Proxy Timeout</label>
               <code className="text-sm bg-gray-100 px-3 py-1 rounded">60 seconds</code>

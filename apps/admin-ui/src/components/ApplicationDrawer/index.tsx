@@ -40,6 +40,7 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
     enabled: vhost?.enabled !== false,
     target: vhost?.target || '',
     preserveHost: vhost?.preserveHost || false,
+    transparentProxy: vhost?.transparentProxy || vhost?.transparent_proxy || false,
     customerId: vhost?.customerId || '',
     containerConfig: vhost?.containerConfig || {
       port: 3000,
