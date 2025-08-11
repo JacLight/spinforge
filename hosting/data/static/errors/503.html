@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Service Temporarily Unavailable - SpinForge</title>
+  <meta name="description" content="We're experiencing technical difficulties. Our AI-powered hosting platform will be back online shortly.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-white dark:bg-neutral-900">
+  <section class="min-h-screen flex items-center justify-center text-neutral-700 dark:text-neutral-300 body-font relative overflow-hidden bg-gradient-to-b from-white via-neutral-50 to-white dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
+    <!-- Background decoration -->
+    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500"></div>
+    <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-red-500/5 dark:bg-red-500/10 blur-3xl"></div>
+    <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-orange-500/5 dark:bg-orange-500/10 blur-3xl"></div>
+
+    <div class="container mx-auto flex flex-col md:flex-row items-center justify-center px-5 py-24 md:py-32 relative z-10">
+      <!-- Left: Content -->
+      <div class="flex flex-col items-start justify-center w-full md:w-1/2 mb-16 md:mb-0">
+        <span class="inline-block py-1 px-3 rounded-full bg-red-600/10 dark:bg-red-600/20 text-red-600 dark:text-red-400 text-sm font-medium tracking-widest mb-4">SERVICE UNAVAILABLE</span>
+        <h1 class="title-font sm:text-6xl text-4xl mb-6 font-extrabold text-neutral-900 dark:text-white leading-tight">
+          We'll Be <span class="bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-orange-500">Right Back</span>
+        </h1>
+        <p class="mb-8 leading-relaxed text-xl max-w-2xl">
+          Our servers are taking a quick power nap. Don't worry - our AI never sleeps!<br>
+          We're working on getting everything back online faster than you can deploy a static site.
+        </p>
+        <div class="flex flex-wrap gap-4">
+          <button onclick="window.location.reload()" class="text-white bg-red-600 border-0 py-3.5 px-10 focus:outline-none hover:bg-red-700 rounded-lg text-lg font-medium shadow-lg shadow-red-600/30 dark:shadow-red-600/20 transition-all duration-300 ease-in-out hover:-translate-y-0.5">
+            Try Again
+          </button>
+          <a href="https://status.spinforge.com" class="text-neutral-700 dark:text-neutral-300 bg-transparent border border-neutral-300 dark:border-neutral-600 py-3.5 px-10 focus:outline-none hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg text-lg font-medium transition-all duration-300 ease-in-out">
+            Check Status
+          </a>
+        </div>
+        <div class="mt-8 text-sm text-neutral-500 dark:text-neutral-400">
+          <p>💡 Tip: This page auto-refreshes every 30 seconds</p>
+        </div>
+      </div>
+      <!-- Right: Visual -->
+      <div class="w-full md:w-1/2 flex justify-center">
+        <div class="relative">
+          <div class="absolute -inset-1 bg-gradient-to-r from-red-600 to-orange-500 rounded-2xl blur opacity-30 dark:opacity-40 animate-pulse"></div>
+          <div class="relative bg-white dark:bg-neutral-800 rounded-xl shadow-2xl dark:shadow-neutral-900/50 p-12 transform transition-all duration-500 hover:scale-[1.02]">
+            <div class="text-center">
+              <div class="text-8xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-orange-500 mb-4">50X</div>
+              <div class="text-6xl mb-4">🔧</div>
+              <p class="text-xl font-medium text-neutral-600 dark:text-neutral-400">Under Maintenance</p>
+              <div class="mt-4">
+                <div class="inline-flex items-center space-x-2">
+                  <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  <div class="w-2 h-2 bg-orange-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+                  <div class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <script>
+    // Auto-refresh every 30 seconds
+    setTimeout(() => {
+      window.location.reload();
+    }, 30000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Ignore everything except what we need
+*
+
+# Include application files
+!package.json
+!package-lock.json
+!server-openresty.js
+!server.js
+!routes/
+!utils/
+!services/
+
+# Explicitly exclude even if included above
+node_modules/
+npm-debug.log*
+.env*
+*.log
+.git/
