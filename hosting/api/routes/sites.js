@@ -338,6 +338,28 @@ router.post('/', async (req, res) => {
       }
     }
     
+    // Handle additional endpoints for containers
+    if (site.type === 'container' && site.additionalEndpoints && site.additionalEndpoints.length > 0) {
+      for (const endpoint of site.additionalEndpoints) {
+        if (endpoint.enabled && endpoint.domain && endpoint.port) {
+          // Create a proxy route for each additional endpoint
+          const endpointRoute = {
+            type: 'proxy',
+            domain: endpoint.domain,
+            target: `http://${site.containerName || site.containerId}:${endpoint.port}`,
+            enabled: true,
+            parentSite: site.domain,
+            isAdditionalEndpoint: true,
+            createdAt: site.createdAt,
+            updatedAt: site.createdAt
+          };
+          
+          await redisClient.set(`site:${endpoint.domain}`, JSON.stringify(endpointRoute));
+          console.log(`Registered additional endpoint: ${endpoint.domain} -> ${site.containerName}:${endpoint.port}`);
+        }
+      }
+    }
+    
     res.status(201).json({ message: 'Site created', domain: site.domain });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -361,6 +383,22 @@ router.put('/:domain', async (req, res) => {
     // Apply updates
     Object.assign(site, updates);
     site.updatedAt = new Date().toISOString();
+    
+    // Handle additional endpoints for containers
+    if (site.type === 'container' && updates.additionalEndpoints) {
+      // Validate additional endpoints format
+      if (!Array.isArray(updates.additionalEndpoints)) {
+        return res.status(400).json({ error: 'Additional endpoints must be an array' });
+      }
+      
+      // Store additional endpoints with the site
+      site.additionalEndpoints = updates.additionalEndpoints.map(endpoint => ({
+        domain: endpoint.domain,
+        port: endpoint.port,
+        path: endpoint.path || '/',
+        enabled: endpoint.enabled !== false
+      }));
+    }
     
     // Validate and clean proxy target on updates
     if (site.type === 'proxy' && site.target) {
@@ -401,8 +439,46 @@ router.put('/:domain', async (req, res) => {
       updates.containerConfig && 
       JSON.stringify(oldSite.containerConfig) !== JSON.stringify(site.containerConfig);
     
+    // Clean up old additional endpoints first
+    if (oldSite.additionalEndpoints && oldSite.additionalEndpoints.length > 0) {
+      for (const oldEndpoint of oldSite.additionalEndpoints) {
+        if (oldEndpoint.domain) {
+          // Check if this endpoint still exists in the new configuration
+          const stillExists = site.additionalEndpoints && 
+            site.additionalEndpoints.some(ep => ep.domain === oldEndpoint.domain);
+          
+          if (!stillExists) {
+            await redisClient.del(`site:${oldEndpoint.domain}`);
+            console.log(`Removed old endpoint: ${oldEndpoint.domain}`);
+          }
+        }
+      }
+    }
+    
     // Save to Redis first
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    
+    // Register additional endpoints as separate routes
+    if (site.additionalEndpoints && site.additionalEndpoints.length > 0) {
+      for (const endpoint of site.additionalEndpoints) {
+        if (endpoint.enabled && endpoint.domain && endpoint.port) {
+          // Create a proxy route for each additional endpoint
+          const endpointRoute = {
+            type: 'proxy',
+            domain: endpoint.domain,
+            target: `http://${site.containerName || site.containerId}:${endpoint.port}`,
+            enabled: true,
+            parentSite: domain,
+            isAdditionalEndpoint: true,
+            createdAt: site.createdAt,
+            updatedAt: new Date().toISOString()
+          };
+          
+          await redisClient.set(`site:${endpoint.domain}`, JSON.stringify(endpointRoute));
+          console.log(`Registered additional endpoint: ${endpoint.domain} -> ${site.containerName}:${endpoint.port}`);
+        }
+      }
+    }
     
     // Handle container rebuild if configuration changed
     if (containerConfigChanged && site.containerName) {
@@ -591,6 +667,20 @@ router.delete('/:domain', async (req, res) => {
     
     // Handle container cleanup
     if (site.type === 'container') {
+      // Clean up additional endpoints first
+      if (site.additionalEndpoints && site.additionalEndpoints.length > 0) {
+        for (const endpoint of site.additionalEndpoints) {
+          if (endpoint.domain) {
+            try {
+              await redisClient.del(`site:${endpoint.domain}`);
+              console.log(`Deleted additional endpoint: ${endpoint.domain}`);
+            } catch (error) {
+              console.error(`Failed to delete endpoint ${endpoint.domain}:`, error);
+            }
+          }
+        }
+      }
+      
       // Check if it's a compose deployment
       if (site.composeProject) {
         try {
