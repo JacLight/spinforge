@@ -17,7 +17,9 @@ import {
   Copy,
   Check,
   Globe,
-  ChevronRight
+  ChevronRight,
+  Wrench,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '../../../services/api-client';
@@ -35,6 +37,7 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
   const [copiedText, setCopiedText] = useState('');
   const [activeQuickCommand, setActiveQuickCommand] = useState<string | null>(null);
   const [fileCheckResults, setFileCheckResults] = useState<{ [key: string]: string } | null>(null);
+  const [isFixingRouting, setIsFixingRouting] = useState(false);
 
   // Check environment variables
   const checkEnvVars = async () => {
@@ -200,9 +203,72 @@ export default function DiagnosticsTab({ vhost }: DiagnosticsTabProps) {
     setTimeout(() => setCopiedText(''), 2000);
   };
 
+  // Fix container routing
+  const fixContainerRouting = async () => {
+    setIsFixingRouting(true);
+    try {
+      const response = await apiClient.post('/api/diagnostics/fix-container-routing', {});
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          toast.success(`Fixed ${data.results?.fixed?.length || 0} container routes`);
+          
+          // Show details if available
+          if (data.results?.fixed?.length > 0) {
+            data.results.fixed.forEach((fix: any) => {
+              console.log(`Fixed ${fix.domain}: ${fix.oldTarget} -> ${fix.newTarget}`);
+            });
+          }
+        } else {
+          toast.error('Failed to fix container routing');
+        }
+      } else {
+        toast.error('Failed to fix container routing');
+      }
+    } catch (error) {
+      console.error('Fix container routing error:', error);
+      toast.error('Failed to fix container routing');
+    } finally {
+      setIsFixingRouting(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
+      {/* Container Routing Fix - Only for container sites */}
+      {vhost.type === 'container' && (
+        <div className="bg-red-50 backdrop-blur-sm rounded-2xl border border-red-200 shadow-lg p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-red-900 mb-2">Container Routing Issue?</h3>
+              <p className="text-sm text-red-700">
+                If your container site is showing "Not Found" or connection errors, the Docker IP may have changed.
+                Click the button to fix container routing by updating to the current IP address.
+              </p>
+            </div>
+            <button
+              onClick={fixContainerRouting}
+              disabled={isFixingRouting}
+              className="ml-4 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+            >
+              {isFixingRouting ? (
+                <>
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                  Fixing...
+                </>
+              ) : (
+                <>
+                  <Wrench className="h-5 w-5" />
+                  Fix Routing
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quick Diagnostics - Available for all site types */}
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Diagnostics</h3>

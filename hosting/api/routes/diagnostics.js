@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const Docker = require('dockerode');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const redis = require('../utils/redis');
 const logger = require('../utils/logger');
 
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+const execAsync = promisify(exec);
 
 /**
  * Fix container routing by re-discovering all containers and updating their targets
@@ -19,32 +20,36 @@ router.post('/fix-container-routing', async (req, res) => {
       notFound: []
     };
     
-    // Get all running containers
-    const containers = await docker.listContainers({ all: false });
+    // Get all running containers using docker CLI
+    const { stdout: containerList } = await execAsync('docker ps --format "{{.Names}}:{{.ID}}"');
     const containerMap = new Map();
     
     // Build a map of container names to their current network info
-    for (const containerInfo of containers) {
-      const containerName = containerInfo.Names[0].replace('/', '');
-      const container = docker.getContainer(containerInfo.Id);
-      const inspection = await container.inspect();
+    for (const line of containerList.trim().split('\n')) {
+      if (!line) continue;
       
-      // Get IP from spinforge network
-      const networks = inspection.NetworkSettings.Networks;
-      let containerIP = null;
+      const [containerName, containerId] = line.split(':');
       
-      if (networks['spinforge_spinforge']) {
-        containerIP = networks['spinforge_spinforge'].IPAddress;
-      } else if (networks['spinforge']) {
-        containerIP = networks['spinforge'].IPAddress;
-      }
-      
-      if (containerIP) {
-        containerMap.set(containerName, {
-          id: containerInfo.Id,
-          ip: containerIP,
-          ports: inspection.Config.ExposedPorts
-        });
+      if (containerName.startsWith('spinforge-')) {
+        try {
+          // Get container IP from the spinforge network
+          const { stdout: ipOutput } = await execAsync(
+            `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${containerName}`
+          );
+          
+          const containerIP = ipOutput.trim();
+          
+          if (containerIP) {
+            containerMap.set(containerName, {
+              id: containerId,
+              ip: containerIP
+            });
+            
+            logger.debug(`Found container ${containerName} with IP ${containerIP}`);
+          }
+        } catch (error) {
+          logger.error(`Failed to get IP for container ${containerName}:`, error);
+        }
       }
     }
     
@@ -134,9 +139,18 @@ router.post('/fix-container-routing', async (req, res) => {
     
     logger.info(`Container routing fix complete. Fixed: ${results.fixed.length}, Not found: ${results.notFound.length}, Failed: ${results.failed.length}`);
     
+    // Reload OpenResty to clear route cache
+    try {
+      await execAsync('docker exec spinforge-openresty openresty -s reload');
+      logger.info('OpenResty reloaded to apply new routes');
+    } catch (error) {
+      logger.error('Failed to reload OpenResty:', error);
+      // Don't fail the whole operation if reload fails
+    }
+    
     res.json({
       success: true,
-      message: `Fixed ${results.fixed.length} container routes`,
+      message: `Fixed ${results.fixed.length} container routes and reloaded OpenResty`,
       results: results
     });
     
@@ -160,30 +174,31 @@ router.get('/container-routing-status', async (req, res) => {
       issues: []
     };
     
-    // Get all running containers
-    const containers = await docker.listContainers({ all: false });
+    // Get all running containers using docker CLI
+    const { stdout: containerList } = await execAsync('docker ps --format "{{.Names}}:{{.ID}}:{{.State}}:{{.Ports}}"');
     
-    for (const containerInfo of containers) {
-      const containerName = containerInfo.Names[0].replace('/', '');
+    for (const line of containerList.trim().split('\n')) {
+      if (!line) continue;
+      
+      const [containerName, containerId, state, ports] = line.split(':');
       
       if (containerName.startsWith('spinforge-')) {
-        const container = docker.getContainer(containerInfo.Id);
-        const inspection = await container.inspect();
-        
-        const networks = inspection.NetworkSettings.Networks;
-        let ip = null;
-        
-        if (networks['spinforge_spinforge']) {
-          ip = networks['spinforge_spinforge'].IPAddress;
+        try {
+          // Get container IP
+          const { stdout: ipOutput } = await execAsync(
+            `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${containerName}`
+          );
+          
+          diagnostics.containers.push({
+            name: containerName,
+            id: containerId.substring(0, 12),
+            ip: ipOutput.trim(),
+            state: state,
+            ports: ports
+          });
+        } catch (error) {
+          // Container might have stopped, skip it
         }
-        
-        diagnostics.containers.push({
-          name: containerName,
-          id: containerInfo.Id.substring(0, 12),
-          ip: ip,
-          state: containerInfo.State,
-          ports: containerInfo.Ports
-        });
       }
     }
     
