@@ -67,6 +67,11 @@ export default function Deploy() {
     containerPort: "80",
     containerEnvVars: "",
     
+    // Private registry credentials
+    registryUrl: "",
+    registryUsername: "",
+    registryPassword: "",
+    
     // Advanced container config (Docker Compose)
     composeYaml: "",
     
@@ -175,14 +180,26 @@ export default function Deploy() {
                 return { key: key.trim(), value: valueParts.join('=').trim() };
               });
             
+            // Build container config
+            const containerConfig: any = {
+              image: formData.containerImage,
+              port: parseInt(formData.containerPort) || 80,
+              env: envArray,
+              restartPolicy: "unless-stopped",
+            };
+            
+            // Add registry credentials if provided
+            if (formData.registryUsername && formData.registryPassword) {
+              containerConfig.registryCredentials = {
+                registry: formData.registryUrl || undefined,
+                username: formData.registryUsername,
+                password: formData.registryPassword,
+              };
+            }
+            
             return hostingAPI.createVHost({
               ...baseConfig,
-              containerConfig: {
-                image: formData.containerImage,
-                port: parseInt(formData.containerPort) || 80,
-                env: envArray,
-                restartPolicy: "unless-stopped",
-              },
+              containerConfig,
             } as any);
           }
 
@@ -373,10 +390,16 @@ export default function Deploy() {
                     image={formData.containerImage}
                     port={formData.containerPort}
                     envVars={formData.containerEnvVars}
+                    registryUrl={formData.registryUrl}
+                    registryUsername={formData.registryUsername}
+                    registryPassword={formData.registryPassword}
                     composeYaml={formData.composeYaml}
                     onImageChange={(containerImage) => setFormData({ ...formData, containerImage })}
                     onPortChange={(containerPort) => setFormData({ ...formData, containerPort })}
                     onEnvVarsChange={(containerEnvVars) => setFormData({ ...formData, containerEnvVars })}
+                    onRegistryUrlChange={(registryUrl) => setFormData({ ...formData, registryUrl })}
+                    onRegistryUsernameChange={(registryUsername) => setFormData({ ...formData, registryUsername })}
+                    onRegistryPasswordChange={(registryPassword) => setFormData({ ...formData, registryPassword })}
                     onComposeYamlChange={(composeYaml) => setFormData({ ...formData, composeYaml })}
                   />
                 )}
