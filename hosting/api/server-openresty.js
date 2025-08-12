@@ -90,4 +90,13 @@ app.listen(PORT, async () => {
   } catch (error) {
     logger.error('Failed to initialize SSL cache:', error);
   }
+  
+  // Start container recovery service
+  try {
+    const containerRecovery = require('./services/container-recovery');
+    await containerRecovery.start();
+    logger.info('Container recovery service started');
+  } catch (error) {
+    logger.error('Failed to start container recovery:', error);
+  }
 });
