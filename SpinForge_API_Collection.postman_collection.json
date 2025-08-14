@@ -1,0 +1,1333 @@
+{
+  "info": {
+    "name": "SpinForge API Collection",
+    "description": "Complete API collection for SpinForge - AI-Native Zero Configuration Hosting Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testDomain",
+      "value": "example.com",
+      "type": "string"
+    },
+    {
+      "key": "customerId",
+      "value": "customer123",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Customer Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"name\": \"John Doe\",\n  \"company\": \"Example Corp\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/customer/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "customer", "register"]
+            }
+          }
+        },
+        {
+          "name": "Customer Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set('authToken', response.token);",
+                  "    pm.environment.set('customerId', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/customer/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "customer", "login"]
+            }
+          }
+        },
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "login"]
+            }
+          }
+        },
+        {
+          "name": "Customer Verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/customer/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "customer", "verify"]
+            }
+          }
+        },
+        {
+          "name": "Customer Logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/customer/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "customer", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🌐 Sites Management",
+      "item": [
+        {
+          "name": "List All Sites",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/sites?search=&customer={{customerId}}&type=&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites"],
+              "query": [
+                {"key": "search", "value": ""},
+                {"key": "customer", "value": "{{customerId}}"},
+                {"key": "type", "value": ""},
+                {"key": "limit", "value": "20"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Site Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/sites/{{testDomain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites", "{{testDomain}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Static Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"static.example.com\",\n  \"type\": \"static\",\n  \"enabled\": true,\n  \"ssl_enabled\": false,\n  \"customerId\": \"{{customerId}}\",\n  \"aliases\": [\"www.static.example.com\"],\n  \"indexFile\": \"index.html\",\n  \"errorFile\": \"404.html\",\n  \"directoryListing\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites"]
+            }
+          }
+        },
+        {
+          "name": "Create Proxy Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"proxy.example.com\",\n  \"type\": \"proxy\",\n  \"target\": \"http://backend-service:3000\",\n  \"enabled\": true,\n  \"ssl_enabled\": false,\n  \"customerId\": \"{{customerId}}\",\n  \"websocketEnabled\": true,\n  \"gzipEnabled\": true,\n  \"requestTimeout\": 60,\n  \"maxRequestSize\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites"]
+            }
+          }
+        },
+        {
+          "name": "Create Container Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"app.example.com\",\n  \"type\": \"container\",\n  \"enabled\": true,\n  \"ssl_enabled\": false,\n  \"customerId\": \"{{customerId}}\",\n  \"containerConfig\": {\n    \"image\": \"nginx:latest\",\n    \"port\": 80,\n    \"env\": [\n      {\"key\": \"NODE_ENV\", \"value\": \"production\"},\n      {\"key\": \"API_KEY\", \"value\": \"secret123\"}\n    ],\n    \"volumes\": [],\n    \"restartPolicy\": \"unless-stopped\",\n    \"memoryLimit\": \"512m\",\n    \"cpuLimit\": \"0.5\"\n  },\n  \"additionalEndpoints\": [\n    {\n      \"domain\": \"api.example.com\",\n      \"port\": 3000,\n      \"enabled\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites"]
+            }
+          }
+        },
+        {
+          "name": "Create Load Balancer Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"lb.example.com\",\n  \"type\": \"loadbalancer\",\n  \"enabled\": true,\n  \"ssl_enabled\": false,\n  \"customerId\": \"{{customerId}}\",\n  \"backends\": [\n    {\n      \"url\": \"http://backend1:3000\",\n      \"label\": \"primary\",\n      \"weight\": 2,\n      \"enabled\": true\n    },\n    {\n      \"url\": \"http://backend2:3000\",\n      \"label\": \"secondary\",\n      \"weight\": 1,\n      \"enabled\": true\n    }\n  ],\n  \"lbMethod\": \"round-robin\",\n  \"stickySessionDuration\": 0,\n  \"routingRules\": [\n    {\n      \"type\": \"cookie\",\n      \"matchType\": \"exact\",\n      \"name\": \"version\",\n      \"value\": \"beta\",\n      \"targetLabel\": \"secondary\",\n      \"priority\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites"]
+            }
+          }
+        },
+        {
+          "name": "Create Site with Auth",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"protected.example.com\",\n  \"type\": \"static\",\n  \"enabled\": true,\n  \"ssl_enabled\": false,\n  \"customerId\": \"{{customerId}}\",\n  \"authConfig\": {\n    \"enabled\": true,\n    \"routes\": [\n      {\n        \"pattern\": \"/*\",\n        \"authType\": \"custom\",\n        \"unauthorizedRedirect\": \"https://login.example.com\",\n        \"customAuthConfig\": {\n          \"authUrl\": \"https://auth.example.com/validate\",\n          \"tokenParam\": \"X-Auth-Token\",\n          \"responseMappings\": [\n            {\n              \"responsePath\": \"X-Auth-Token\",\n              \"cookieName\": \"X_Auth_Token\",\n              \"envVarName\": \"X_AUTH_TOKEN\",\n              \"isToken\": true\n            },\n            {\n              \"responsePath\": \"X-Email\",\n              \"cookieName\": \"X_Email\",\n              \"envVarName\": \"X_EMAIL\"\n            }\n          ]\n        }\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites"]
+            }
+          }
+        },
+        {
+          "name": "Update Site",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"ssl_enabled\": true,\n  \"aliases\": [\"www.{{testDomain}}\", \"api.{{testDomain}}\"],\n  \"requestTimeout\": 120,\n  \"maxRequestSize\": 200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites/{{testDomain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites", "{{testDomain}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Site",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/sites/{{testDomain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites", "{{testDomain}}"]
+            }
+          }
+        },
+        {
+          "name": "Upload Static Files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "zipfile",
+                  "type": "file",
+                  "src": "/path/to/your/website.zip"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sites/{{testDomain}}/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sites", "{{testDomain}}", "upload"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Auth Gateway",
+      "item": [
+        {
+          "name": "Get Auth Config",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth"]
+            }
+          }
+        },
+        {
+          "name": "Add Auth Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pattern\": \"/admin/*\",\n  \"authType\": \"custom\",\n  \"unauthorizedRedirect\": \"https://login.example.com\",\n  \"customAuthConfig\": {\n    \"authUrl\": \"https://auth.example.com/validate\",\n    \"tokenParam\": \"X-Auth-Token\",\n    \"responseMappings\": [\n      {\n        \"responsePath\": \"X-Auth-Token\",\n        \"cookieName\": \"auth_token\",\n        \"envVarName\": \"AUTH_TOKEN\",\n        \"isToken\": true\n      },\n      {\n        \"responsePath\": \"X-User-Id\",\n        \"cookieName\": \"user_id\",\n        \"envVarName\": \"USER_ID\"\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "routes"]
+            }
+          }
+        },
+        {
+          "name": "Update Auth Route",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"route-id-here\",\n  \"pattern\": \"/admin/*\",\n  \"authType\": \"basic\",\n  \"unauthorizedRedirect\": \"https://login.example.com/new\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "routes"]
+            }
+          }
+        },
+        {
+          "name": "Delete Auth Route",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/routes/route-id-here",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "routes", "route-id-here"]
+            }
+          }
+        },
+        {
+          "name": "Add API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Production API Key\",\n  \"key\": \"sk_live_1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "keys"]
+            }
+          }
+        },
+        {
+          "name": "Delete API Key",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/keys/key-id-here",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "keys", "key-id-here"]
+            }
+          }
+        },
+        {
+          "name": "Validate API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"sk_live_1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "validate"]
+            }
+          }
+        },
+        {
+          "name": "Clear Auth Config",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth-gateway/sites/{{testDomain}}/auth/clear",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth-gateway", "sites", "{{testDomain}}", "auth", "clear"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🐳 Container Management",
+      "item": [
+        {
+          "name": "Stop Container",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/stop",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "stop"]
+            }
+          }
+        },
+        {
+          "name": "Start Container",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "start"]
+            }
+          }
+        },
+        {
+          "name": "Restart Container",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/restart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "restart"]
+            }
+          }
+        },
+        {
+          "name": "Rebuild Container",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forceRecreate\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/rebuild",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "rebuild"]
+            }
+          }
+        },
+        {
+          "name": "Get Container Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/logs?tail=100&follow=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "logs"],
+              "query": [
+                {"key": "tail", "value": "100"},
+                {"key": "follow", "value": "false"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Container Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Container Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "health"]
+            }
+          }
+        },
+        {
+          "name": "Execute Command",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"ls -la /app\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/{{testDomain}}/container/exec",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "{{testDomain}}", "container", "exec"]
+            }
+          }
+        },
+        {
+          "name": "List All Containers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/containers/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "containers", "stats"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 SSL/Certificates",
+      "item": [
+        {
+          "name": "List All Certificates",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/certificates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "certificates"]
+            }
+          }
+        },
+        {
+          "name": "Generate Let's Encrypt Certificate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"{{testDomain}}\",\n  \"email\": \"admin@example.com\",\n  \"staging\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/certificates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "certificates"]
+            }
+          }
+        },
+        {
+          "name": "Upload Custom Certificate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"{{testDomain}}\",\n  \"certificate\": \"-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\",\n  \"privateKey\": \"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\",\n  \"chain\": \"-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/certificates/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "certificates", "upload"]
+            }
+          }
+        },
+        {
+          "name": "Validate Certificate",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/certificates/{{testDomain}}/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "certificates", "{{testDomain}}", "validate"]
+            }
+          }
+        },
+        {
+          "name": "Renew Certificate",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/certificates/{{testDomain}}/renew",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "certificates", "{{testDomain}}", "renew"]
+            }
+          }
+        },
+        {
+          "name": "Delete Certificate",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/certificates/{{testDomain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "certificates", "{{testDomain}}"]
+            }
+          }
+        },
+        {
+          "name": "Cache Certificate",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/cache/{{testDomain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "cache", "{{testDomain}}"]
+            }
+          }
+        },
+        {
+          "name": "Clear Certificate Cache",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/cache/{{testDomain}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "cache", "{{testDomain}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Cache Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/ssl/cache-stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ssl", "cache-stats"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Metrics & Monitoring",
+      "item": [
+        {
+          "name": "Get Site Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/sites/{{testDomain}}/metrics?period=24h",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "sites", "{{testDomain}}", "metrics"],
+              "query": [
+                {"key": "period", "value": "24h"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Site Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/sites/{{testDomain}}/logs?lines=100&type=access",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "sites", "{{testDomain}}", "logs"],
+              "query": [
+                {"key": "lines", "value": "100"},
+                {"key": "type", "value": "access"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Global Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/global",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "global"]
+            }
+          }
+        },
+        {
+          "name": "Get All Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "all"]
+            }
+          }
+        },
+        {
+          "name": "Get Deployment Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/deployments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "deployments"]
+            }
+          }
+        },
+        {
+          "name": "Get Bandwidth Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/bandwidth",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "bandwidth"]
+            }
+          }
+        },
+        {
+          "name": "Get Request Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics/requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics", "requests"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💼 Customer Portal",
+      "item": [
+        {
+          "name": "Get Customer Sites",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customer", "sites"]
+            }
+          }
+        },
+        {
+          "name": "Search Customer Sites",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/sites/search?q=example",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customer", "sites", "search"],
+              "query": [
+                {"key": "q", "value": "example"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Customer Deployments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/deployments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customer", "deployments"]
+            }
+          }
+        },
+        {
+          "name": "Get Customer Domains",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/domains",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customer", "domains"]
+            }
+          }
+        },
+        {
+          "name": "Get Customer Usage",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/usage?period=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customer", "usage"],
+              "query": [
+                {"key": "period", "value": "month"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deploy Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My App\",\n  \"domain\": \"myapp.example.com\",\n  \"type\": \"container\",\n  \"config\": {\n    \"image\": \"node:18-alpine\",\n    \"port\": 3000,\n    \"env\": {\n      \"NODE_ENV\": \"production\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/deploy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customer", "deploy"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👨‍💼 Admin Panel",
+      "item": [
+        {
+          "name": "List Customers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "customers"]
+            }
+          }
+        },
+        {
+          "name": "Get Customer",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newcustomer@example.com\",\n  \"name\": \"New Customer\",\n  \"company\": \"New Corp\",\n  \"plan\": \"pro\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "customers"]
+            }
+          }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Customer\",\n  \"company\": \"Updated Corp\",\n  \"plan\": \"enterprise\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Customer",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Customer Routes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/customers/{{customerId}}/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "customers", "{{customerId}}", "routes"]
+            }
+          }
+        },
+        {
+          "name": "Get Admin Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"siteName\": \"SpinForge Platform\",\n  \"adminEmail\": \"admin@spinforge.com\",\n  \"maintenanceMode\": false,\n  \"defaultPlan\": \"free\",\n  \"maxSitesPerCustomer\": 10,\n  \"maxBandwidthGB\": 100,\n  \"enableAutoSSL\": true,\n  \"enableContainers\": true,\n  \"enableLoadBalancers\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "settings"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏥 Health & Diagnostics",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        },
+        {
+          "name": "API Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/health/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "api"]
+            }
+          }
+        },
+        {
+          "name": "System Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/health/system",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "system"]
+            }
+          }
+        },
+        {
+          "name": "Deep Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/health/_health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "_health"]
+            }
+          }
+        },
+        {
+          "name": "Check Service Health",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"services\": [\"redis\", \"docker\", \"openresty\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/health/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "check"]
+            }
+          }
+        },
+        {
+          "name": "Fix Container Routing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dryRun\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/diagnostics/fix-container-routing",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "diagnostics", "fix-container-routing"]
+            }
+          }
+        },
+        {
+          "name": "Container Routing Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/diagnostics/container-routing-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "diagnostics", "container-routing-status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Templates",
+      "item": [
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates"]
+            }
+          }
+        },
+        {
+          "name": "Get Template",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/templates/template-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates", "template-id"]
+            }
+          }
+        },
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"WordPress\",\n  \"description\": \"WordPress blog with MySQL\",\n  \"category\": \"CMS\",\n  \"type\": \"container\",\n  \"config\": {\n    \"image\": \"wordpress:latest\",\n    \"port\": 80,\n    \"env\": {\n      \"WORDPRESS_DB_HOST\": \"mysql\",\n      \"WORDPRESS_DB_USER\": \"wordpress\",\n      \"WORDPRESS_DB_PASSWORD\": \"password\"\n    }\n  },\n  \"requirements\": {\n    \"memory\": \"512MB\",\n    \"cpu\": \"0.5\",\n    \"storage\": \"10GB\"\n  },\n  \"tags\": [\"blog\", \"cms\", \"php\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates"]
+            }
+          }
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"WordPress Updated\",\n  \"description\": \"Updated WordPress template\",\n  \"config\": {\n    \"image\": \"wordpress:6.0\",\n    \"port\": 80\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/templates/template-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates", "template-id"]
+            }
+          }
+        },
+        {
+          "name": "Delete Template",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/templates/template-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates", "template-id"]
+            }
+          }
+        },
+        {
+          "name": "Deploy Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"myblog.example.com\",\n  \"customerId\": \"{{customerId}}\",\n  \"customConfig\": {\n    \"env\": {\n      \"WORDPRESS_DB_NAME\": \"myblog_db\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/templates/template-id/deploy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates", "template-id", "deploy"]
+            }
+          }
+        },
+        {
+          "name": "Initialize Default Templates",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/templates/init-defaults",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "templates", "init-defaults"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 Miscellaneous",
+      "item": [
+        {
+          "name": "Get Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/misc/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "misc", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Routes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/misc/routes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "misc", "routes"]
+            }
+          }
+        },
+        {
+          "name": "Get Version",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/version",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "version"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🧪 Dev Environment",
+      "item": [
+        {
+          "name": "Create Dev Environment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"envName\": \"my-dev-env\",\n  \"orgId\": \"org-123\",\n  \"image\": \"gitpod/openvscode-server\",\n  \"port\": 3000,\n  \"envs\": [\n    {\"key\": \"NODE_ENV\", \"value\": \"development\"},\n    {\"key\": \"DEBUG\", \"value\": \"true\"}\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dev-env/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dev-env", "create"]
+            }
+          }
+        },
+        {
+          "name": "Delete Dev Environment",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/dev-env/my-dev-env/org-123",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dev-env", "my-dev-env", "org-123"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

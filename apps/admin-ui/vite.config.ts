@@ -24,23 +24,23 @@ export default defineConfig(({ mode }) => {
       port: 3001,
       proxy: {
         '/_admin': {
-          target: env.VITE_API_BASE_URL || 'https://admin.spinforge.dev',
+          target: env.VITE_API_BASE_URL || 'https://api.spinforge.dev',
           changeOrigin: true,
         },
         '/_health': {
-          target: env.VITE_API_BASE_URL || 'https://admin.spinforge.dev',
+          target: env.VITE_API_BASE_URL || 'https://api.spinforge.dev',
           changeOrigin: true,
         },
         '/_metrics': {
-          target: env.VITE_API_BASE_URL || 'https://admin.spinforge.dev',
+          target: env.VITE_API_BASE_URL || 'https://api.spinforge.dev',
           changeOrigin: true,
         },
         '/_api': {
-          target: env.VITE_API_BASE_URL || 'https://admin.spinforge.dev',
+          target: env.VITE_API_BASE_URL || 'https://api.spinforge.dev',
           changeOrigin: true,
         },
         '/api': {
-          target: env.VITE_API_BASE_URL || 'https://admin.spinforge.dev',
+          target: env.VITE_API_BASE_URL || 'https://api.spinforge.dev',
           changeOrigin: true,
         },
       },
