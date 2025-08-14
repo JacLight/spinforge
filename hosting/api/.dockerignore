@@ -7,6 +7,7 @@
 !server-openresty.js
 !server.js
 !routes/
+!route-helper/
 !utils/
 !services/
 
