@@ -55,9 +55,6 @@ services:
       dockerfile: Dockerfile
     container_name: spinforge-api
     restart: unless-stopped
-    labels:
-      - "spinforge.domain=api.spinforge.dev"
-      - "spinforge.port=8080"
     ports:
       - "8080:8080"
     env_file:
@@ -95,9 +92,6 @@ services:
       dockerfile: Dockerfile
     container_name: spinforge-admin-ui
     restart: unless-stopped
-    labels:
-      - "spinforge.domain=admin.spinforge.dev"
-      - "spinforge.port=80"
     ports:
       - "8083:80"
     networks:

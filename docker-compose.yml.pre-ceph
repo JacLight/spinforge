@@ -1,8 +1,6 @@
 # SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
 # Copyright (c) 2025 Jacob Ajiboye
 # Licensed under the MIT License
-# 
-# CEPH-ENABLED VERSION FOR HIGH AVAILABILITY
 
 services:
   keydb:
@@ -35,13 +33,11 @@ services:
     env_file:
       - .env
     volumes:
-      # Config files - kept local for performance
       - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
       - ./hosting/openresty/lua:/etc/openresty/lua:ro
-      # Data files - shared via Ceph for HA
-      - /mnt/cephfs/spinforge/hosting/data/static:/data/static
-      - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
-      - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
+      - ./hosting/data/static:/data/static
+      - ./hosting/data/certs:/etc/letsencrypt
+      - ./hosting/data/certbot-webroot:/var/www/certbot
       - openresty-logs:/var/log/nginx
     networks:
       - spinforge
@@ -55,9 +51,6 @@ services:
       dockerfile: Dockerfile
     container_name: spinforge-api
     restart: unless-stopped
-    labels:
-      - "spinforge.domain=api.spinforge.dev"
-      - "spinforge.port=8080"
     ports:
       - "8080:8080"
     env_file:
@@ -66,8 +59,7 @@ services:
       - PORT=${API_PORT}
       - STATIC_ROOT=${STATIC_ROOT}
     volumes:
-      # Use Ceph-mounted data directory
-      - /mnt/cephfs/spinforge/hosting/data:/data
+      - ./hosting/data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - spinforge
@@ -80,10 +72,9 @@ services:
     container_name: spinforge-certbot
     restart: unless-stopped
     volumes:
-      # Use Ceph-mounted paths for certificates
-      - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
-      - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
-      - /mnt/cephfs/spinforge/hosting/data/certbot-logs:/var/log/letsencrypt
+      - ./hosting/data/certs:/etc/letsencrypt
+      - ./hosting/data/certbot-webroot:/var/www/certbot
+      - ./hosting/data/certbot-logs:/var/log/letsencrypt
       - ./hosting/scripts:/scripts:ro
     networks:
       - spinforge
@@ -95,9 +86,6 @@ services:
       dockerfile: Dockerfile
     container_name: spinforge-admin-ui
     restart: unless-stopped
-    labels:
-      - "spinforge.domain=admin.spinforge.dev"
-      - "spinforge.port=80"
     ports:
       - "8083:80"
     networks:
@@ -114,12 +102,13 @@ services:
     restart: unless-stopped
     ports:
       - "8084:3000"
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+    env_file:
+      - .env
     networks:
       - spinforge
     depends_on:
       - api
+      - keydb
 
 volumes:
   keydb-data:

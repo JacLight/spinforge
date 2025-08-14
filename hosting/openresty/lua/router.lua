@@ -13,6 +13,7 @@ local redis = require "resty.redis"
 local cjson = require "cjson"
 local logger = require "logger"
 local utils = require "utils"
+local container_discovery = require "container_discovery"
 
 -- Try to load auth gateway module
 local auth_gateway = nil
@@ -342,13 +343,20 @@ if site.type == "static" then
     ngx.var.route_type = "static"
     ngx.log(ngx.INFO, "Router: Serving static site from: ", ngx.var.target_root, " for domain: ", host)
 elseif site.type == "proxy" then
-    -- Check if transparent proxy is enabled
-    if site.transparent_proxy then
-        ngx.var.route_type = "transparent_proxy"
-    else
-        ngx.var.route_type = "proxy"
+    ngx.var.route_type = "proxy"
+    local target = site.target or site.upstream
+    
+    -- Check if target uses container name or IP
+    -- If it's an IP, verify it's reachable, otherwise trigger discovery
+    if target and target:match("172%.%d+%.%d+%.%d+") then
+        -- It's an IP address, let's verify it's still valid
+        -- We'll let the proxy handler deal with connection failures
+        -- and trigger discovery if needed
+        ngx.ctx.may_need_discovery = true
+        ngx.ctx.original_domain = host
     end
-    ngx.var.proxy_target = site.target or site.upstream
+    
+    ngx.var.proxy_target = target
     -- Pass preserve_host setting to nginx
     if site.preserve_host then
         ngx.var.preserve_host = "1"
