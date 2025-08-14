@@ -13,7 +13,7 @@ local redis = require "resty.redis"
 local cjson = require "cjson"
 local logger = require "logger"
 local utils = require "utils"
-local dns_resolver = require "dns_resolver"
+local container_discovery = require "container_discovery"
 
 -- Try to load auth gateway module
 local auth_gateway = nil
@@ -350,16 +350,19 @@ elseif site.type == "proxy" then
         ngx.var.route_type = "proxy"
     end
     
-    -- Resolve DNS for internal services
     local target = site.target or site.upstream
-    if target then
-        -- Try to resolve the target hostname to IP for better reliability
-        local resolved_target = dns_resolver.resolve_target(target)
-        ngx.var.proxy_target = resolved_target
-    else
-        ngx.var.proxy_target = target
+    
+    -- Check if target uses container name or IP
+    -- If it's an IP, verify it's reachable, otherwise trigger discovery
+    if target and target:match("172%.%d+%.%d+%.%d+") then
+        -- It's an IP address, let's verify it's still valid
+        -- We'll let the proxy handler deal with connection failures
+        -- and trigger discovery if needed
+        ngx.ctx.may_need_discovery = true
+        ngx.ctx.original_domain = host
     end
     
+    ngx.var.proxy_target = target
     -- Pass preserve_host setting to nginx
     if site.preserve_host then
         ngx.var.preserve_host = "1"

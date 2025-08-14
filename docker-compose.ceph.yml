@@ -40,7 +40,6 @@ services:
       - ./hosting/openresty/lua:/etc/openresty/lua:ro
       # Data files - shared via Ceph for HA
       - /mnt/cephfs/spinforge/hosting/data/static:/data/static
-      - /mnt/cephfs/spinforge/hosting/data/certificates:/data/certificates
       - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
       - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
       - openresty-logs:/var/log/nginx
@@ -56,9 +55,6 @@ services:
       dockerfile: Dockerfile
     container_name: spinforge-api
     restart: unless-stopped
-    labels:
-      - "spinforge.domain=api.spinforge.dev"
-      - "spinforge.port=8080"
     ports:
       - "8080:8080"
     env_file:
@@ -66,33 +62,21 @@ services:
     environment:
       - PORT=${API_PORT}
       - STATIC_ROOT=${STATIC_ROOT}
-      - HOST_STATIC_PATH=/mnt/cephfs/spinforge/hosting/data/static
     volumes:
-      # Shared data via Ceph for HA
       # Use Ceph-mounted data directory
       - /mnt/cephfs/spinforge/hosting/data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - spinforge
     depends_on:
-      keydb:
-        condition: service_healthy
-      openresty:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      - keydb
+      - openresty
 
   certbot:
     image: certbot/certbot:latest
     container_name: spinforge-certbot
     restart: unless-stopped
     volumes:
-      # Shared certificates via Ceph for HA
-      # Local scripts
       # Use Ceph-mounted paths for certificates
       - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
       - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
@@ -108,24 +92,13 @@ services:
       dockerfile: Dockerfile
     container_name: spinforge-admin-ui
     restart: unless-stopped
-    labels:
-      - "spinforge.domain=admin.spinforge.dev"
-      - "spinforge.port=80"
     ports:
       - "8083:80"
     networks:
       - spinforge
     depends_on:
-      api:
-        condition: service_started
-      keydb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - api
+      - keydb
 
   website:
     build:
@@ -140,31 +113,6 @@ services:
     networks:
       - spinforge
     depends_on:
-      api:
-        condition: service_started
-      keydb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  mcp-server:
-    build:
-      context: ./mcp-server
-      dockerfile: Dockerfile
-    container_name: spinforge-mcp
-    restart: unless-stopped
-    ports:
-      - "3002:3000"
-    environment:
-      - SPINFORGE_API_URL=http://api:8080/api
-      - PORT=3000
-    networks:
-      - spinforge
-    depends_on:
       - api
 
 volumes:
@@ -174,7 +122,3 @@ volumes:
 networks:
   spinforge:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.19.0.0/16
-          gateway: 172.19.0.1
