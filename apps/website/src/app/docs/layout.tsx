@@ -94,10 +94,13 @@ const docSections: DocSection[] = [
     title: "API Reference",
     icon: Shield,
     items: [
-      { title: "Authentication", href: "/docs/api/authentication", description: "API authentication" },
-      { title: "Deployments", href: "/docs/api/deployments", description: "Deployment endpoints" },
-      { title: "Logs", href: "/docs/api/logs", description: "Log endpoints" },
-      { title: "Usage", href: "/docs/api/usage", description: "Usage metrics" },
+      { title: "API Overview", href: "/docs/api", description: "REST API documentation" },
+      { title: "Authentication", href: "/docs/api/authentication", description: "Login, signup, OAuth" },
+      { title: "User Management", href: "/docs/api/user-management", description: "Profile and account management" },
+      { title: "Deployments", href: "/docs/api/deployments", description: "Deploy and manage applications" },
+      { title: "Domains", href: "/docs/api/domains", description: "Custom domains and SSL" },
+      { title: "Monitoring", href: "/docs/api/monitoring", description: "Metrics, logs, and spinlets" },
+      { title: "API Tokens", href: "/docs/api/tokens", description: "Generate and manage API tokens" },
     ]
   },
 ];
@@ -185,7 +188,7 @@ export default function DocsLayout({
 
         {/* Main content */}
         <main className="flex-1 px-4 py-8">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             {children}
           </div>
         </main>
