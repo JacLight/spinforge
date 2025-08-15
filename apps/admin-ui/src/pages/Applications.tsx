@@ -607,9 +607,16 @@ export default function Applications() {
                                 getTypeColor(vhost.type).split(" ")[0]
                               }`}
                             />
-                            <span className="text-sm text-gray-900">
-                              {vhost.type}
-                            </span>
+                            <div>
+                              <span className="text-sm text-gray-900">
+                                {vhost.type}
+                              </span>
+                              {vhost.type === "container" && vhost.containerConfig?.image && (
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {vhost.containerConfig.image}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -751,7 +758,14 @@ export default function Applications() {
 
                     <div className="flex items-center justify-between text-xs text-gray-600 mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="capitalize">{vhost.type}</span>
+                        <div>
+                          <span className="capitalize">{vhost.type}</span>
+                          {vhost.type === "container" && vhost.containerConfig?.image && (
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {vhost.containerConfig.image}
+                            </div>
+                          )}
+                        </div>
                         {getSSLIcon(vhost)}
                       </div>
                       <span className="text-gray-500">

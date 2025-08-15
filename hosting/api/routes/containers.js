@@ -283,18 +283,39 @@ router.get('/:domain/container/health', async (req, res) => {
         const { stdout: healthStatus } = await execAsync(`docker inspect -f '{{.State.Health.Status}}' ${site.containerName}`);
         const health = healthStatus.trim();
         
+        // Get the actual running image
+        const { stdout: imageInfo } = await execAsync(`docker inspect -f '{{.Config.Image}}' ${site.containerName}`);
+        const runningImage = imageInfo.trim();
+        
         res.json({ 
           healthy: isRunning && (health === 'healthy' || health === '<no value>'),
           status: isRunning ? 'running' : 'stopped',
-          health: health === '<no value>' ? 'no healthcheck' : health
+          health: health === '<no value>' ? 'no healthcheck' : health,
+          runningImage: runningImage,
+          configuredImage: site.containerConfig?.image || null
         });
       } catch (healthError) {
         // Container doesn't have health check configured
-        res.json({ 
-          healthy: isRunning,
-          status: 'running',
-          health: 'no healthcheck'
-        });
+        // Try to still get the running image
+        try {
+          const { stdout: imageInfo } = await execAsync(`docker inspect -f '{{.Config.Image}}' ${site.containerName}`);
+          const runningImage = imageInfo.trim();
+          
+          res.json({ 
+            healthy: isRunning,
+            status: 'running',
+            health: 'no healthcheck',
+            runningImage: runningImage,
+            configuredImage: site.containerConfig?.image || null
+          });
+        } catch (imageError) {
+          // Fallback if we can't get image either
+          res.json({ 
+            healthy: isRunning,
+            status: 'running',
+            health: 'no healthcheck'
+          });
+        }
       }
     } catch (error) {
       console.error(`Failed to check container ${site.containerName}:`, error.message);

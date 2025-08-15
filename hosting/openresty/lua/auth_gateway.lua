@@ -380,6 +380,26 @@ local function handle_custom_auth_callback()
     ngx.redirect(return_url or "/")
 end
 
+-- Helper function to resolve aliases to primary domain
+local function resolve_domain(domain)
+    local red, err = get_redis_connection()
+    if not red then
+        return domain -- Return original if can't connect
+    end
+    
+    -- Check if this domain is an alias
+    local alias_key = "alias:" .. domain
+    local primary_domain, err = red:get(alias_key)
+    return_redis_connection(red)
+    
+    if primary_domain and primary_domain ~= ngx.null then
+        ngx.log(ngx.INFO, "Auth: Resolved alias ", domain, " to primary domain ", primary_domain)
+        return primary_domain
+    end
+    
+    return domain -- Return original if not an alias
+end
+
 -- Main authentication handler
 local function authenticate()
     local host = ngx.var.host
@@ -397,38 +417,49 @@ local function authenticate()
         return handle_custom_auth_callback()
     end
     
-    -- Quick check: is auth enabled for this domain?
-    local auth_enabled = is_auth_enabled(host)
+    -- Resolve alias to primary domain for auth checks
+    local auth_domain = resolve_domain(host)
     
-    ngx.log(ngx.INFO, "Auth: Auth enabled for ", host, ": ", auth_enabled and "yes" or "no")
+    -- Quick check: is auth enabled for this domain?
+    local auth_enabled = is_auth_enabled(auth_domain)
+    
+    ngx.log(ngx.INFO, "Auth: Auth enabled for ", auth_domain, ": ", auth_enabled and "yes" or "no")
     
     -- Set quick check cache for router to use (5 minute TTL for negative results)
     -- This prevents the router from even calling authenticate() for domains without auth
+    -- Cache for both the original host and the resolved domain
     local quick_check_key = "quick:" .. host
+    local auth_quick_check_key = "quick:" .. auth_domain
     if not auth_enabled then
         auth_cache:set(quick_check_key, "0", 300) -- Cache "no auth" for 5 minutes
+        if host ~= auth_domain then
+            auth_cache:set(auth_quick_check_key, "0", 300)
+        end
         return -- No auth configured, pass through
     else
         auth_cache:set(quick_check_key, "1", 60) -- Cache "has auth" for 1 minute
+        if host ~= auth_domain then
+            auth_cache:set(auth_quick_check_key, "1", 60)
+        end
     end
     
     -- Check if cache needs invalidation
     local red, err = get_redis_connection()
     if red then
-        local invalid, err = red:get("auth:" .. host .. ":cache_invalid")
+        local invalid, err = red:get("auth:" .. auth_domain .. ":cache_invalid")
         if invalid == "1" then
             -- Clear cache for this domain
-            auth_cache:delete("enabled:" .. host)
-            auth_cache:delete("routes:" .. host)
-            auth_cache:delete("paths:" .. host) -- Also clear old cache key
-            red:del("auth:" .. host .. ":cache_invalid")
+            auth_cache:delete("enabled:" .. auth_domain)
+            auth_cache:delete("routes:" .. auth_domain)
+            auth_cache:delete("paths:" .. auth_domain) -- Also clear old cache key
+            red:del("auth:" .. auth_domain .. ":cache_invalid")
         end
         return_redis_connection(red)
     end
     
     -- Get routes (updated for route-based auth)
-    local routes = get_routes(host)
-    ngx.log(ngx.INFO, "Auth: Found ", routes and #routes or 0, " routes for ", host)
+    local routes = get_routes(auth_domain)
+    ngx.log(ngx.INFO, "Auth: Found ", routes and #routes or 0, " routes for ", auth_domain)
     
     if not routes or #routes == 0 then
         return -- No routes configured
@@ -444,7 +475,7 @@ local function authenticate()
     ngx.log(ngx.INFO, "Auth: Found matching route for path: ", path, " auth type: ", route.authType)
     
     -- Check rate limit first (before auth)
-    if route.rateLimit and not check_rate_limit(host, path, route) then
+    if route.rateLimit and not check_rate_limit(auth_domain, path, route) then
         ngx.status = ngx.HTTP_TOO_MANY_REQUESTS
         ngx.header["Retry-After"] = "60"
         ngx.say('{"error": "Rate limit exceeded"}')
@@ -467,7 +498,7 @@ local function authenticate()
             key = key:sub(8)
         end
         
-        authenticated = validate_api_key(host, key)
+        authenticated = validate_api_key(auth_domain, key)
     elseif route.authType == "oauth" then
         -- Check for OAuth token in cookie or header
         local auth_cookie = ngx.var.cookie_auth_token
@@ -478,7 +509,7 @@ local function authenticate()
             authenticated = true
         else
             -- Redirect to OAuth provider
-            return handle_oauth_redirect(host, ngx.var.request_uri)
+            return handle_oauth_redirect(auth_domain, ngx.var.request_uri)
         end
     elseif route.authType == "custom" then
         -- SMART AUTH: Automatically check query, headers, and cookies for auth tokens
@@ -486,7 +517,7 @@ local function authenticate()
         -- Don't redeclare authenticated - use the outer scope variable
         local auth_data = {}
         
-        ngx.log(ngx.INFO, "Auth: Custom auth check for ", host, " path: ", path)
+        ngx.log(ngx.INFO, "Auth: Custom auth check for ", auth_domain, " path: ", path)
         
         -- Helper function for case-insensitive key lookup
         local function find_key_ci(tbl, key)

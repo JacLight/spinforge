@@ -248,7 +248,7 @@ function MetricsSection({ domain, isEditing }: { domain?: string; isEditing?: bo
 }
 
 // Container Management Component
-function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEditing: boolean; onRefresh: () => void }) {
+function ContainerManagement({ vhost, isEditing, onRefresh, containerHealth }: { vhost: any; isEditing: boolean; onRefresh: () => void; containerHealth?: any }) {
   const [logs, setLogs] = useState<string>('');
   const [showLogs, setShowLogs] = useState(false);
   const [containerStatus, setContainerStatus] = useState<'running' | 'stopped' | 'unknown'>('unknown');
@@ -384,11 +384,21 @@ function ContainerManagement({ vhost, isEditing, onRefresh }: { vhost: any; isEd
             <button
               onClick={() => handleContainerAction('rebuild')}
               disabled={isLoading}
-              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              title="Rebuild container with current configuration (applies env changes)"
+              className={`px-3 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium ${
+                containerHealth?.runningImage && containerHealth.runningImage !== vhost.containerConfig?.image
+                  ? 'bg-amber-600 hover:bg-amber-700 animate-pulse'
+                  : 'bg-purple-600 hover:bg-purple-700'
+              }`}
+              title={
+                containerHealth?.runningImage && containerHealth.runningImage !== vhost.containerConfig?.image
+                  ? 'Image mismatch detected! Click to rebuild with configured image'
+                  : 'Rebuild container with current configuration (applies env changes)'
+              }
             >
               <Package className="h-4 w-4 inline mr-1" />
-              Rebuild
+              {containerHealth?.runningImage && containerHealth.runningImage !== vhost.containerConfig?.image
+                ? 'Update Image'
+                : 'Rebuild'}
             </button>
           </div>
           
@@ -908,6 +918,10 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
   const [containerImage, setContainerImage] = useState('');
   const [containerPort, setContainerPort] = useState(3000);
   const [containerEnv, setContainerEnv] = useState<{ key: string; value: string }[]>([]);
+  
+  // Inline image editing states
+  const [editingImage, setEditingImage] = useState(false);
+  const [tempImageName, setTempImageName] = useState('');
   const [containerCpuLimit, setContainerCpuLimit] = useState('');
   const [containerMemoryLimit, setContainerMemoryLimit] = useState('');
   const [containerRestartPolicy, setContainerRestartPolicy] = useState('unless-stopped');
@@ -1023,6 +1037,29 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
       toast.error(`Failed to update: ${error.message}`);
     },
   });
+
+  const handleImageUpdate = async () => {
+    if (!tempImageName || tempImageName === vhost.containerConfig?.image) {
+      setEditingImage(false);
+      return;
+    }
+
+    try {
+      await updateMutation.mutateAsync({
+        ...vhost,
+        containerConfig: {
+          ...vhost.containerConfig,
+          image: tempImageName
+        }
+      });
+      setEditingImage(false);
+      toast.success("Container image updated successfully");
+      onRefresh();
+    } catch (error) {
+      console.error("Failed to update image:", error);
+      toast.error("Failed to update container image");
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: () => hostingAPI.deleteVHost(vhost.domain),
@@ -1741,6 +1778,11 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                                   placeholder="nginx:latest"
                                   className="w-full px-3 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
+                                {containerHealth?.runningImage && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Currently running: <code className="text-gray-600">{containerHealth.runningImage}</code>
+                                  </p>
+                                )}
                               </div>
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Container Port</label>
@@ -1843,8 +1885,75 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                             <div className="space-y-3">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <p className="text-sm font-medium text-gray-700">Image</p>
-                                  <code className="text-sm text-gray-600">{vhost.containerConfig.image}</code>
+                                  <p className="text-sm font-medium text-gray-700">Docker Image</p>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500">Configured:</span>
+                                      {editingImage ? (
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="text"
+                                            value={tempImageName}
+                                            onChange={(e) => setTempImageName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                handleImageUpdate();
+                                              } else if (e.key === 'Escape') {
+                                                setEditingImage(false);
+                                                setTempImageName(vhost.containerConfig.image);
+                                              }
+                                            }}
+                                            className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            autoFocus
+                                          />
+                                          <button
+                                            onClick={handleImageUpdate}
+                                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                            title="Save"
+                                          >
+                                            <Check className="h-3 w-3" />
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setEditingImage(false);
+                                              setTempImageName(vhost.containerConfig.image);
+                                            }}
+                                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                            title="Cancel"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2 group">
+                                          <code className="text-sm text-gray-600">{vhost.containerConfig.image}</code>
+                                          <button
+                                            onClick={() => {
+                                              setEditingImage(true);
+                                              setTempImageName(vhost.containerConfig.image);
+                                            }}
+                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Edit image name"
+                                          >
+                                            <Edit2 className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {containerHealth?.runningImage && (
+                                      <div className={containerHealth.runningImage !== vhost.containerConfig.image ? 'text-amber-700' : ''}>
+                                        <span className="text-xs text-gray-500">Running:</span>
+                                        <code className={`text-sm ml-1 ${
+                                          containerHealth.runningImage !== vhost.containerConfig.image 
+                                            ? 'text-amber-600 font-semibold' 
+                                            : 'text-gray-600'
+                                        }`}>{containerHealth.runningImage}</code>
+                                      </div>
+                                    )}
+                                    {containerHealth?.runningImage && containerHealth.runningImage !== vhost.containerConfig.image && (
+                                      <p className="text-xs text-amber-600 mt-1">⚠️ Image mismatch - use rebuild below to update</p>
+                                    )}
+                                  </div>
                                 </div>
                                 <div>
                                   <p className="text-sm font-medium text-gray-700">Port</p>
@@ -1883,7 +1992,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                               )}
                               
                               {/* Container Management */}
-                              <ContainerManagement vhost={vhost} isEditing={isEditing} onRefresh={onRefresh} />
+                              <ContainerManagement vhost={vhost} isEditing={isEditing} onRefresh={onRefresh} containerHealth={containerHealth} />
                             </div>
                           )
                         )}

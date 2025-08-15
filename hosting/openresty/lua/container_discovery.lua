@@ -7,6 +7,7 @@
 
 local _M = {}
 local cjson = require "cjson"
+local static_ips = require "container_static_ips"
 
 -- Function to execute docker inspect and get container info
 local function docker_inspect_by_label(domain)
@@ -38,6 +39,14 @@ end
 
 -- Function to get container IP by name
 local function get_container_ip(container_name)
+    -- First check if this container has a static IP
+    local static_ip, static_port = static_ips.get_container_ip(container_name)
+    if static_ip then
+        ngx.log(ngx.INFO, "Container Discovery: Using static IP for ", container_name, ": ", static_ip)
+        return static_ip
+    end
+    
+    -- Otherwise, use dynamic discovery
     local cmd = string.format('docker inspect %s --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"', container_name)
     local handle = io.popen(cmd)
     
@@ -66,44 +75,8 @@ function _M.discover_container(domain)
     -- First try to find container by label
     local container = docker_inspect_by_label(domain)
     
-    if not container then
-        -- Try alternative approaches
-        -- 1. Check if domain matches a known container pattern
-        -- For example: admin.spinforge.dev -> spinforge-admin-ui
-        local patterns = {
-            ["admin%.spinforge%.dev"] = "spinforge-admin-ui",
-            ["api%.spinforge%.dev"] = "spinforge-api",
-            ["vscode%.spinforge%.dev"] = "spinforge-vscode-spinforge-dev",
-        }
-        
-        for pattern, container_name in pairs(patterns) do
-            if domain:match(pattern) then
-                ngx.log(ngx.INFO, "Container Discovery: Found pattern match for domain: ", domain, " -> ", container_name)
-                
-                -- Get container IP
-                local ip = get_container_ip(container_name)
-                if ip then
-                    -- Determine port based on container type
-                    local port = 80 -- Default port
-                    if container_name == "spinforge-api" then
-                        port = 8080
-                    elseif container_name:match("vscode") then
-                        port = 3000
-                    end
-                    
-                    local target = string.format("http://%s:%d", ip, port)
-                    ngx.log(ngx.INFO, "Container Discovery: Resolved target: ", target)
-                    
-                    return {
-                        container_name = container_name,
-                        container_ip = ip,
-                        target = target,
-                        discovered = true
-                    }
-                end
-            end
-        end
-    end
+    -- No hardcoded domain mappings - system should rely on Redis configuration
+    -- or container labels for routing decisions
     
     -- If container found by label, extract details
     if container then

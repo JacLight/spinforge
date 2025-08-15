@@ -6,6 +6,7 @@
 !package-lock.json
 !server-openresty.js
 !server.js
+!resolve-container-ips.js
 !routes/
 !route-helper/
 !utils/

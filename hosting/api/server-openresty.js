@@ -41,6 +41,14 @@ app.use('/_metrics', metricsRoutes);
 const adminRoutes = require('./routes/admin');
 app.use('/_admin', adminRoutes);
 
+// Mount operations routes
+const operationsRoutes = require('./routes/operations');
+app.use('/api/operations', operationsRoutes);
+
+// Mount image management routes
+const imagesRoutes = require('./routes/images');
+app.use('/api/images', imagesRoutes);
+
 // Mount customer API routes
 const customerRoutes = require('./routes/customer');
 app.use('/_api/customer', customerRoutes);
@@ -106,5 +114,17 @@ app.listen(PORT, async () => {
     logger.info('Container recovery service started');
   } catch (error) {
     logger.error('Failed to start container recovery:', error);
+  }
+  
+  // Resolve container IPs on startup
+  try {
+    const ContainerIPResolver = require('./resolve-container-ips');
+    const resolver = new ContainerIPResolver();
+    await resolver.connect();
+    const stats = await resolver.resolveAllContainers();
+    await resolver.disconnect();
+    logger.info(`Container IPs resolved on startup: ${stats.updated} updated, ${stats.failed} failed`);
+  } catch (error) {
+    logger.error('Failed to resolve container IPs on startup:', error);
   }
 });

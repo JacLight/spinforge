@@ -15,7 +15,8 @@ services:
       - KEYDB_PASSWORD=${REDIS_PASSWORD:-}
     command: keydb-server --appendonly yes --protected-mode no --port 16378
     networks:
-      - spinforge
+      spinforge:
+        ipv4_address: 172.18.0.10
     healthcheck:
       test: ["CMD", "keydb-cli", "-p", "16378", "ping"]
       interval: 10s
@@ -45,7 +46,8 @@ services:
       - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
       - openresty-logs:/var/log/nginx
     networks:
-      - spinforge
+      spinforge:
+        ipv4_address: 172.18.0.11
     depends_on:
       keydb:
         condition: service_healthy
@@ -73,7 +75,8 @@ services:
       - /mnt/cephfs/spinforge/hosting/data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
-      - spinforge
+      spinforge:
+        ipv4_address: 172.18.0.12
     depends_on:
       keydb:
         condition: service_healthy
@@ -99,7 +102,8 @@ services:
       - /mnt/cephfs/spinforge/hosting/data/certbot-logs:/var/log/letsencrypt
       - ./hosting/scripts:/scripts:ro
     networks:
-      - spinforge
+      spinforge:
+        ipv4_address: 172.18.0.13
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive\"; sleep 12h & wait $${!}; done;'"
 
   admin-ui:
@@ -114,7 +118,8 @@ services:
     ports:
       - "8083:80"
     networks:
-      - spinforge
+      spinforge:
+        ipv4_address: 172.18.0.14
     depends_on:
       api:
         condition: service_started
@@ -138,7 +143,8 @@ services:
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
     networks:
-      - spinforge
+      spinforge:
+        ipv4_address: 172.18.0.15
     depends_on:
       api:
         condition: service_started
@@ -176,5 +182,5 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.19.0.0/16
-          gateway: 172.19.0.1
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
