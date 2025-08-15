@@ -8,6 +8,13 @@
 
 SpinForge is an intelligent, self-managing platform that makes deploying and hosting applications effortless. With AI at its core, SpinForge eliminates complex configurations, automatically handles infrastructure decisions, and provides a seamless deployment experience.
 
+## Prerequisites
+
+- Docker and Docker Compose
+- Node.js 18+ (for local development)
+- Git
+- Linux or macOS (Windows users can use WSL2)
+
 ## 🚀 Features
 
 - **🤖 AI-Native**: Intelligent routing, scaling, and optimization decisions
@@ -18,6 +25,8 @@ SpinForge is an intelligent, self-managing platform that makes deploying and hos
 - **🖥️ Container Management**: Full Docker container lifecycle management with web terminal
 - **📊 Real-time Metrics**: Comprehensive analytics and monitoring dashboard
 - **👥 Multi-tenant Ready**: Customer isolation and management built-in
+- **🤝 MCP Integration**: Model Context Protocol support for AI agents
+- **📤 File Upload**: Upload static sites via ZIP files with merge/replace modes
 - **💾 KeyDB Powered**: Redis-compatible multithreaded storage for ultra-fast routing
 
 ## 🛠️ Quick Start
@@ -71,20 +80,35 @@ docker compose version
 git clone https://github.com/JacLight/spinforge.git
 cd spinforge
 
+# Copy environment template
+cp .env.example .env
+
+# Edit .env and update required variables:
+# - DOMAIN=your-domain.com
+# - JWT_SECRET=<generate-secure-random-string>
+# - REDIS_PASSWORD=<your-redis-password>
+# - SSL_CERT_EMAIL=admin@your-domain.com
+nano .env
+
+# Install MCP server dependencies
+cd mcp-server
+npm install
+cd ..
+
 # Run setup script
+chmod +x setup.sh
 ./setup.sh
 
 # That's it! SpinForge is now running.
 ```
 
-For production deployment with custom domain:
+For production deployment:
 ```bash
-# Create .env file with your settings
-cat > .env << EOF
-BASE_DOMAIN=your-domain.com
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
-EOF
+# Ensure your domain DNS points to your server
+# Open ports 80 and 443 in your firewall
+
+# Update .env with production values
+nano .env
 
 # Run setup
 ./setup.sh
@@ -92,10 +116,10 @@ EOF
 
 ### Access Points
 
-- **Admin UI**: `http://localhost:8083`
+- **Admin UI**: `http://localhost:3000`
 - **API**: `http://localhost:8080`
-- **Website**: `http://localhost:3001`
-- **Default credentials**: `admin` / `admin123`
+- **OpenResty**: `http://localhost:80`
+- **MCP Server**: Available at `https://mcp.your-domain.com/mcp`
 
 **⚠️ Important**: Change the default password immediately after first login!
 

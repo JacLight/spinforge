@@ -73,23 +73,52 @@ cp 50x.html hosting/data/static/errors/503.html
 cp 404.html hosting/data/static/index.html
 echo "✅ Static files configured"
 
+# Install MCP server dependencies if needed
+if [ -d "mcp-server" ] && [ ! -d "mcp-server/node_modules" ]; then
+    echo "📦 Installing MCP server dependencies..."
+    cd mcp-server
+    npm install
+    cd ..
+    echo "✅ MCP server dependencies installed"
+fi
+
 # Create Docker network if it doesn't exist
 echo "🔗 Setting up Docker network..."
 docker network create spinforge 2>/dev/null || echo "✅ Network already exists"
 
-# Optional: Create .env file
-if [ ! -f .env ] && [ "$1" != "--no-env" ]; then
-    echo "📝 Creating .env file with defaults..."
-    cat > .env << 'EOF'
+# Check for .env file
+if [ ! -f .env ]; then
+    if [ -f .env.example ]; then
+        echo "⚠️  No .env file found. Copying from .env.example..."
+        cp .env.example .env
+        echo "📝 Please edit .env file with your configuration:"
+        echo "   - Set DOMAIN to your domain"
+        echo "   - Set JWT_SECRET to a secure random string"
+        echo "   - Set REDIS_PASSWORD for security"
+        echo "   - Set SSL_CERT_EMAIL for Let's Encrypt"
+        echo ""
+        echo "Press Enter to continue with defaults or Ctrl+C to edit .env first..."
+        read -r
+    else
+        echo "📝 Creating .env file with defaults..."
+        cat > .env << 'EOF'
 # SpinForge Configuration
-BASE_DOMAIN=localhost
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
+DOMAIN=localhost
+API_DOMAIN=api.localhost
+MCP_DOMAIN=mcp.localhost
+
+# Security
+JWT_SECRET=change-this-to-secure-random-string
+REDIS_PASSWORD=
 
 # Redis Configuration
 REDIS_HOST=keydb
 REDIS_PORT=16378
 REDIS_DB=1
+
+# API Configuration
+API_URL=http://api:8080
+SPINFORGE_API_URL=http://api:8080/api
 
 # Static file paths
 STATIC_ROOT=/data/static
@@ -98,7 +127,18 @@ UPLOAD_TEMP_DIR=/data/uploads
 # Certificate paths
 CERTS_PATH=/data/certs
 CERTBOT_WEBROOT=/data/certbot-webroot
+
+# SSL Configuration
+SSL_CERT_EMAIL=admin@localhost
+
+# Docker Network
+DOCKER_NETWORK=spinforge
+
+# Development Settings
+NODE_ENV=development
+DEBUG=false
 EOF
+    fi
 fi
 
 # Build from source

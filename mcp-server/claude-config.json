@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "spinforge": {
+      "command": "node",
+      "args": ["/home/imzee/spinforge/mcp-server/index.js"],
+      "env": {
+        "SPINFORGE_API_URL": "http://localhost:5020/api"
+      }
+    }
+  }
+}

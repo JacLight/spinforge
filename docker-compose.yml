@@ -33,11 +33,14 @@ services:
     env_file:
       - .env
     volumes:
+      # Config files - kept local for performance
       - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
       - ./hosting/openresty/lua:/etc/openresty/lua:ro
-      - ./hosting/data/static:/data/static
-      - ./hosting/data/certs:/etc/letsencrypt
-      - ./hosting/data/certbot-webroot:/var/www/certbot
+      # Data files - shared via Ceph for HA
+      - /mnt/cephfs/spinforge/hosting/data/static:/data/static
+      - /mnt/cephfs/spinforge/hosting/data/certificates:/data/certificates
+      - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
+      - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
       - openresty-logs:/var/log/nginx
     networks:
       - spinforge
@@ -58,23 +61,35 @@ services:
     environment:
       - PORT=${API_PORT}
       - STATIC_ROOT=${STATIC_ROOT}
+      - HOST_STATIC_PATH=/mnt/cephfs/spinforge/hosting/data/static
     volumes:
-      - ./hosting/data:/data
+      # Shared data via Ceph for HA
+      - /mnt/cephfs/spinforge/hosting/data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - spinforge
     depends_on:
-      - keydb
-      - openresty
+      keydb:
+        condition: service_healthy
+      openresty:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   certbot:
     image: certbot/certbot:latest
     container_name: spinforge-certbot
     restart: unless-stopped
     volumes:
-      - ./hosting/data/certs:/etc/letsencrypt
-      - ./hosting/data/certbot-webroot:/var/www/certbot
-      - ./hosting/data/certbot-logs:/var/log/letsencrypt
+      # Shared certificates via Ceph for HA
+      - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
+      - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
+      - /mnt/cephfs/spinforge/hosting/data/certbot-logs:/var/log/letsencrypt
+      # Local scripts
       - ./hosting/scripts:/scripts:ro
     networks:
       - spinforge
@@ -91,8 +106,16 @@ services:
     networks:
       - spinforge
     depends_on:
-      - api
-      - keydb
+      api:
+        condition: service_started
+      keydb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   website:
     build:
@@ -107,8 +130,32 @@ services:
     networks:
       - spinforge
     depends_on:
+      api:
+        condition: service_started
+      keydb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    container_name: spinforge-mcp
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      - SPINFORGE_API_URL=http://api:8080/api
+      - PORT=3000
+    networks:
+      - spinforge
+    depends_on:
       - api
-      - keydb
 
 volumes:
   keydb-data:
@@ -117,3 +164,7 @@ volumes:
 networks:
   spinforge:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1

@@ -1,0 +1,33 @@
+{
+  "name": "@spinforge/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for SpinForge hosting platform - AI-native hosting management",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "spinforge-mcp": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "bridge": "node http-bridge.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "ai",
+    "hosting",
+    "spinforge",
+    "deployment"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  },
+  "author": "SpinForge",
+  "license": "MIT"
+}

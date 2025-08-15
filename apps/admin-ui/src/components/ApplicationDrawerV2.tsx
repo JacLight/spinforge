@@ -51,6 +51,7 @@ import {
   Heart,
   Terminal,
   Key,
+  Upload,
 } from "lucide-react";
 
 // Helper function for domain validation
@@ -911,6 +912,10 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
   const [containerMemoryLimit, setContainerMemoryLimit] = useState('');
   const [containerRestartPolicy, setContainerRestartPolicy] = useState('unless-stopped');
   
+  // File upload states for static sites
+  const [isUploading, setIsUploading] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
+  
   // SSL configuration state
   const [sslEnabled, setSslEnabled] = useState(false);
   const [sslRedirect, setSslRedirect] = useState(false);
@@ -1078,6 +1083,44 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
     delete newErrors[index];
     setAliasErrors(newErrors);
     return true;
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, domain: string) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('replaceMode', replaceMode ? 'replace' : 'merge');
+
+    setIsUploading(true);
+    try {
+      const response = await fetch(`/api/sites/${domain}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      toast.success(
+        replaceMode 
+          ? 'Files replaced successfully' 
+          : 'Files merged successfully'
+      );
+      
+      // Refresh the site data
+      refetchSite();
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload files');
+    } finally {
+      setIsUploading(false);
+      // Reset the input
+      event.target.value = '';
+    }
   };
 
   const handleSave = () => {
@@ -1542,17 +1585,62 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-medium text-gray-900">Static Site Configuration</h4>
-                          {vhost.files_exist === false && (
-                            <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 px-3 py-1 rounded-lg">
-                              <AlertTriangle className="h-4 w-4" />
-                              <span className="text-sm font-medium">Files Missing</span>
-                            </div>
-                          )}
-                          {vhost.files_exist === true && (
-                            <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-lg">
-                              <CheckCircle className="h-4 w-4" />
-                              <span className="text-sm font-medium">Files Exist</span>
-                            </div>
+                          <div className="flex items-center gap-2">
+                            {vhost.files_exist === false && (
+                              <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 px-3 py-1 rounded-lg">
+                                <AlertTriangle className="h-4 w-4" />
+                                <span className="text-sm font-medium">Files Missing</span>
+                              </div>
+                            )}
+                            {vhost.files_exist === true && (
+                              <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-lg">
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="text-sm font-medium">Files Exist</span>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => document.getElementById(`file-upload-${vhost.domain}`)?.click()}
+                              className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Upload new files"
+                              disabled={isUploading}
+                            >
+                              {isUploading ? (
+                                <>
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                  <span className="text-sm font-medium">Uploading...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="h-4 w-4" />
+                                  <span className="text-sm font-medium">Upload</span>
+                                </>
+                              )}
+                            </button>
+                            <input
+                              id={`file-upload-${vhost.domain}`}
+                              type="file"
+                              accept=".zip"
+                              className="hidden"
+                              onChange={(e) => handleFileUpload(e, vhost.domain)}
+                              disabled={isUploading}
+                            />
+                          </div>
+                        </div>
+                        {/* Upload options */}
+                        <div className="mb-4 flex items-center gap-4">
+                          <label className="flex items-center gap-2 text-sm text-gray-600">
+                            <input
+                              type="checkbox"
+                              checked={replaceMode}
+                              onChange={(e) => setReplaceMode(e.target.checked)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Replace mode (delete existing content)</span>
+                          </label>
+                          {!replaceMode && (
+                            <span className="text-xs text-gray-500">
+                              Default: Merge mode (overwrites existing files with same names)
+                            </span>
                           )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
