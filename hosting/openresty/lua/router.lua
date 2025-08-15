@@ -13,6 +13,7 @@ local redis = require "resty.redis"
 local cjson = require "cjson"
 local logger = require "logger"
 local utils = require "utils"
+local dns_resolver = require "dns_resolver"
 
 -- Try to load auth gateway module
 local auth_gateway = nil
@@ -348,7 +349,17 @@ elseif site.type == "proxy" then
     else
         ngx.var.route_type = "proxy"
     end
-    ngx.var.proxy_target = site.target or site.upstream
+    
+    -- Resolve DNS for internal services
+    local target = site.target or site.upstream
+    if target then
+        -- Try to resolve the target hostname to IP for better reliability
+        local resolved_target = dns_resolver.resolve_target(target)
+        ngx.var.proxy_target = resolved_target
+    else
+        ngx.var.proxy_target = target
+    end
+    
     -- Pass preserve_host setting to nginx
     if site.preserve_host then
         ngx.var.preserve_host = "1"
@@ -357,7 +368,13 @@ elseif site.type == "proxy" then
 elseif site.type == "container" then
     -- Container sites work like proxy sites
     ngx.var.route_type = "proxy"
-    ngx.var.proxy_target = site.target
+    -- Resolve DNS for container
+    if site.target then
+        local resolved_target = dns_resolver.resolve_target(site.target)
+        ngx.var.proxy_target = resolved_target
+    else
+        ngx.var.proxy_target = site.target
+    end
     ngx.log(ngx.INFO, "Proxying to container: ", ngx.var.proxy_target)
 elseif site.type == "loadbalancer" then
     ngx.var.route_type = "proxy"  -- Use proxy type for handling

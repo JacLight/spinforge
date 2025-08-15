@@ -34,9 +34,16 @@ const upload = multer({
     fileSize: 100 * 1024 * 1024, // 100MB max file size
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/zip' || 
-        file.mimetype === 'application/x-zip-compressed' ||
-        file.originalname.endsWith('.zip')) {
+    const allowedExtensions = ['.zip'];
+    const allowedMimes = [
+      'application/zip',
+      'application/x-zip-compressed'
+    ];
+    
+    const hasValidExt = allowedExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext));
+    const hasValidMime = allowedMimes.includes(file.mimetype);
+    
+    if (hasValidExt || hasValidMime) {
       cb(null, true);
     } else {
       cb(new Error('Only zip files are allowed'));
@@ -308,12 +315,8 @@ router.post('/', async (req, res) => {
         // Wait a moment for container to start
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Get container IP address
-        const inspectCmd = `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${containerName}`;
-        const { stdout: containerIp } = await execAsync(inspectCmd);
-        
-        // Set the target to the container's internal address
-        site.target = `http://${containerIp.trim()}:${config.port}`;
+        // Use container name for internal routing
+        site.target = `http://${containerName}:${config.port}`;
         
         console.log(`Container deployed: ${containerName} -> ${site.target}`);
       } catch (error) {
@@ -499,10 +502,8 @@ router.put('/:domain', async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Get new container IP
-        const { stdout: containerIp } = await execAsync(
-          `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${site.containerName}`
-        );
-        site.target = `http://${containerIp.trim()}:${config.port}`;
+        // Use container name for internal routing
+        site.target = `http://${site.containerName}:${config.port}`;
         
         // Save updated site with new container info
         await redisClient.set(`site:${domain}`, JSON.stringify(site));
@@ -621,7 +622,7 @@ router.delete('/:domain', async (req, res) => {
 });
 
 // Upload static site from zip file
-router.post('/:domain/upload', upload.single('zipfile'), async (req, res) => {
+router.post('/:domain/upload', upload.single('file'), async (req, res) => {
   try {
     const domain = req.params.domain;
     
@@ -664,15 +665,23 @@ router.post('/:domain/upload', upload.single('zipfile'), async (req, res) => {
         fs.mkdirSync(staticPath, { recursive: true });
       }
       
-      // Clear existing content
-      const files = fs.readdirSync(staticPath);
-      for (const file of files) {
-        const filePath = path.join(staticPath, file);
-        if (fs.statSync(filePath).isDirectory()) {
-          fs.rmSync(filePath, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(filePath);
+      // Handle merge vs replace mode
+      const replaceMode = req.body.replaceMode === 'replace';
+      
+      if (replaceMode) {
+        // Clear existing content in replace mode
+        console.log('Replace mode: clearing existing content');
+        const files = fs.readdirSync(staticPath);
+        for (const file of files) {
+          const filePath = path.join(staticPath, file);
+          if (fs.statSync(filePath).isDirectory()) {
+            fs.rmSync(filePath, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(filePath);
+          }
         }
+      } else {
+        console.log('Merge mode: keeping existing content, new files will overwrite');
       }
       
       // Extract zip file
@@ -770,7 +779,8 @@ router.post('/:domain/upload', upload.single('zipfile'), async (req, res) => {
         message: 'Site uploaded successfully', 
         domain,
         filesExtracted: extractedCount,
-        commonPrefixRemoved: commonPrefix || null
+        commonPrefixRemoved: commonPrefix || null,
+        mode: replaceMode ? 'replace' : 'merge'
       });
       
     } catch (error) {

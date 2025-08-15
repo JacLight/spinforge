@@ -49,10 +49,9 @@ router.post('/:domain/container/start', async (req, res) => {
     
     await execAsync(`docker start ${site.containerName}`);
     
-    // Update container IP address after start
+    // Use container name for internal routing
     await new Promise(resolve => setTimeout(resolve, 2000));
-    const { stdout: containerIp } = await execAsync(`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${site.containerName}`);
-    site.target = `http://${containerIp.trim()}:${site.containerConfig.port}`;
+    site.target = `http://${site.containerName}:${site.containerConfig.port}`;
     
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
     res.json({ message: 'Container started' });
@@ -77,10 +76,9 @@ router.post('/:domain/container/restart', async (req, res) => {
     
     await execAsync(`docker restart ${site.containerName}`);
     
-    // Update container IP address after restart
+    // Use container name for internal routing after restart
     await new Promise(resolve => setTimeout(resolve, 2000));
-    const { stdout: containerIp } = await execAsync(`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${site.containerName}`);
-    site.target = `http://${containerIp.trim()}:${site.containerConfig.port}`;
+    site.target = `http://${site.containerName}:${site.containerConfig.port}`;
     
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
     res.json({ message: 'Container restarted' });
@@ -199,11 +197,8 @@ router.post('/:domain/container/rebuild', async (req, res) => {
     // Wait for container to start
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Get new container IP
-    const { stdout: containerIp } = await execAsync(
-      `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${site.containerName}`
-    );
-    site.target = `http://${containerIp.trim()}:${config.port}`;
+    // Use container name for internal routing
+    site.target = `http://${site.containerName}:${config.port}`;
     
     // Save updated site with new container info
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
@@ -467,8 +462,8 @@ router.post('/:domain/container/:service/:action', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       if (site.type === 'container') {
-        const { stdout: containerIp } = await execAsync(`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${containerName}`);
-        site.target = `http://${containerIp.trim()}:${site.containerConfig.port}`;
+        // Use container name for internal routing
+        site.target = `http://${containerName}:${site.containerConfig.port}`;
         await redisClient.set(`site:${domain}`, JSON.stringify(site));
       }
     }

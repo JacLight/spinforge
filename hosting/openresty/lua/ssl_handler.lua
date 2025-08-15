@@ -85,8 +85,19 @@ local key_data = red:get(key_cache_key)
 
 if cert_data == ngx.null or key_data == ngx.null then
     -- Certificate not in cache, try to load from filesystem
-    local cert_path = "/etc/letsencrypt/live/" .. server_name .. "/fullchain.pem"
-    local key_path = "/etc/letsencrypt/live/" .. server_name .. "/privkey.pem"
+    -- First try the certificates directory, then fall back to letsencrypt
+    local cert_path = "/data/certificates/" .. server_name .. "/fullchain.pem"
+    local key_path = "/data/certificates/" .. server_name .. "/privkey.pem"
+    
+    -- Check if certificate exists in certificates directory
+    local cert_file = io.open(cert_path, "r")
+    if not cert_file then
+        -- Fall back to letsencrypt directory
+        cert_path = "/etc/letsencrypt/live/" .. server_name .. "/fullchain.pem"
+        key_path = "/etc/letsencrypt/live/" .. server_name .. "/privkey.pem"
+    else
+        cert_file:close()
+    end
     
     -- Try to read certificate files
     local cert_file = io.open(cert_path, "r")

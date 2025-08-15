@@ -49,6 +49,14 @@ app.use('/_api/customer', customerRoutes);
 const authRoutes = require('./routes/auth');
 app.use('/_auth', authRoutes);
 
+// MCP Discovery Routes
+const mcpRoutes = require('./routes/mcp');
+app.use('/api/mcp', mcpRoutes);
+
+// MCP Server (actual protocol implementation)
+const mcpServer = require('./routes/mcp-server');
+app.use('/mcp', mcpServer);
+
 // Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
   try {
