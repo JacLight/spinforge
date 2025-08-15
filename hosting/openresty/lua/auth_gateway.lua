@@ -519,15 +519,19 @@ local function authenticate()
         
         ngx.log(ngx.INFO, "Auth: Custom auth check for ", auth_domain, " path: ", path)
         
-        -- Helper function for case-insensitive key lookup
+        -- Helper function for case-insensitive and underscore/hyphen agnostic key lookup
         local function find_key_ci(tbl, key)
             if not tbl or not key then return nil end
             -- First try exact match
             if tbl[key] then return tbl[key] end
-            -- Then try case-insensitive match
-            local lower_key = key:lower()
+            
+            -- Normalize the search key (lowercase, convert - and _ to a common form)
+            local normalized_key = key:lower():gsub("[_-]", "_")
+            
+            -- Try all variations
             for k, v in pairs(tbl) do
-                if k:lower() == lower_key then
+                local normalized_k = k:lower():gsub("[_-]", "_")
+                if normalized_k == normalized_key then
                     return v
                 end
             end
@@ -535,19 +539,20 @@ local function authenticate()
         end
         
         -- 1. FIRST CHECK COOKIES (for subsequent requests after initial auth)
-        local token_cookie_name = (config.tokenCookieName or "auth_token"):gsub("-", "_")
+        local original_cookie_name = config.tokenCookieName or "auth_token"
+        local token_cookie_name = original_cookie_name:gsub("-", "_")
         local cookie_var = "cookie_" .. token_cookie_name
         local auth_cookie = ngx.var[cookie_var]
         
-        ngx.log(ngx.INFO, "Auth: Checking cookie '", token_cookie_name, "' (var: ", cookie_var, ") = ", auth_cookie or "NOT FOUND")
+        ngx.log(ngx.INFO, "Auth: Checking cookie '", original_cookie_name, "' (var: ", cookie_var, ") = ", auth_cookie or "NOT FOUND")
         
-        -- Try direct cookie access as fallback
+        -- Try direct cookie access as fallback - check both original and underscore versions
         if not auth_cookie then
             local cookie_header = ngx.var.http_cookie
             if cookie_header then
                 for cookie in cookie_header:gmatch("([^;]+)") do
                     local name, value = cookie:match("^%s*([^=]+)=(.+)%s*$")
-                    if name == token_cookie_name then
+                    if name and (name == original_cookie_name or name == token_cookie_name) then
                         auth_cookie = value
                         ngx.log(ngx.INFO, "Auth: Found cookie via direct parsing: ", name, " = ", value)
                         break
@@ -560,15 +565,29 @@ local function authenticate()
             authenticated = true
             ngx.log(ngx.INFO, "Auth: ✓ Authenticated via cookie: ", token_cookie_name)
         else
-            -- Check mapped cookies
+            -- Check mapped cookies - try both original and underscore versions
             if config.responseMappings then
+                local cookie_header = ngx.var.http_cookie
                 for _, mapping in ipairs(config.responseMappings) do
                     if mapping.cookieName then
-                        local cookie_name = mapping.cookieName:gsub("-", "_")
-                        local cookie_value = ngx.var["cookie_" .. cookie_name]
+                        local original_name = mapping.cookieName
+                        local underscore_name = original_name:gsub("-", "_")
+                        local cookie_value = ngx.var["cookie_" .. underscore_name]
+                        
+                        -- Also try direct parsing for original name
+                        if not cookie_value and cookie_header then
+                            for cookie in cookie_header:gmatch("([^;]+)") do
+                                local name, value = cookie:match("^%s*([^=]+)=(.+)%s*$")
+                                if name and name == original_name then
+                                    cookie_value = value
+                                    break
+                                end
+                            end
+                        end
+                        
                         if cookie_value and cookie_value ~= "" then
                             authenticated = true
-                            ngx.log(ngx.INFO, "Auth: ✓ Authenticated via mapped cookie: ", cookie_name)
+                            ngx.log(ngx.INFO, "Auth: ✓ Authenticated via mapped cookie: ", original_name)
                             break
                         end
                     end
@@ -580,17 +599,26 @@ local function authenticate()
         local args = ngx.req.get_uri_args()
         local found_in_query = false
         
+        -- Log all query params for debugging
+        ngx.log(ngx.INFO, "Auth: Query params received:")
+        for k, v in pairs(args) do
+            local val_preview = type(v) == "string" and v:sub(1, 50) or tostring(v)
+            ngx.log(ngx.INFO, "  ", k, " = ", val_preview, "...")
+        end
+        
         -- Only check query params if not already authenticated by cookie
         if not authenticated then
         
             -- Check for configured token parameter
             local token_param = config.tokenLocation and config.tokenLocation.paramName
+            ngx.log(ngx.INFO, "Auth: Looking for token param: ", token_param or "not configured")
             if token_param then
                 local token_value = find_key_ci(args, token_param)
                 if token_value then
                     found_in_query = true
                     auth_data["auth_token"] = token_value
-                    ngx.log(ngx.INFO, "Auth: Found token in query param: ", token_param)
+                    local token_preview = token_value:sub(1, 50)
+                    ngx.log(ngx.INFO, "Auth: Found token in query param: ", token_param, " = ", token_preview, "...")
                 end
             end
             
@@ -614,17 +642,19 @@ local function authenticate()
             if found_in_query then
                 local cookies_to_set = {}
                 
-                -- Set auth token cookie (already defined above)
+                -- Set auth token cookie - use original name without underscore conversion for setting
                 if auth_data["auth_token"] then
-                    table.insert(cookies_to_set, token_cookie_name .. "=" .. ngx.escape_uri(auth_data["auth_token"]) .. "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
+                    -- Use the original cookie name from config, not the underscore version
+                    local original_cookie_name = config.tokenCookieName or "auth_token"
+                    table.insert(cookies_to_set, original_cookie_name .. "=" .. ngx.escape_uri(auth_data["auth_token"]) .. "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
                 end
                 
-                -- Set mapped cookies
+                -- Set mapped cookies - use original names
                 if config.responseMappings then
                     for _, mapping in ipairs(config.responseMappings) do
                         if auth_data[mapping.responsePath] and mapping.cookieName then
-                            local safe_cookie_name = mapping.cookieName:gsub("-", "_")
-                            table.insert(cookies_to_set, safe_cookie_name .. "=" .. ngx.escape_uri(auth_data[mapping.responsePath]) .. "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
+                            -- Use original cookie name, not underscore version
+                            table.insert(cookies_to_set, mapping.cookieName .. "=" .. ngx.escape_uri(auth_data[mapping.responsePath]) .. "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
                         end
                     end
                 end
