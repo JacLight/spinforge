@@ -9,38 +9,14 @@ local _M = {}
 local dns_cache = {}
 local cache_ttl = 60  -- Cache for 60 seconds
 
--- Known internal services with multiple resolution methods
+-- Internal services using actual container names
 local internal_services = {
-    ["admin-ui"] = {
-        "spinforge-admin-ui",
-        "admin-ui", 
-        "spinforge_admin-ui_1"
-    },
-    ["website"] = {
-        "spinforge-website",
-        "website",
-        "spinforge_website_1"
-    },
-    ["api"] = {
-        "spinforge-api",
-        "api",
-        "spinforge_api_1"
-    },
-    ["keydb"] = {
-        "spinforge-keydb",
-        "keydb",
-        "spinforge_keydb_1"
-    },
-    ["openresty"] = {
-        "spinforge-openresty",
-        "openresty",
-        "spinforge_openresty_1"
-    },
-    ["mcp-server"] = {
-        "spinforge-mcp",
-        "mcp-server",
-        "spinforge_mcp-server_1"
-    }
+    ["spinforge-admin-ui"] = "spinforge-admin-ui",
+    ["spinforge-website"] = "spinforge-website",
+    ["spinforge-api"] = "spinforge-api",
+    ["spinforge-keydb"] = "spinforge-keydb",
+    ["spinforge-openresty"] = "spinforge-openresty",
+    ["spinforge-mcp"] = "spinforge-mcp"
 }
 
 -- Try to resolve a hostname with retries
@@ -96,24 +72,15 @@ function _M.resolve_with_retry(hostname, max_retries)
     return nil
 end
 
--- Get the best hostname for a service
+-- Get the hostname for a service
 function _M.get_service_hostname(service_name)
     -- Check if it's a known internal service
-    local variants = internal_services[service_name]
-    if variants then
-        -- Try each variant
-        for _, hostname in ipairs(variants) do
-            local ip = _M.resolve_with_retry(hostname, 2)
-            if ip then
-                return hostname, ip
-            end
-        end
-    end
+    local hostname = internal_services[service_name] or service_name
     
-    -- Try the name as-is
-    local ip = _M.resolve_with_retry(service_name, 3)
+    -- Try to resolve it
+    local ip = _M.resolve_with_retry(hostname, 3)
     if ip then
-        return service_name, ip
+        return hostname, ip
     end
     
     return nil, nil

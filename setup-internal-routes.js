@@ -24,8 +24,7 @@ async function setupInternalRoutes() {
       {
         domain: 'admin.spinforge.dev',
         type: 'proxy',
-        target: 'http://spinforge-admin-ui:80',  // Use full container name
-        fallbackTarget: 'http://admin-ui:80',
+        target: 'http://spinforge-admin-ui:80',
         ssl_enabled: false,
         description: 'SpinForge Admin UI',
         createdAt: new Date().toISOString(),
@@ -34,8 +33,7 @@ async function setupInternalRoutes() {
       {
         domain: 'api.spinforge.dev', 
         type: 'proxy',
-        target: 'http://spinforge-api:8080',  // Use full container name
-        fallbackTarget: 'http://api:8080',
+        target: 'http://spinforge-api:8080',
         ssl_enabled: false,
         description: 'SpinForge API',
         createdAt: new Date().toISOString(),
@@ -44,8 +42,7 @@ async function setupInternalRoutes() {
       {
         domain: 'www.spinforge.dev',
         type: 'proxy',
-        target: 'http://spinforge-website:3000',  // Use full container name
-        fallbackTarget: 'http://website:3000',
+        target: 'http://spinforge-website:3000',
         ssl_enabled: false,
         description: 'SpinForge Website',
         createdAt: new Date().toISOString(),

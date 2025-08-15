@@ -17,11 +17,12 @@ ngx.log(ngx.INFO, "SSL: Processing certificate for hostname: ", server_name)
 local red = redis:new()
 red:set_timeouts(1000, 1000, 1000)
 
-local redis_host = os.getenv("REDIS_HOST") or "keydb"
 local redis_port = tonumber(os.getenv("REDIS_PORT")) or 16378
 local redis_password = os.getenv("REDIS_PASSWORD")
 local redis_db = tonumber(os.getenv("REDIS_DB")) or 1
 
+-- Connect to Redis using actual container name
+local redis_host = os.getenv("REDIS_HOST") or "spinforge-keydb"
 local ok, err = red:connect(redis_host, redis_port)
 if not ok then
     ngx.log(ngx.ERR, "SSL: Failed to connect to Redis: ", err)

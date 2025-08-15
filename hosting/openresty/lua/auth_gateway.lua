@@ -7,7 +7,7 @@ local resty_sha256 = require "resty.sha256"
 local str = require "resty.string"
 
 -- Configuration
-local REDIS_HOST = os.getenv("REDIS_HOST") or "keydb"
+local REDIS_HOST = os.getenv("REDIS_HOST") or "spinforge-keydb"
 local REDIS_PORT = tonumber(os.getenv("REDIS_PORT") or 16378)
 local REDIS_DB = tonumber(os.getenv("REDIS_DB") or 1)
 local CACHE_TTL = 60 -- Cache auth config for 60 seconds

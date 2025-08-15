@@ -27,8 +27,8 @@ local function get_redis_connection()
     local red = redis:new()
     red:set_timeout(1000) -- 1 second timeout
     
-    -- Use hostname from environment variable for Redis connection
-    local redis_host = _G.redis_host or os.getenv("REDIS_HOST") or "keydb"
+    -- Use the actual container name for Redis connection
+    local redis_host = _G.redis_host or os.getenv("REDIS_HOST") or "spinforge-keydb"
     local ok, err = red:connect(redis_host, redis_port)
     if not ok then
         ngx.log(ngx.ERR, "Failed to connect to Redis: ", err)
