@@ -30,13 +30,17 @@ else
     exit 1
 fi
 
+# Configure data root - always use local path by default
+# The actual storage backend (local, Ceph, NFS, etc) is handled by volume mounts
+DATA_ROOT="${SPINFORGE_DATA_ROOT:-./hosting/data}"
+echo "📁 Data directory: $DATA_ROOT"
+
 # Create required directories
 echo "📁 Creating directories..."
-# Create hosting directory first if it doesn't exist
-mkdir -p hosting
-# Create all subdirectories
-mkdir -p hosting/data/{static/errors,certs/live/default,certbot-webroot,certbot-logs}
-mkdir -p hosting/data/{deployments,uploads,certs/archive}
+# Create data directories at configured root
+mkdir -p "$DATA_ROOT"/{static/errors,certs/live/default,certbot-webroot,certbot-logs}
+mkdir -p "$DATA_ROOT"/{deployments,uploads,certs/archive}
+# Create local directories for code
 mkdir -p hosting/openresty/lua
 mkdir -p hosting/api/{routes,services,utils}
 mkdir -p hosting/scripts
@@ -44,20 +48,20 @@ mkdir -p apps/{admin-ui,website}
 mkdir -p monitoring/{prometheus,loki,grafana/dashboards}
 
 # Generate SSL certificates (required for OpenResty)
-if [ ! -f hosting/data/certs/live/default/fullchain.pem ]; then
+if [ ! -f "$DATA_ROOT/certs/live/default/fullchain.pem" ]; then
     echo "🔐 Generating SSL certificates..."
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-        -keyout hosting/data/certs/live/default/privkey.pem \
-        -out hosting/data/certs/live/default/fullchain.pem \
+        -keyout "$DATA_ROOT/certs/live/default/privkey.pem" \
+        -out "$DATA_ROOT/certs/live/default/fullchain.pem" \
         -subj "/CN=localhost" -batch 2>/dev/null
     
     # Fix permissions for Docker access (readable by root)
-    chmod 644 hosting/data/certs/live/default/fullchain.pem
-    chmod 644 hosting/data/certs/live/default/privkey.pem
+    chmod 644 "$DATA_ROOT/certs/live/default/fullchain.pem"
+    chmod 644 "$DATA_ROOT/certs/live/default/privkey.pem"
     
     # Ensure certificate directories have proper permissions
-    chmod -R 755 hosting/data/certs/live
-    chmod -R 755 hosting/data/certs/archive
+    chmod -R 755 "$DATA_ROOT/certs/live"
+    chmod -R 755 "$DATA_ROOT/certs/archive"
     
     echo "✅ SSL certificates created"
 else
@@ -66,11 +70,15 @@ fi
 
 # Copy static files
 echo "📄 Setting up static files..."
-cp 404.html hosting/data/static/errors/404.html
-cp 50x.html hosting/data/static/errors/500.html
-cp 50x.html hosting/data/static/errors/502.html
-cp 50x.html hosting/data/static/errors/503.html
-cp 404.html hosting/data/static/index.html
+if [ -f 404.html ]; then
+    cp 404.html "$DATA_ROOT/static/errors/404.html"
+    cp 404.html "$DATA_ROOT/static/index.html"
+fi
+if [ -f 50x.html ]; then
+    cp 50x.html "$DATA_ROOT/static/errors/500.html"
+    cp 50x.html "$DATA_ROOT/static/errors/502.html"
+    cp 50x.html "$DATA_ROOT/static/errors/503.html"
+fi
 echo "✅ Static files configured"
 
 # Install MCP server dependencies if needed
@@ -120,13 +128,17 @@ REDIS_DB=1
 API_URL=http://api:8080
 SPINFORGE_API_URL=http://api:8080/api
 
-# Static file paths
-STATIC_ROOT=/data/static
-UPLOAD_TEMP_DIR=/data/uploads
+# Data root configuration
+# Inside containers, data is always at /data
+# On host, it can be local ./hosting/data
+DATA_ROOT=/data
 
-# Certificate paths
-CERTS_PATH=/data/certs
-CERTBOT_WEBROOT=/data/certbot-webroot
+# Relative paths from DATA_ROOT
+# These are used internally by containers
+STATIC_SUBDIR=static
+CERTS_SUBDIR=certs
+UPLOADS_SUBDIR=uploads
+DEPLOYMENTS_SUBDIR=deployments
 
 # SSL Configuration
 SSL_CERT_EMAIL=admin@localhost

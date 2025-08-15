@@ -5,9 +5,17 @@
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
-// Static root for file storage
-const STATIC_ROOT = process.env.STATIC_ROOT || '/data/static';
+// Data root configuration
+const DATA_ROOT = process.env.DATA_ROOT || '/data';
+const STATIC_ROOT = process.env.STATIC_ROOT || `${DATA_ROOT}/static`;
+const UPLOADS_ROOT = process.env.UPLOADS_ROOT || `${DATA_ROOT}/uploads`;
+const DEPLOYMENTS_ROOT = process.env.DEPLOYMENTS_ROOT || `${DATA_ROOT}/deployments`;
+const CERTS_ROOT = process.env.CERTS_ROOT || `${DATA_ROOT}/certs`;
 
 module.exports = {
-  STATIC_ROOT
+  DATA_ROOT,
+  STATIC_ROOT,
+  UPLOADS_ROOT,
+  DEPLOYMENTS_ROOT,
+  CERTS_ROOT
 };

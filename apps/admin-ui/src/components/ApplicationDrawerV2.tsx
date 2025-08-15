@@ -1656,7 +1656,7 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                             <input
                               id={`file-upload-${vhost.domain}`}
                               type="file"
-                              accept=".zip"
+                              accept=".zip,.tar,.tar.gz,.tgz"
                               className="hidden"
                               onChange={(e) => handleFileUpload(e, vhost.domain)}
                               disabled={isUploading}
@@ -1710,24 +1710,14 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                             )}
                           </div>
                           <div className="md:col-span-2">
-                            <p className="text-sm text-gray-600">Static Files Path</p>
-                            <div className="space-y-1">
-                              {vhost.static_path && (
-                                <div>
-                                  <span className="text-xs text-gray-500">Container:</span>
-                                  <code className="text-sm bg-gray-100 px-2 py-0.5 rounded ml-2 text-gray-800">
-                                    {vhost.static_path}
-                                  </code>
-                                </div>
-                              )}
-                              {vhost.host_static_path && (
-                                <div>
-                                  <span className="text-xs text-gray-500">Host:</span>
-                                  <code className="text-sm bg-gray-100 px-2 py-0.5 rounded ml-2 text-gray-800">
-                                    {vhost.host_static_path}
-                                  </code>
-                                </div>
-                              )}
+                            <p className="text-sm text-gray-600">Storage Location</p>
+                            <div className="bg-gray-50 rounded-lg p-2">
+                              <p className="text-sm font-mono text-gray-700">
+                                Folder: {vhost.domain.replace(/\./g, '_')}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Files are stored in the configured data root
+                              </p>
                             </div>
                           </div>
                           {vhost.actual_domain && vhost.actual_domain !== vhost.domain && (
@@ -1778,6 +1768,11 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                                   placeholder="nginx:latest"
                                   className="w-full px-3 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
+                                {vhost.containerConfig?.image && containerImage !== vhost.containerConfig.image && (
+                                  <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1">
+                                    ⚠️ Container will be rebuilt with new image
+                                  </p>
+                                )}
                                 {containerHealth?.runningImage && (
                                   <p className="text-xs text-gray-500 mt-1">
                                     Currently running: <code className="text-gray-600">{containerHealth.runningImage}</code>

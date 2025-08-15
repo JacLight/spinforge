@@ -14,14 +14,15 @@ const path = require("path");
 const yaml = require("js-yaml");
 const multer = require("multer");
 const AdmZip = require("adm-zip");
+const tar = require("tar");
 const redisClient = require("../utils/redis");
 const { execAsync } = require("../utils/docker");
-const { STATIC_ROOT } = require("../utils/constants");
+const { STATIC_ROOT, UPLOADS_ROOT } = require("../utils/constants");
 const { checkStaticFiles } = require("../utils/site-helpers");
 const { addRouteAuth } = require("../route-helper/auth-gateway-helper");
 
-// Configure upload directory - default to a persistent location
-const UPLOAD_TEMP_DIR = process.env.UPLOAD_TEMP_DIR || "/data/uploads";
+// Configure upload directory
+const UPLOAD_TEMP_DIR = UPLOADS_ROOT;
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_TEMP_DIR)) {
@@ -35,10 +36,14 @@ const upload = multer({
     fileSize: 100 * 1024 * 1024, // 100MB max file size
   },
   fileFilter: (req, file, cb) => {
-    const allowedExtensions = ['.zip'];
+    const allowedExtensions = ['.zip', '.tar', '.tar.gz', '.tgz'];
     const allowedMimes = [
       'application/zip',
-      'application/x-zip-compressed'
+      'application/x-zip-compressed',
+      'application/x-tar',
+      'application/gzip',
+      'application/x-gzip',
+      'application/x-compressed-tar'
     ];
     
     const hasValidExt = allowedExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext));
@@ -47,7 +52,7 @@ const upload = multer({
     if (hasValidExt || hasValidMime) {
       cb(null, true);
     } else {
-      cb(new Error("Only zip files are allowed"));
+      cb(new Error("Only zip, tar, or tar.gz files are allowed"));
     }
   },
 });
@@ -610,6 +615,21 @@ router.put("/:domain", async (req, res) => {
 
         // Rebuild container with new configuration
         const config = site.containerConfig;
+        
+        // Log image change if it occurred
+        if (oldSite.containerConfig && oldSite.containerConfig.image !== config.image) {
+          console.log(`Image changed from ${oldSite.containerConfig.image} to ${config.image}`);
+          
+          // Pull the new image first
+          try {
+            console.log(`Pulling new image: ${config.image}`);
+            await execAsync(`docker pull ${config.image}`);
+            console.log(`Successfully pulled image: ${config.image}`);
+          } catch (pullError) {
+            console.log(`Warning: Could not pull image ${config.image}, will try to use local`, pullError.message);
+          }
+        }
+        
         let dockerCmd = `docker run -d --name ${site.containerName}`;
         dockerCmd += ` --network spinforge_spinforge`;
         dockerCmd += ` --restart ${config.restartPolicy || "unless-stopped"}`;
@@ -900,86 +920,139 @@ router.post('/:domain/upload', upload.single('file'), async (req, res) => {
         console.log('Merge mode: keeping existing content, new files will overwrite');
       }
 
-      // Extract zip file
-      const zip = new AdmZip(req.file.path);
-      const zipEntries = zip.getEntries();
-
-      // Analyze zip structure
-      const entryPaths = zipEntries.map((e) => e.entryName);
-      console.log(`Zip contains ${entryPaths.length} entries`);
-
-      // Find the main content directory (ignore __MACOSX and other system folders)
-      let commonPrefix = "";
-      const contentEntries = zipEntries.filter(
-        (e) =>
-          !e.entryName.startsWith("__MACOSX/") &&
-          !e.entryName.startsWith(".DS_Store") &&
-          !e.isDirectory
-      );
-
-      if (contentEntries.length > 0) {
-        // Check if all content files share a common directory
-        const firstFilePath = contentEntries[0].entryName;
-        const firstSlashIndex = firstFilePath.indexOf("/");
-
-        if (firstSlashIndex > 0) {
-          const potentialPrefix = firstFilePath.substring(
-            0,
-            firstSlashIndex + 1
-          );
-
-          // Check if all content files start with this prefix
-          const allHavePrefix = contentEntries.every((e) =>
-            e.entryName.startsWith(potentialPrefix)
-          );
-
-          if (allHavePrefix) {
-            commonPrefix = potentialPrefix;
-            console.log(
-              `Detected common prefix: "${commonPrefix}" - will extract contents directly`
-            );
-          }
-        }
-      }
-
-      // Extract files
+      // Determine file type and extract accordingly
+      const fileName = req.file.originalname.toLowerCase();
+      const isZip = fileName.endsWith('.zip');
+      const isTar = fileName.endsWith('.tar') || fileName.endsWith('.tar.gz') || fileName.endsWith('.tgz');
+      
       let extractedCount = 0;
-      zipEntries.forEach((entry) => {
-        // Skip system files and directories
-        if (
-          entry.entryName.startsWith("__MACOSX/") ||
-          entry.entryName.includes(".DS_Store") ||
-          entry.entryName.startsWith("._")
-        ) {
-          return;
+      let commonPrefix = "";
+
+      if (isZip) {
+        // Extract zip file
+        const zip = new AdmZip(req.file.path);
+        const zipEntries = zip.getEntries();
+
+        // Analyze zip structure
+        const entryPaths = zipEntries.map((e) => e.entryName);
+        console.log(`Zip contains ${entryPaths.length} entries`);
+
+        // Find the main content directory (ignore __MACOSX and other system folders)
+        const contentEntries = zipEntries.filter(
+          (e) =>
+            !e.entryName.startsWith("__MACOSX/") &&
+            !e.entryName.startsWith(".DS_Store") &&
+            !e.isDirectory
+        );
+
+        if (contentEntries.length > 0) {
+          // Check if all content files share a common directory
+          const firstFilePath = contentEntries[0].entryName;
+          const firstSlashIndex = firstFilePath.indexOf("/");
+
+          if (firstSlashIndex > 0) {
+            const potentialPrefix = firstFilePath.substring(
+              0,
+              firstSlashIndex + 1
+            );
+
+            // Check if all content files start with this prefix
+            const allHavePrefix = contentEntries.every((e) =>
+              e.entryName.startsWith(potentialPrefix)
+            );
+
+            if (allHavePrefix) {
+              commonPrefix = potentialPrefix;
+              console.log(
+                `Detected common prefix: "${commonPrefix}" - will extract contents directly`
+              );
+            }
+          }
         }
 
-        if (!entry.isDirectory) {
-          let targetPath = entry.entryName;
-
-          // Remove common prefix if present
-          if (commonPrefix && targetPath.startsWith(commonPrefix)) {
-            targetPath = targetPath.substring(commonPrefix.length);
+        // Extract files
+        zipEntries.forEach((entry) => {
+          // Skip system files and directories
+          if (
+            entry.entryName.startsWith("__MACOSX/") ||
+            entry.entryName.includes(".DS_Store") ||
+            entry.entryName.startsWith("._")
+          ) {
+            return;
           }
 
-          // Skip if empty after prefix removal
-          if (!targetPath) return;
+          if (!entry.isDirectory) {
+            let targetPath = entry.entryName;
 
-          const fullPath = path.join(staticPath, targetPath);
-          const dir = path.dirname(fullPath);
+            // Remove common prefix if present
+            if (commonPrefix && targetPath.startsWith(commonPrefix)) {
+              targetPath = targetPath.substring(commonPrefix.length);
+            }
 
-          // Create directory if needed
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+            // Skip if empty after prefix removal
+            if (!targetPath) return;
+
+            const fullPath = path.join(staticPath, targetPath);
+            const dir = path.dirname(fullPath);
+
+            // Create directory if needed
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+            }
+
+            // Write file
+            fs.writeFileSync(fullPath, entry.getData());
+            extractedCount++;
           }
+        });
 
-          // Write file
-          fs.writeFileSync(fullPath, entry.getData());
-          extractedCount++;
+        console.log(`Extracted ${extractedCount} files from ZIP to ${staticPath}`);
+        
+      } else if (isTar) {
+        // Extract tar file
+        console.log(`Extracting TAR file: ${req.file.originalname}`);
+        
+        try {
+          // Extract tar with automatic gzip detection
+          await tar.extract({
+            file: req.file.path,
+            cwd: staticPath,
+            strip: 1, // Strip the first directory level if common
+            filter: (path) => {
+              // Skip system files
+              if (path.includes('__MACOSX') || 
+                  path.includes('.DS_Store') || 
+                  path.startsWith('._')) {
+                return false;
+              }
+              extractedCount++;
+              return true;
+            }
+          });
+          
+          console.log(`Extracted ${extractedCount} files from TAR to ${staticPath}`);
+        } catch (tarError) {
+          console.error('TAR extraction error:', tarError);
+          // Try without strip option
+          extractedCount = 0;
+          await tar.extract({
+            file: req.file.path,
+            cwd: staticPath,
+            filter: (path) => {
+              if (path.includes('__MACOSX') || 
+                  path.includes('.DS_Store') || 
+                  path.startsWith('._')) {
+                return false;
+              }
+              extractedCount++;
+              return true;
+            }
+          });
+          console.log(`Extracted ${extractedCount} files from TAR to ${staticPath} (no strip)`);
         }
-      });
-
-      console.log(`Extracted ${extractedCount} files to ${staticPath}`);
+      } else {
+        throw new Error('Unsupported file format');
+      }
 
       // Create deploy.json if it doesn't exist
       const deployJsonPath = path.join(staticPath, "deploy.json");

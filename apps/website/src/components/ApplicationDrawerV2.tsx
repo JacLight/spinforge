@@ -1226,7 +1226,14 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                           <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Docker Image</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Docker Image
+                                  {vhost.containerConfig?.image && containerImage !== vhost.containerConfig.image && (
+                                    <span className="ml-2 text-xs text-amber-600">
+                                      (Container will be rebuilt with new image)
+                                    </span>
+                                  )}
+                                </label>
                                 <input
                                   type="text"
                                   value={containerImage}
@@ -1234,6 +1241,11 @@ export default function ApplicationDrawerV2({ vhost: initialVhost, isOpen, onClo
                                   placeholder="nginx:latest"
                                   className="w-full px-3 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
+                                {vhost.containerConfig?.image && containerImage !== vhost.containerConfig.image && (
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Current: {vhost.containerConfig.image}
+                                  </p>
+                                )}
                               </div>
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Container Port</label>

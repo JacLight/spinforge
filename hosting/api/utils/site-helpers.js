@@ -19,11 +19,9 @@ function checkStaticFiles(site) {
     site.actual_domain = null;
     site.static_path = staticPath; // Container path
     
-    // Calculate host path based on the docker-compose volume mount
-    // In docker-compose.yml: ./hosting/data/static:/data/static
-    // Use environment variable if set, otherwise use relative path
-    const hostBasePath = process.env.HOST_STATIC_PATH || './hosting/data/static';
-    site.host_static_path = path.join(hostBasePath, folderName);
+    // Host path is just for display - actual path depends on volume mount
+    // The real path is determined by HOST_DATA_ROOT in docker-compose.yml
+    site.host_static_path = `[HOST_DATA_ROOT]/static/${folderName}`;
     
     try {
       // Check if directory exists

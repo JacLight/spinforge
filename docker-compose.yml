@@ -43,11 +43,11 @@ services:
       # Config files - kept local for performance
       - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
       - ./hosting/openresty/lua:/etc/openresty/lua:ro
-      # Data files - shared via Ceph for HA
-      - /mnt/cephfs/spinforge/hosting/data/static:/data/static
-      - /mnt/cephfs/spinforge/hosting/data/certificates:/data/certificates
-      - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
-      - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
+      # Data directory - single mount point
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}:/data
+      # Map cert paths for compatibility
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certs:/etc/letsencrypt
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-webroot:/var/www/certbot
       - openresty-logs:/var/log/nginx
     networks:
       spinforge:
@@ -71,15 +71,14 @@ services:
       - .env
     environment:
       - PORT=${API_PORT}
-      - STATIC_ROOT=${STATIC_ROOT}
-      - HOST_STATIC_PATH=/mnt/cephfs/spinforge/hosting/data/static
+      - DATA_ROOT=/data
+      - STATIC_ROOT=/data/static
       - REDIS_HOST=spinforge-keydb
       - REDIS_PORT=16378
       - REDIS_DB=1
     volumes:
-      # Shared data via Ceph for HA
-      # Use Ceph-mounted data directory
-      - /mnt/cephfs/spinforge/hosting/data:/data
+      # Single data mount point
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}:/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       spinforge:
@@ -101,12 +100,10 @@ services:
     container_name: spinforge-certbot
     restart: unless-stopped
     volumes:
-      # Shared certificates via Ceph for HA
-      # Local scripts
-      # Use Ceph-mounted paths for certificates
-      - /mnt/cephfs/spinforge/hosting/data/certs:/etc/letsencrypt
-      - /mnt/cephfs/spinforge/hosting/data/certbot-webroot:/var/www/certbot
-      - /mnt/cephfs/spinforge/hosting/data/certbot-logs:/var/log/letsencrypt
+      # Certificate paths
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certs:/etc/letsencrypt
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-webroot:/var/www/certbot
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-logs:/var/log/letsencrypt
       - ./hosting/scripts:/scripts:ro
     networks:
       spinforge:

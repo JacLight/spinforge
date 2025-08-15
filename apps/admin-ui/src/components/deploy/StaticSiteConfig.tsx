@@ -31,7 +31,19 @@ export default function StaticSiteConfig({
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFileSelect = (file: File) => {
-    if (file && file.type === 'application/zip' || file.name.endsWith('.zip')) {
+    const allowedTypes = [
+      'application/zip',
+      'application/x-zip-compressed',
+      'application/x-tar',
+      'application/gzip',
+      'application/x-gzip'
+    ];
+    const allowedExtensions = ['.zip', '.tar', '.tar.gz', '.tgz'];
+    
+    const isValidType = allowedTypes.includes(file.type) || 
+                       allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    
+    if (file && isValidType) {
       // Check file size
       if (file.size > 100 * 1024 * 1024) {
         alert('File size exceeds 100MB limit. Please use a smaller file.');
@@ -39,7 +51,7 @@ export default function StaticSiteConfig({
       }
       onZipFileChange?.(file);
     } else {
-      alert('Please select a valid ZIP file');
+      alert('Please select a valid ZIP or TAR file');
     }
   };
 
@@ -125,7 +137,7 @@ export default function StaticSiteConfig({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".zip,application/zip"
+            accept=".zip,.tar,.tar.gz,.tgz,application/zip,application/x-tar,application/gzip"
             onChange={handleInputChange}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
@@ -160,10 +172,10 @@ export default function StaticSiteConfig({
                 <FileArchive className={`h-12 w-12 mx-auto ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    Drop your ZIP file here, or click to browse
+                    Drop your ZIP or TAR file here, or click to browse
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Maximum file size: 100MB
+                    Supported: .zip, .tar, .tar.gz, .tgz | Max: 100MB
                   </p>
                 </div>
               </div>
@@ -171,7 +183,7 @@ export default function StaticSiteConfig({
           </div>
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          Upload a ZIP file containing your website files. The contents will be extracted and deployed automatically.
+          Upload a ZIP or TAR archive containing your website files. The contents will be extracted and deployed automatically.
         </p>
       </div>
 
@@ -193,10 +205,10 @@ export default function StaticSiteConfig({
             {domain && (
               <>
                 <p className="text-xs text-blue-700 mt-3">
-                  Files will be stored at:
+                  Files will be stored in folder:
                 </p>
                 <code className="block mt-2 text-xs bg-blue-100 px-2 py-1 rounded">
-                  /hosting/data/static/{domain.replace(/[^a-z0-9.-]/g, '-')}/
+                  {domain.replace(/\./g, '_')}
                 </code>
               </>
             )}

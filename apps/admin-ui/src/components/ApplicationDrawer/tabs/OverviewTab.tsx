@@ -797,15 +797,9 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
                   </p>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Container Path:</label>
-                  <p className="text-sm text-gray-900 font-mono">
-                    /data/static/{vhost.domain.replace(/\./g, '_')}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Host Path (Upload here):</label>
-                  <p className="text-sm text-gray-900 font-mono">
-                    hosting/data/static/{vhost.domain.replace(/\./g, '_')}
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Storage Folder:</label>
+                  <p className="text-sm text-gray-900 font-mono bg-gray-50 px-2 py-1 rounded">
+                    {vhost.domain.replace(/\./g, '_')}
                   </p>
                 </div>
               </div>
