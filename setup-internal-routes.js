@@ -8,7 +8,7 @@ const redis = require('redis');
 async function setupInternalRoutes() {
   const redisClient = redis.createClient({
     socket: {
-      host: process.env.REDIS_HOST || 'keydb',
+      host: process.env.REDIS_HOST || 'spinforge-keydb',
       port: process.env.REDIS_PORT || 16378
     },
     password: process.env.REDIS_PASSWORD || '',

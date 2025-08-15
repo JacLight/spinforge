@@ -35,6 +35,10 @@ services:
       - "8082:8081"
     env_file:
       - .env
+    environment:
+      - REDIS_HOST=spinforge-keydb
+      - REDIS_PORT=16378
+      - REDIS_DB=1
     volumes:
       # Config files - kept local for performance
       - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
@@ -69,6 +73,9 @@ services:
       - PORT=${API_PORT}
       - STATIC_ROOT=${STATIC_ROOT}
       - HOST_STATIC_PATH=/mnt/cephfs/spinforge/hosting/data/static
+      - REDIS_HOST=spinforge-keydb
+      - REDIS_PORT=16378
+      - REDIS_DB=1
     volumes:
       # Shared data via Ceph for HA
       # Use Ceph-mounted data directory
