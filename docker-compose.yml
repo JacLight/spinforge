@@ -17,6 +17,11 @@ services:
     networks:
       spinforge:
         ipv4_address: 172.18.0.10
+    dns_opt:
+      - use-vc        # force TCP for DNS (avoids flaky UDP)
+      - timeout:2
+      - attempts:2
+      - ndots:1
     healthcheck:
       test: ["CMD", "keydb-cli", "-p", "16378", "ping"]
       interval: 10s
@@ -36,9 +41,14 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_HOST=spinforge-keydb
+      - REDIS_HOST=${REDIS_HOST:-172.18.0.10}
       - REDIS_PORT=16378
       - REDIS_DB=1
+    dns_opt:
+      - use-vc        # force TCP for DNS (avoids flaky UDP)
+      - timeout:2
+      - attempts:2
+      - ndots:1
     volumes:
       # Config files - kept local for performance
       - ./hosting/openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
@@ -73,9 +83,14 @@ services:
       - PORT=${API_PORT}
       - DATA_ROOT=/data
       - STATIC_ROOT=/data/static
-      - REDIS_HOST=spinforge-keydb
+      - REDIS_HOST=${REDIS_HOST:-172.18.0.10}
       - REDIS_PORT=16378
       - REDIS_DB=1
+    dns_opt:
+      - use-vc        # force TCP for DNS (avoids flaky UDP)
+      - timeout:2
+      - attempts:2
+      - ndots:1
     volumes:
       # Single data mount point
       - ${SPINFORGE_DATA_ROOT:-./hosting/data}:/data
@@ -99,13 +114,7 @@ services:
     image: certbot/certbot:latest
     container_name: spinforge-certbot
     restart: unless-stopped
-    volumes:
-      # Certificate paths
-      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certs:/etc/letsencrypt
-      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-webroot:/var/www/certbot
-      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-logs:/var/log/letsencrypt
-      - ./hosting/scripts:/scripts:ro
-    networks:
+    this
       spinforge:
         ipv4_address: 172.18.0.13
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive\"; sleep 12h & wait $${!}; done;'"
