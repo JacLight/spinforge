@@ -114,7 +114,10 @@ services:
     image: certbot/certbot:latest
     container_name: spinforge-certbot
     restart: unless-stopped
-    this
+    volumes:
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certs:/etc/letsencrypt
+      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-webroot:/var/www/certbot
+    networks:
       spinforge:
         ipv4_address: 172.18.0.13
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive\"; sleep 12h & wait $${!}; done;'"

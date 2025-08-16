@@ -11,6 +11,8 @@
 !route-helper/
 !utils/
 !services/
+!scripts/
+!entrypoint.sh
 
 # Explicitly exclude even if included above
 node_modules/

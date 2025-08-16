@@ -4,8 +4,8 @@
 
 FROM node:22-alpine
 
-# Install Docker CLI and OpenSSL
-RUN apk add --no-cache docker-cli openssl
+# Install Docker CLI, OpenSSL, and netcat for health checks
+RUN apk add --no-cache docker-cli openssl netcat-openbsd
 
 WORKDIR /app
 
@@ -18,9 +18,14 @@ RUN npm install --production
 # Copy application
 COPY . .
 
+# Make scripts executable (if they exist)
+RUN if [ -f /app/entrypoint.sh ]; then chmod +x /app/entrypoint.sh; fi && \
+    if [ -f /app/scripts/init-routes.sh ]; then chmod +x /app/scripts/init-routes.sh; fi
+
 EXPOSE 8080
 
 # Set environment for static files location
 ENV STATIC_ROOT=/data/static
 
-CMD ["node", "server-openresty.js"]
+# Use entrypoint that initializes routes
+ENTRYPOINT ["/app/entrypoint.sh"]
