@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useDebounce } from "@/hooks/useDebounce";
-import ApplicationDrawer from "@/components/ApplicationDrawerV2";
+
 import {
   Globe,
   Package,

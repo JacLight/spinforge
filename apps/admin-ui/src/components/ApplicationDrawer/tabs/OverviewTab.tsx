@@ -1,5 +1,5 @@
-import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
-import { Shield, Globe, Server, Activity, CheckCircle, XCircle, Plus, Trash2, ExternalLink, ChevronRight, AlertTriangle, Package, Network, Edit2, Settings, Play, Square, RotateCcw, RefreshCw, FileText, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, memo, useCallback, useMemo, useRef } from 'react';
+import { Shield, Globe, Server, Activity, CheckCircle, XCircle, Plus, Trash2, ExternalLink, ChevronRight, AlertTriangle, Package, Network, Edit2, Settings, Play, Square, RotateCcw, RefreshCw, FileText, Loader2, AlertCircle, Upload, FolderOpen, File, Download, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { hostingAPI } from '../../../services/hosting-api';
@@ -713,119 +713,9 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
       )}
 
       {vhost.type === 'static' && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-md font-semibold text-gray-900 flex items-center gap-2">
-              <Globe className="h-5 w-5 text-blue-500" />
-              Static Site Configuration
-            </h3>
-            {/* Files Status Badge */}
-            <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
-              vhost.files_exist === false 
-                ? 'bg-red-100 text-red-700' 
-                : vhost.files_exist === true
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-700'
-            }`}>
-              {vhost.files_exist === false ? (
-                <>
-                  <XCircle className="h-4 w-4" />
-                  Files Missing
-                </>
-              ) : vhost.files_exist === true ? (
-                <>
-                  <CheckCircle className="h-4 w-4" />
-                  Files Exist
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4" />
-                  Unknown Status
-                </>
-              )}
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            {/* Editable Configuration - At the Top */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Index File - Editable */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Index File</label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={formData.indexFile || 'index.html'}
-                    onChange={(e) => setFormData({ ...formData, indexFile: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    placeholder="index.html"
-                  />
-                ) : (
-                  <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
-                    {formData.indexFile || 'index.html'}
-                  </code>
-                )}
-              </div>
-
-              {/* Error Page - Editable */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Error Page</label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={formData.errorFile || '404.html'}
-                    onChange={(e) => setFormData({ ...formData, errorFile: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    placeholder="404.html"
-                  />
-                ) : (
-                  <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
-                    {formData.errorFile || '404.html'}
-                  </code>
-                )}
-              </div>
-            </div>
-
-            {/* Static Files Path Information - Below */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Static Files Location</h4>
-              <div className="space-y-2">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Document Root:</label>
-                  <p className="text-sm text-gray-900 font-mono">
-                    {vhost.target || `/data/static/${vhost.domain.replace(/\./g, '_')}`}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Storage Folder:</label>
-                  <p className="text-sm text-gray-900 font-mono bg-gray-50 px-2 py-1 rounded">
-                    {vhost.domain.replace(/\./g, '_')}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Files Status */}
-            {vhost.files_exist === false && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <div>
-                  <p className="text-sm text-red-800 font-medium">Static files not found!</p>
-                  <p className="text-xs text-red-700">
-                    Upload your files to: hosting/data/static/{vhost.domain.replace(/\./g, '_')}/
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {vhost.files_exist === true && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-sm text-green-800">Static files found and serving</span>
-              </div>
-            )}
-          </div>
-        </div>
+        <>
+          <StaticSiteManagement vhost={vhost} isEditing={isEditing} formData={formData} setFormData={setFormData} />
+        </>
       )}
 
       {vhost.type === 'container' && (
@@ -851,6 +741,437 @@ export default function OverviewTab({ vhost, isEditing, formData, setFormData }:
         />
       )}
     </div>
+  );
+}
+
+// Static Site Management Component
+function StaticSiteManagement({ vhost, isEditing, formData, setFormData }: { 
+  vhost: any; 
+  isEditing: boolean;
+  formData: any;
+  setFormData: (data: any) => void;
+}) {
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'zip'>('zip');
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async () => {
+    if (!selectedFiles || selectedFiles.length === 0) {
+      toast.error('Please select files to upload');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      
+      if (uploadMethod === 'zip') {
+        // Upload single zip file
+        formData.append('zipFile', selectedFiles[0]);
+        formData.append('extractZip', 'true');
+      } else {
+        // Upload multiple files
+        for (let i = 0; i < selectedFiles.length; i++) {
+          formData.append('files', selectedFiles[i]);
+        }
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/static/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (response.ok) {
+        toast.success(
+          uploadMethod === 'zip' 
+            ? 'Zip file uploaded and extracted successfully!' 
+            : `${selectedFiles.length} file(s) uploaded successfully!`
+        );
+        setShowUploadModal(false);
+        setSelectedFiles(null);
+        
+        // Trigger a refresh to update file status
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Failed to upload files');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload files');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleClearFiles = async () => {
+    if (!confirm('Are you sure you want to delete all static files? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/static/clear`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        toast.success('All static files have been deleted');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Failed to delete files');
+      }
+    } catch (error) {
+      console.error('Clear files error:', error);
+      toast.error('Failed to delete files');
+    }
+  };
+
+  return (
+    <>
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-md font-semibold text-gray-900 flex items-center gap-2">
+            <Globe className="h-5 w-5 text-blue-500" />
+            Static Site Configuration
+          </h3>
+          {/* Files Status Badge */}
+          <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
+            vhost.files_exist === false 
+              ? 'bg-red-100 text-red-700' 
+              : vhost.files_exist === true
+              ? 'bg-green-100 text-green-700'
+              : 'bg-gray-100 text-gray-700'
+          }`}>
+            {vhost.files_exist === false ? (
+              <>
+                <XCircle className="h-4 w-4" />
+                Files Missing
+              </>
+            ) : vhost.files_exist === true ? (
+              <>
+                <CheckCircle className="h-4 w-4" />
+                Files Exist
+              </>
+            ) : (
+              <>
+                <AlertCircle className="h-4 w-4" />
+                Unknown Status
+              </>
+            )}
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          {/* Editable Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Index File</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.indexFile || 'index.html'}
+                  onChange={(e) => setFormData({ ...formData, indexFile: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="index.html"
+                />
+              ) : (
+                <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
+                  {formData.indexFile || 'index.html'}
+                </code>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Error Page</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.errorFile || '404.html'}
+                  onChange={(e) => setFormData({ ...formData, errorFile: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="404.html"
+                />
+              ) : (
+                <code className="block px-3 py-2 bg-gray-100 rounded-lg text-sm">
+                  {formData.errorFile || '404.html'}
+                </code>
+              )}
+            </div>
+          </div>
+
+          {/* File Management Actions */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Files
+            </button>
+
+            <button
+              onClick={handleClearFiles}
+              disabled={vhost.files_exist === false}
+              className={`p-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${
+                vhost.files_exist === false
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear All Files
+            </button>
+          </div>
+
+          {/* Static Files Path Information */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Static Files Location</h4>
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Document Root:</label>
+                <p className="text-sm text-gray-900 font-mono">
+                  {vhost.target || `/data/static/${vhost.domain.replace(/\./g, '_')}`}
+                </p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Storage Folder:</label>
+                <p className="text-sm text-gray-900 font-mono bg-gray-50 px-2 py-1 rounded">
+                  {vhost.domain.replace(/\./g, '_')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Files Status Messages */}
+          {vhost.files_exist === false && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <div>
+                <p className="text-sm text-red-800 font-medium">No files uploaded yet!</p>
+                <p className="text-xs text-red-700">
+                  Click "Upload Files" to deploy your static website
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {vhost.files_exist === true && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-800">Static files are deployed and serving</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" 
+            onClick={() => {
+              if (!isUploading) {
+                setShowUploadModal(false);
+                setSelectedFiles(null);
+              }
+            }}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold">Upload Static Files</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Deploy your static website files
+                </p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                {/* Upload Method Selection */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setUploadMethod('zip');
+                      setSelectedFiles(null);
+                    }}
+                    className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                      uploadMethod === 'zip'
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Archive className="h-5 w-5 mx-auto mb-1 text-indigo-600" />
+                    <p className="text-sm font-medium">Upload ZIP</p>
+                    <p className="text-xs text-gray-500">Single compressed file</p>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setUploadMethod('file');
+                      setSelectedFiles(null);
+                    }}
+                    className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                      uploadMethod === 'file'
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <File className="h-5 w-5 mx-auto mb-1 text-indigo-600" />
+                    <p className="text-sm font-medium">Upload Files</p>
+                    <p className="text-xs text-gray-500">Multiple files</p>
+                  </button>
+                </div>
+
+                {/* File Selection */}
+                <div>
+                  {uploadMethod === 'zip' ? (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select ZIP File
+                      </label>
+                      <input
+                        ref={zipInputRef}
+                        type="file"
+                        accept=".zip"
+                        onChange={(e) => setSelectedFiles(e.target.files)}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => zipInputRef.current?.click()}
+                        className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors"
+                      >
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-600">
+                          {selectedFiles && selectedFiles[0]
+                            ? selectedFiles[0].name
+                            : 'Click to select ZIP file'}
+                        </p>
+                        {selectedFiles && selectedFiles[0] && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Size: {(selectedFiles[0].size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Files
+                      </label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        onChange={(e) => setSelectedFiles(e.target.files)}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors"
+                      >
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-600">
+                          {selectedFiles && selectedFiles.length > 0
+                            ? `${selectedFiles.length} file(s) selected`
+                            : 'Click to select files'}
+                        </p>
+                        {selectedFiles && selectedFiles.length > 0 && (
+                          <div className="mt-2 max-h-32 overflow-y-auto">
+                            {Array.from(selectedFiles).slice(0, 5).map((file, idx) => (
+                              <p key={idx} className="text-xs text-gray-500">
+                                {file.name}
+                              </p>
+                            ))}
+                            {selectedFiles.length > 5 && (
+                              <p className="text-xs text-gray-400">
+                                ...and {selectedFiles.length - 5} more
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Upload Progress */}
+                {isUploading && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Uploading...</span>
+                      <span className="text-gray-900 font-medium">{uploadProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Info Message */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <AlertCircle className="h-4 w-4 inline mr-1" />
+                    {uploadMethod === 'zip' 
+                      ? 'ZIP file will be automatically extracted after upload'
+                      : 'All existing files will be replaced with the new upload'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 p-6 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setSelectedFiles(null);
+                  }}
+                  disabled={isUploading}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFileUpload}
+                  disabled={!selectedFiles || selectedFiles.length === 0 || isUploading}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Upload
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -1055,6 +1376,8 @@ function ContainerManagement({ vhost }: { vhost: any }) {
   const [containerStatus, setContainerStatus] = useState<string>('checking');
   const [isLoading, setIsLoading] = useState<{ [key: string]: boolean }>({});
   const [containerInfo, setContainerInfo] = useState<any>(null);
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [deployImageName, setDeployImageName] = useState('');
 
   // Check container status
   const checkContainerStatus = async () => {
@@ -1124,6 +1447,52 @@ function ContainerManagement({ vhost }: { vhost: any }) {
       toast.error('Failed to fetch container logs');
     } finally {
       setIsLoading(prev => ({ ...prev, logs: false }));
+    }
+  };
+
+  const handleDeployNewImage = async (newImage: string) => {
+    if (!newImage || newImage === containerInfo?.runningImage) {
+      toast.info("Image is already running");
+      return;
+    }
+
+    setIsLoading(prev => ({ ...prev, deploy: true }));
+    try {
+      // First update the configuration
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          containerConfig: {
+            ...vhost.containerConfig,
+            image: newImage
+          }
+        })
+      });
+      
+      // Then rebuild the container with the new image
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sites/${vhost.domain}/container/rebuild`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        toast.success(`Successfully deployed new image: ${newImage}`);
+        setShowDeployModal(false);
+        setDeployImageName('');
+        
+        // Refetch health status after deployment
+        setTimeout(checkContainerStatus, 3000);
+      } else {
+        const errorData = await response.json().catch(() => null);
+        toast.error(errorData?.error || 'Failed to deploy new image');
+      }
+    } catch (error) {
+      console.error('Deploy error:', error);
+      toast.error('Failed to deploy new image');
+    } finally {
+      setIsLoading(prev => ({ ...prev, deploy: false }));
     }
   };
 
@@ -1231,6 +1600,157 @@ function ContainerManagement({ vhost }: { vhost: any }) {
         {isLoading.logs ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
         View Container Logs
       </button>
+
+      {/* Deploy New Image Button */}
+      <button
+        onClick={() => {
+          setDeployImageName(vhost.containerConfig?.image || '');
+          setShowDeployModal(true);
+        }}
+        disabled={isLoading.deploy}
+        className="w-full mt-2 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+        title="Deploy a new container image"
+      >
+        {isLoading.deploy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+        Deploy New Image
+      </button>
+
+      {/* Container Info Display */}
+      {containerInfo && (
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className="space-y-2 text-sm">
+            {containerInfo.runningImage && (
+              <div className="flex items-start gap-2">
+                <span className="text-gray-600 font-medium">Running Image:</span>
+                <code className={`text-xs ${
+                  containerInfo.runningImage !== vhost.containerConfig?.image 
+                    ? 'text-amber-600 font-semibold' 
+                    : 'text-gray-700'
+                }`}>
+                  {containerInfo.runningImage}
+                </code>
+              </div>
+            )}
+            {containerInfo.runningImage && containerInfo.runningImage !== vhost.containerConfig?.image && (
+              <div className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="text-xs">Image mismatch - rebuild to update</span>
+              </div>
+            )}
+            {containerInfo.configuredImage && (
+              <div className="flex items-start gap-2">
+                <span className="text-gray-600 font-medium">Configured Image:</span>
+                <code className="text-xs text-gray-700">{containerInfo.configuredImage}</code>
+              </div>
+            )}
+            {containerInfo.health && (
+              <div className="flex items-start gap-2">
+                <span className="text-gray-600 font-medium">Health:</span>
+                <span className="text-xs text-gray-700">{containerInfo.health}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Deploy Modal */}
+      {showDeployModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" 
+            onClick={() => {
+              setShowDeployModal(false);
+              setDeployImageName('');
+            }}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold">Deploy New Container Image</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Enter the new image name to deploy
+                </p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Image
+                  </label>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <code className="text-sm text-gray-600">
+                      {containerInfo?.runningImage || vhost.containerConfig?.image || 'Not set'}
+                    </code>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Image Name
+                  </label>
+                  <input
+                    type="text"
+                    value={deployImageName}
+                    onChange={(e) => setDeployImageName(e.target.value)}
+                    placeholder="e.g., nginx:latest, node:18-alpine"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && deployImageName) {
+                        handleDeployNewImage(deployImageName);
+                      } else if (e.key === 'Escape') {
+                        setShowDeployModal(false);
+                        setDeployImageName('');
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Examples: nginx:latest, node:18-alpine, python:3.11
+                  </p>
+                </div>
+                
+                {deployImageName && deployImageName !== (containerInfo?.runningImage || vhost.containerConfig?.image) && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <AlertCircle className="h-4 w-4 inline mr-1" />
+                      This will rebuild the container with the new image
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 p-6 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowDeployModal(false);
+                    setDeployImageName('');
+                  }}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeployNewImage(deployImageName)}
+                  disabled={!deployImageName || deployImageName === (containerInfo?.runningImage || vhost.containerConfig?.image) || isLoading.deploy}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isLoading.deploy ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Package className="h-4 w-4" />
+                      Deploy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

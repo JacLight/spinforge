@@ -65,6 +65,10 @@ app.use('/api/mcp', mcpRoutes);
 const mcpServer = require('./routes/mcp-server');
 app.use('/mcp', mcpServer);
 
+// Static file management routes
+const staticRoutes = require('./routes/static');
+app.use('/api/sites', staticRoutes);
+
 // Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
   try {
