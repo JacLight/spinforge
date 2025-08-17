@@ -223,20 +223,68 @@ router.post("/", async (req, res) => {
     }
 
     // Handle Docker Compose deployment
-    if (site.type === "container" && site.composeConfig) {
+    if (site.type === "compose") {
       try {
-        // Parse the YAML to create a compose deployment
-        const composeYaml = site.composeConfig;
-        const composeData = yaml.load(composeYaml);
+        const composeYaml = site.compose;
+        if (!composeYaml) {
+          return res.status(400).json({
+            error: "Compose configuration is required for compose deployment"
+          });
+        }
 
-        // Deploy using compose manager
-        // const result = await composeManager.deployCompose(site.domain, composeData);
-
-        // Store the result in the site object
-        // site.composeProject = result.projectName;
-        // site.containers = result.containers;
-        // site.services = result.services;
-
+        // Generate project name
+        const projectName = `spinforge-${site.domain.replace(/\./g, '-')}`;
+        const projectPath = path.join('/data/compose', projectName);
+        
+        // Create project directory
+        await execAsync(`mkdir -p ${projectPath}`);
+        
+        // Validate and write compose file
+        let composeContent;
+        if (typeof composeYaml === 'string') {
+          // Validate YAML
+          yaml.load(composeYaml);
+          composeContent = composeYaml;
+        } else {
+          composeContent = yaml.dump(composeYaml);
+        }
+        
+        const composeFilePath = path.join(projectPath, 'docker-compose.yml');
+        await fs.promises.writeFile(composeFilePath, composeContent);
+        
+        // Deploy using docker-compose
+        console.log(`Deploying compose project: ${projectName}`);
+        const { stdout, stderr } = await execAsync(
+          `cd ${projectPath} && docker-compose -p ${projectName} up -d`,
+          { maxBuffer: 10 * 1024 * 1024 }
+        );
+        
+        // Get container info
+        const containers = await execAsync(
+          `docker ps --filter "label=com.docker.compose.project=${projectName}" --format "{{.Names}}|{{.Image}}|{{.State}}"`
+        );
+        
+        const deployedContainers = [];
+        const lines = containers.stdout.split('\n').filter(line => line.trim());
+        
+        for (const line of lines) {
+          const [name, image, state] = line.split('|');
+          if (name) {
+            deployedContainers.push({
+              name: name,
+              image: image,
+              state: state
+            });
+          }
+        }
+        
+        // Store compose-specific info
+        site.type = 'compose';
+        site.projectName = projectName;
+        site.projectPath = projectPath;
+        site.containers = deployedContainers;
+        site.composeYaml = composeContent;
+        
         console.log(`Compose deployment successful for ${site.domain}`);
       } catch (error) {
         console.error("Compose deployment failed:", error);
@@ -852,6 +900,203 @@ router.delete("/:domain", async (req, res) => {
     await redisClient.del(`site:${domain}`);
 
     res.json({ message: "Site deleted", domain });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Check if container is ready (actually responding to requests)
+router.get('/:domain/readiness', async (req, res) => {
+  try {
+    const domain = req.params.domain;
+    const data = await redisClient.get(`site:${domain}`);
+    
+    if (!data) {
+      return res.status(404).json({ 
+        ready: false, 
+        error: 'Site not found',
+        status: 'not_found'
+      });
+    }
+    
+    const site = JSON.parse(data);
+    
+    // Only check containers
+    if (site.type !== 'container') {
+      // For non-container sites, just check if they exist
+      if (site.type === 'static') {
+        const folderName = domain.replace(/\./g, "_");
+        const staticPath = path.join(STATIC_ROOT, folderName);
+        const filesExist = fs.existsSync(staticPath) && fs.readdirSync(staticPath).length > 0;
+        
+        return res.json({
+          ready: filesExist,
+          type: 'static',
+          status: filesExist ? 'ready' : 'no_files'
+        });
+      }
+      
+      // Proxy and loadbalancer are ready if configured
+      return res.json({
+        ready: true,
+        type: site.type,
+        status: 'ready'
+      });
+    }
+    
+    // Check if container exists and is running
+    const containerName = site.containerName || `spinforge-${domain.replace(/\./g, '-')}`;
+    
+    try {
+      // Check if container is running
+      const runningCheck = await execAsync(
+        `docker inspect -f '{{.State.Running}}' ${containerName} 2>/dev/null || echo "false"`
+      );
+      
+      if (runningCheck.trim() !== 'true') {
+        return res.json({
+          ready: false,
+          type: 'container',
+          status: 'not_running',
+          details: 'Container is not running'
+        });
+      }
+      
+      // Get container health status if available
+      const healthCheck = await execAsync(
+        `docker inspect -f '{{.State.Health.Status}}' ${containerName} 2>/dev/null || echo "none"`
+      );
+      
+      const healthStatus = healthCheck.trim();
+      
+      // If container has health check, use that
+      if (healthStatus !== 'none' && healthStatus !== '') {
+        return res.json({
+          ready: healthStatus === 'healthy',
+          type: 'container',
+          status: healthStatus,
+          details: `Container health: ${healthStatus}`
+        });
+      }
+      
+      // Otherwise, check if the container port is responding
+      const port = site.containerConfig?.port || 80;
+      
+      // Try to make an HTTP request to the container
+      const curlCheck = await execAsync(
+        `docker exec ${containerName} sh -c 'curl -s -o /dev/null -w "%{http_code}" -m 3 http://localhost:${port}/ 2>/dev/null || echo "000"' 2>/dev/null || echo "000"`
+      );
+      
+      const httpCode = curlCheck.trim();
+      
+      // Consider 2xx, 3xx, and 401/403 as "ready" (app is responding)
+      const isResponding = httpCode.match(/^[23]\d\d$/) || httpCode === '401' || httpCode === '403';
+      
+      if (isResponding) {
+        return res.json({
+          ready: true,
+          type: 'container',
+          status: 'ready',
+          details: `Container is responding (HTTP ${httpCode})`
+        });
+      }
+      
+      // Check how long the container has been running
+      const startTime = await execAsync(
+        `docker inspect -f '{{.State.StartedAt}}' ${containerName}`
+      );
+      
+      const startedAt = new Date(startTime.trim());
+      const runningSeconds = Math.floor((Date.now() - startedAt.getTime()) / 1000);
+      
+      // If container just started (less than 30 seconds), it might still be initializing
+      if (runningSeconds < 30) {
+        return res.json({
+          ready: false,
+          type: 'container',
+          status: 'starting',
+          details: `Container is starting (${runningSeconds}s elapsed)`,
+          runningSeconds
+        });
+      }
+      
+      // Container is running but not responding
+      return res.json({
+        ready: false,
+        type: 'container', 
+        status: 'not_responding',
+        details: `Container is running but not responding on port ${port}`,
+        httpCode: httpCode === '000' ? null : httpCode
+      });
+      
+    } catch (error) {
+      // Container doesn't exist
+      return res.json({
+        ready: false,
+        type: 'container',
+        status: 'not_found',
+        details: 'Container does not exist',
+        error: error.message
+      });
+    }
+    
+  } catch (error) {
+    res.status(500).json({ 
+      ready: false,
+      error: error.message,
+      status: 'error'
+    });
+  }
+});
+
+
+// Manage Docker Compose project
+router.post('/:domain/compose/:action', async (req, res) => {
+  try {
+    const { domain, action } = req.params;
+    const validActions = ['stop', 'start', 'restart', 'down', 'logs', 'ps'];
+    
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ error: `Invalid action. Valid actions: ${validActions.join(', ')}` });
+    }
+    
+    // Get project info
+    const siteData = await redisClient.get(`site:${domain}`);
+    if (!siteData) {
+      return res.status(404).json({ error: 'Compose project not found' });
+    }
+    
+    const site = JSON.parse(siteData);
+    if (site.type !== 'compose') {
+      return res.status(400).json({ error: 'Not a compose project' });
+    }
+    
+    const { projectName, projectPath } = site;
+    
+    // Execute docker-compose command
+    let command = `cd ${projectPath} && docker-compose -p ${projectName} ${action}`;
+    
+    // Add options for specific actions
+    if (action === 'logs') {
+      const { tail = 100, follow = false, service } = req.query;
+      command += ` --tail ${tail}`;
+      if (follow) command += ' -f';
+      if (service) command += ` ${service}`;
+    }
+    
+    const { stdout, stderr } = await execAsync(command);
+    
+    // Update site status if needed
+    if (action === 'down') {
+      await redisClient.del(`site:${domain}`);
+      return res.json({ message: 'Compose project removed', output: stdout });
+    }
+    
+    res.json({
+      message: `Compose action '${action}' executed`,
+      output: stdout || stderr
+    });
+    
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

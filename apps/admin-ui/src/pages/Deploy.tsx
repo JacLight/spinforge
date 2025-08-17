@@ -20,7 +20,9 @@ import {
   ArrowLeft,
   Network,
   Plus,
-  Trash2
+  Trash2,
+  Container,
+  Wand2
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -31,10 +33,12 @@ import StaticSiteConfig from "../components/deploy/StaticSiteConfig";
 import ProxySiteConfig from "../components/deploy/ProxySiteConfig";
 import ContainerDeploymentConfig from "../components/deploy/ContainerDeploymentConfig";
 import DeployActions from "../components/deploy/DeployActions";
+import DeployContainerForm from "../components/DeployContainerForm";
 
 export default function Deploy() {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string>("");
+  const [showContainerWizard, setShowContainerWizard] = useState(false);
   const [backends, setBackends] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<{[key: number]: string}>({});
   const [showSuggestions, setShowSuggestions] = useState<{[key: number]: boolean}>({});
@@ -158,12 +162,17 @@ export default function Deploy() {
           } as VHost);
 
         case "container":
-          // Check if using simple or advanced mode
+          // Check if using Docker Compose mode
           if (formData.composeYaml) {
-            // Advanced mode - Docker Compose deployment
+            // Docker Compose deployment - use 'compose' type
             return hostingAPI.createVHost({
-              ...baseConfig,
-              composeConfig: formData.composeYaml,
+              domain: formData.domain,
+              type: 'compose',
+              compose: formData.composeYaml,
+              customerId: formData.customerEmail || "default",
+              enabled: true,
+              ssl: formData.enableSSL ? { enabled: true, provider: 'letsencrypt' } : { enabled: false },
+              aliases: formData.aliases.filter(a => a),
             } as any);
           } else {
             // Simple mode - single container
@@ -243,6 +252,11 @@ export default function Deploy() {
     e.preventDefault();
     deployMutation.mutate();
   };
+
+  // Show container wizard if selected
+  if (showContainerWizard) {
+    return <DeployContainerForm onClose={() => setShowContainerWizard(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -386,22 +400,46 @@ export default function Deploy() {
 
                 {/* Container Config */}
                 {selectedType === "container" && (
-                  <ContainerDeploymentConfig
-                    image={formData.containerImage}
-                    port={formData.containerPort}
-                    envVars={formData.containerEnvVars}
-                    registryUrl={formData.registryUrl}
-                    registryUsername={formData.registryUsername}
-                    registryPassword={formData.registryPassword}
-                    composeYaml={formData.composeYaml}
-                    onImageChange={(containerImage) => setFormData({ ...formData, containerImage })}
-                    onPortChange={(containerPort) => setFormData({ ...formData, containerPort })}
-                    onEnvVarsChange={(containerEnvVars) => setFormData({ ...formData, containerEnvVars })}
-                    onRegistryUrlChange={(registryUrl) => setFormData({ ...formData, registryUrl })}
-                    onRegistryUsernameChange={(registryUsername) => setFormData({ ...formData, registryUsername })}
-                    onRegistryPasswordChange={(registryPassword) => setFormData({ ...formData, registryPassword })}
-                    onComposeYamlChange={(composeYaml) => setFormData({ ...formData, composeYaml })}
-                  />
+                  <div className="space-y-6">
+                    {/* Container Wizard Option */}
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Need help with complex deployments?</h3>
+                          <p className="text-sm text-gray-600">
+                            Use our Container Wizard for step-by-step deployment of WordPress, Node.js, databases, and more.
+                            Or upload your existing docker-compose.yml file.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowContainerWizard(true)}
+                          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-xl transition-all duration-200 flex items-center gap-2 font-medium whitespace-nowrap"
+                        >
+                          <Wand2 className="h-5 w-5" />
+                          <span>Launch Container Wizard</span>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Regular Container Config */}
+                    <ContainerDeploymentConfig
+                      image={formData.containerImage}
+                      port={formData.containerPort}
+                      envVars={formData.containerEnvVars}
+                      registryUrl={formData.registryUrl}
+                      registryUsername={formData.registryUsername}
+                      registryPassword={formData.registryPassword}
+                      composeYaml={formData.composeYaml}
+                      onImageChange={(containerImage) => setFormData({ ...formData, containerImage })}
+                      onPortChange={(containerPort) => setFormData({ ...formData, containerPort })}
+                      onEnvVarsChange={(containerEnvVars) => setFormData({ ...formData, containerEnvVars })}
+                      onRegistryUrlChange={(registryUrl) => setFormData({ ...formData, registryUrl })}
+                      onRegistryUsernameChange={(registryUsername) => setFormData({ ...formData, registryUsername })}
+                      onRegistryPasswordChange={(registryPassword) => setFormData({ ...formData, registryPassword })}
+                      onComposeYamlChange={(composeYaml) => setFormData({ ...formData, composeYaml })}
+                    />
+                  </div>
                 )}
 
                 {/* Load Balancer Config */}

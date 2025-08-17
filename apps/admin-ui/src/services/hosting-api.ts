@@ -228,6 +228,21 @@ export const hostingAPI = {
     const response = await apiClient.delete(`/api/sites/${domain}`);
     return response.data;
   },
+  
+  // [DEPRECATED - Use createVHost with type: 'compose' instead]
+  // Deploy docker-compose application 
+  // This method is kept for backward compatibility but should not be used
+  // Use: createVHost({ domain, type: 'compose', compose: yamlContent, ... })
+  async deployCompose(data: any): Promise<any> {
+    // Redirect to the proper endpoint
+    return this.createVHost({
+      domain: data.domain,
+      type: 'compose' as const,
+      compose: data.compose,
+      customerId: data.customerEmail || data.customerId,
+      enabled: true
+    } as any);
+  },
 
   // Get hosting statistics
   async getStats(): Promise<HostingStats> {
@@ -410,6 +425,30 @@ export const hostingAPI = {
     } catch (error) {
       console.error('Failed to get container logs:', error);
       return 'Failed to fetch logs';
+    }
+  },
+
+  // Check if a site/container is ready to serve traffic
+  async checkReadiness(domain: string): Promise<{
+    ready: boolean;
+    type: string;
+    status: string;
+    details?: string;
+    runningSeconds?: number;
+    httpCode?: string | null;
+    error?: string;
+  }> {
+    try {
+      const response = await apiClient.get(`/api/sites/${domain}/readiness`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to check readiness:', error);
+      return {
+        ready: false,
+        type: 'unknown',
+        status: 'error',
+        error: error.message || 'Failed to check readiness'
+      };
     }
   }
 };

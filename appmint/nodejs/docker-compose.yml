@@ -19,14 +19,19 @@ services:
       - ${VIBE_DATA_PATH:-~/vibe-studio-data}/${APP_ENGINE_ORG_ID:-demo}/${APP_ENGINE_DEV_ENVIRONMENT:-nodejs}/deploy:/deploy
     environment:
       - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-development}
+      - ORG_ID=${APP_ENGINE_ORG_ID}
+      - API_KEY=${APP_ENGINE_API_KEY}
+      - ENV_NAME=${APP_ENGINE_DEV_ENVIRONMENT}
+      - APPENGINE_ENDPOINT=${APP_ENGINE_BASE_URL:-https://appengine.appmint.io}
       - APP_ENGINE_BASE_URL=${APP_ENGINE_BASE_URL:-https://appengine.appmint.io}
-      - APP_ENGINE_DEV_ENVIRONMENT=${APP_ENGINE_DEV_ENVIRONMENT:-nodejs}
-      - APP_ENGINE_ORG_ID=${APP_ENGINE_ORG_ID:-demo}
-      - APP_ENGINE_API_KEY=${APP_ENGINE_API_KEY:-ak_ashmtc7i54gizu7jxuy9d1flh6a747zd}
+      - APP_ENGINE_DEV_ENVIRONMENT=${APP_ENGINE_DEV_ENVIRONMENT}
+      - APP_ENGINE_ORG_ID=${APP_ENGINE_ORG_ID}
+      - APP_ENGINE_API_KEY=${APP_ENGINE_API_KEY}
+      - APP_PREVIEW_URL=${APP_PREVIEW_URL:-https://preview-${APP_ENGINE_DEV_ENVIRONMENT}-${APP_ENGINE_ORG_ID}.appmint.app}
     restart: unless-stopped
     networks:
       - vibe-network
-
 networks:
   vibe-network:
     driver: bridge

@@ -1,0 +1,81 @@
+domain: this.generateDevEnvironmentDomain(envName, orgId),
+      type: 'container',
+      ssl_enabled: false,
+      customerId: orgId,
+      enabled: true,
+      aliases: [],
+      image: 'jaclight/platform:vibe-studio-nodejs-0.0.1',
+      port: 3000,
+      additionalEndpoints: [
+        {
+          domain: previewDomain,
+          port: 8888,
+          enabled: true,
+        },
+      ],
+      containerConfig: {
+        image: 'jaclight/platform:vibe-studio-nodejs-0.0.1',
+        port: 3000,
+        env: [
+          { key: 'NODE_ENV', value: 'development' },
+          { key: 'ORG_ID', value: orgId },
+          { key: 'API_KEY', value: keyData.apiKey },
+          { key: 'ENV_NAME', value: envName },
+          { key: 'APPENGINE_ENDPOINT', value: 'https://appengine.appmint.io' },
+          { key: 'APP_ENGINE_BASE_URL', value: 'https://appengine.appmint.io' },
+          { key: 'APP_ENGINE_DEV_ENVIRONMENT', value: envName },
+          { key: 'APP_ENGINE_ORG_ID', value: orgId },
+          { key: 'APP_ENGINE_API_KEY', value: keyData.apiKey },
+          { key: 'APP_PREVIEW_URL', value: `https://preview-${envName}-dev-${orgId}.appmint.app` },
+          { key: 'APP_DEV_URL', value: `https://${envName}-dev-${orgId}.appmint.app` },
+          { key: 'APP_PROD_URL', value: `https://${envName}-app-${orgId}.appmint.app` },
+        ],
+        restartPolicy: 'unless-stopped',
+        cpuLimit: '0.5',
+        memoryLimit: '512m',
+        registryCredentials: {
+          username: 'imolewolede@gmail.com',
+          password: '!1234Qwer',
+        },
+        healthCheck: {
+          path: '/health',
+          interval: 30,
+          timeout: 5,
+          retries: 3,
+        },
+      },
+      authConfig: {
+        enabled: true,
+        routes: [
+          {
+            pattern: '/*',
+            authType: 'custom',
+            unauthorizedRedirect: 'https://vibe-studio.appmint.app',
+            customAuthConfig: {
+              tokenCookieName: 'x_auth_token',
+              responseMappings: [
+                {
+                  responsePath: 'x_auth_token',
+                  cookieName: 'x_auth_token',
+                  envVarName: '',
+                },
+                {
+                  responsePath: 'x_email',
+                  cookieName: 'x_email',
+                  envVarName: '',
+                },
+                {
+                  responsePath: 'x_org_id',
+                  cookieName: 'x_org_id',
+                  envVarName: '',
+                },
+              ],
+              headers: {
+                x_org_id: orgId,
+              },
+              method: 'GET',
+              authUrl: 'https://vibe-studio.appmint.app',
+            },
+          },
+        ],
+      },
