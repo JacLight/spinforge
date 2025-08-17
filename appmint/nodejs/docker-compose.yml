@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  vibe-nodejs:
+    # Use the published image from Docker Hub
+    image: jaclight/platform:vibe-studio-nodejs-latest
+    # Optional: Build locally if needed
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    container_name: vibe-nodejs-${APP_ENGINE_ORG_ID:-demo}-${APP_ENGINE_DEV_ENVIRONMENT:-nodejs}
+    ports:
+      - "${DEV_PORT:-3000}:3000"
+      - "${PREVIEW_PORT:-8888}:8888"
+    volumes:
+      # Dynamic volumes based on ORG_ID and DEV_ENVIRONMENT
+      # VIBE_DATA_PATH can be set to any absolute path (default: ~/vibe-studio-data)
+      - ${VIBE_DATA_PATH:-~/vibe-studio-data}/${APP_ENGINE_ORG_ID:-demo}/${APP_ENGINE_DEV_ENVIRONMENT:-nodejs}/workspace:/workspace
+      - ${VIBE_DATA_PATH:-~/vibe-studio-data}/${APP_ENGINE_ORG_ID:-demo}/${APP_ENGINE_DEV_ENVIRONMENT:-nodejs}/deploy:/deploy
+    environment:
+      - NODE_ENV=development
+      - APP_ENGINE_BASE_URL=${APP_ENGINE_BASE_URL:-https://appengine.appmint.io}
+      - APP_ENGINE_DEV_ENVIRONMENT=${APP_ENGINE_DEV_ENVIRONMENT:-nodejs}
+      - APP_ENGINE_ORG_ID=${APP_ENGINE_ORG_ID:-demo}
+      - APP_ENGINE_API_KEY=${APP_ENGINE_API_KEY:-ak_ashmtc7i54gizu7jxuy9d1flh6a747zd}
+    restart: unless-stopped
+    networks:
+      - vibe-network
+
+networks:
+  vibe-network:
+    driver: bridge
