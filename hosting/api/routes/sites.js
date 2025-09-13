@@ -297,7 +297,7 @@ router.post("/", async (req, res) => {
     // Handle simple container deployment
     else if (site.type === "container" && site.containerConfig) {
       try {
-        const containerName = `spinforge-${site.domain.replace(/\./g, "-")}`;
+        let containerName = `spinforge-${site.domain.replace(/\./g, "-")}`;
         const config = site.containerConfig;
 
         // Build docker run command
@@ -356,9 +356,10 @@ router.post("/", async (req, res) => {
 
         // Add volume mounts
         if (config.volumes && config.volumes.length > 0) {
-          config.volumes.forEach((vol) => {
+          for (const vol of config.volumes) {
+            await createDirIfNotExists(vol.host);
             dockerCmd += ` -v "${vol.host}:${vol.container}"`;
-          });
+          }
         }
 
         // Add resource limits
@@ -496,6 +497,17 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+async function createDirIfNotExists(path) {
+  try {
+    await fs.mkdir(path, { recursive: true });
+    // Set 777 permissions so container can read/write
+    await fs.chmod(path, 0o777);
+    console.log(`Directory created with 777 permissions: ${path}`);
+  } catch (err) {
+    console.error('Error creating directory:', err);
+  }
+}
 
 // Update virtual host
 router.put("/:domain", async (req, res) => {
@@ -1103,7 +1115,7 @@ router.post('/:domain/compose/:action', async (req, res) => {
 });
 
 // Upload static site from zip file
-router.post('/:domain/upload', upload.single('file'), async (req, res) => {
+router.post('/:domain/upload', upload.single('zipfile'), async (req, res) => {
   try {
     const domain = req.params.domain;
 
