@@ -40,6 +40,8 @@ import {
   BarChart3,
   X,
   ArrowRight,
+  Copy,
+  Save,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -107,6 +109,13 @@ export default function Applications() {
   const [vhostToDelete, setVhostToDelete] = useState<any>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [cloneModalOpen, setCloneModalOpen] = useState(false);
+  const [vhostToClone, setVhostToClone] = useState<any>(null);
+  const [cloneTargetDomain, setCloneTargetDomain] = useState("");
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [vhostToTemplate, setVhostToTemplate] = useState<any>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
 
   // Debounce search term for API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -179,6 +188,77 @@ export default function Applications() {
     deleteMutation.mutate(vhostToDelete.domain);
     setDeleteModalOpen(false);
     setVhostToDelete(null);
+  };
+
+  const handleCloneClick = (vhost: VHost) => {
+    setVhostToClone(vhost);
+    setCloneTargetDomain("");
+    setCloneModalOpen(true);
+  };
+
+  const handleCloneSubmit = async () => {
+    if (!vhostToClone || !cloneTargetDomain) return;
+
+    try {
+      const response = await fetch(`/api/clone/${vhostToClone.domain}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetDomain: cloneTargetDomain,
+          includeEnvVars: true,
+          includeData: false,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success(`Successfully cloned to ${cloneTargetDomain}`);
+        setCloneModalOpen(false);
+        setCloneTargetDomain("");
+        queryClient.invalidateQueries({ queryKey: ["vhosts-search"] });
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to clone deployment");
+      }
+    } catch (error) {
+      toast.error("Failed to clone deployment");
+    }
+  };
+
+  const handleTemplateClick = (vhost: VHost) => {
+    setVhostToTemplate(vhost);
+    setTemplateName(`${vhost.domain} Template`);
+    setTemplateDescription(`Template created from ${vhost.domain}`);
+    setTemplateModalOpen(true);
+  };
+
+  const handleTemplateSubmit = async () => {
+    if (!vhostToTemplate || !templateName) return;
+
+    try {
+      const response = await fetch(`/api/clone/save-as-template/${vhostToTemplate.domain}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateName,
+          description: templateDescription,
+          category: vhostToTemplate.type,
+          tags: [vhostToTemplate.type],
+          extractVariables: true,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Template created successfully");
+        setTemplateModalOpen(false);
+        setTemplateName("");
+        setTemplateDescription("");
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to create template");
+      }
+    } catch (error) {
+      toast.error("Failed to create template");
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -663,6 +743,20 @@ export default function Applications() {
                               </button>
                             )}
                             <button
+                              onClick={() => handleCloneClick(vhost as VHost)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Clone Deployment"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleTemplateClick(vhost as VHost)}
+                              className="text-green-600 hover:text-green-900"
+                              title="Save as Template"
+                            >
+                              <Save className="h-4 w-4" />
+                            </button>
+                            <button
                               onClick={() => {
                                 setSelectedVhost(vhost);
                                 setDrawerOpen(true);
@@ -805,6 +899,20 @@ export default function Applications() {
                         </button>
                       )}
                       <button
+                        onClick={() => handleCloneClick(vhost as VHost)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Clone Deployment"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleTemplateClick(vhost as VHost)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Save as Template"
+                      >
+                        <Save className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => {
                           setSelectedVhost(vhost);
                           setDrawerOpen(true);
@@ -925,6 +1033,177 @@ export default function Applications() {
                             setVhostToDelete(null);
                             setDeleteConfirmation("");
                             setDeleteError("");
+                          }}
+                          className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* Clone Deployment Modal */}
+          <AnimatePresence>
+            {cloneModalOpen && (
+              <>
+                <motion.div
+                  className="fixed inset-0 bg-gray-500 bg-opacity-75 z-[60]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setCloneModalOpen(false)}
+                />
+                <motion.div
+                  className="fixed inset-0 z-[61] overflow-y-auto"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <div className="flex min-h-full items-center justify-center p-4">
+                    <motion.div
+                      className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                          <Copy className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="ml-4 flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Clone Deployment
+                          </h3>
+                          <div className="mt-4">
+                            <p className="text-sm text-gray-500 mb-4">
+                              Create a copy of <span className="font-mono bg-gray-100 px-2 py-1 rounded">{vhostToClone?.domain}</span>
+                            </p>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              New Domain Name
+                            </label>
+                            <input
+                              type="text"
+                              value={cloneTargetDomain}
+                              onChange={(e) => setCloneTargetDomain(e.target.value)}
+                              placeholder="clone.example.com"
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-6 flex flex-row-reverse gap-3">
+                        <button
+                          type="button"
+                          onClick={handleCloneSubmit}
+                          disabled={!cloneTargetDomain}
+                          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          Clone
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCloneModalOpen(false);
+                            setCloneTargetDomain("");
+                          }}
+                          className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* Save as Template Modal */}
+          <AnimatePresence>
+            {templateModalOpen && (
+              <>
+                <motion.div
+                  className="fixed inset-0 bg-gray-500 bg-opacity-75 z-[60]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setTemplateModalOpen(false)}
+                />
+                <motion.div
+                  className="fixed inset-0 z-[61] overflow-y-auto"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <div className="flex min-h-full items-center justify-center p-4">
+                    <motion.div
+                      className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                          <Save className="h-6 w-6 text-green-600" />
+                        </div>
+                        <div className="ml-4 flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Save as Template
+                          </h3>
+                          <div className="mt-4">
+                            <p className="text-sm text-gray-500 mb-4">
+                              Create a reusable template from <span className="font-mono bg-gray-100 px-2 py-1 rounded">{vhostToTemplate?.domain}</span>
+                            </p>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Template Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={templateName}
+                                  onChange={(e) => setTemplateName(e.target.value)}
+                                  placeholder="My Application Template"
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Description
+                                </label>
+                                <textarea
+                                  value={templateDescription}
+                                  onChange={(e) => setTemplateDescription(e.target.value)}
+                                  placeholder="Describe what this template does..."
+                                  rows={3}
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-6 flex flex-row-reverse gap-3">
+                        <button
+                          type="button"
+                          onClick={handleTemplateSubmit}
+                          disabled={!templateName}
+                          className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          Create Template
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTemplateModalOpen(false);
+                            setTemplateName("");
+                            setTemplateDescription("");
                           }}
                           className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200"
                         >

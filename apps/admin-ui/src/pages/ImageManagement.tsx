@@ -88,6 +88,9 @@ export default function ImageManagement() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [pullModalOpen, setPullModalOpen] = useState(false);
   const [newImageName, setNewImageName] = useState('');
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [selectAll, setSelectAll] = useState(false);
 
   // Fetch images
   const { data, isLoading, error, refetch } = useQuery<ImageResponse>({
@@ -98,6 +101,31 @@ export default function ImageManagement() {
       return response.json();
     },
     refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async ({ imageIds, force }: { imageIds: string[]; force: boolean }) => {
+      const promises = imageIds.map(imageId =>
+        fetch(`/api/images/${imageId}?force=${force}`, {
+          method: 'DELETE',
+        }).then(res => {
+          if (!res.ok) throw new Error(`Failed to delete image ${imageId}`);
+          return res.json();
+        })
+      );
+      return Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      toast.success(`Successfully deleted ${variables.imageIds.length} images`);
+      queryClient.invalidateQueries({ queryKey: ['docker-images'] });
+      setBulkDeleteModalOpen(false);
+      setSelectedImages(new Set());
+      setSelectAll(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
   });
 
   // Delete mutation
@@ -171,6 +199,36 @@ export default function ImageManagement() {
     },
   });
 
+  // Handle select all toggle
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedImages(new Set());
+      setSelectAll(false);
+    } else {
+      const allImageIds = filteredImages
+        .filter(img => !img.inUse) // Only select deletable images
+        .map(img => img.imageId);
+      setSelectedImages(new Set(allImageIds));
+      setSelectAll(true);
+    }
+  };
+
+  // Handle individual image selection
+  const handleImageSelect = (imageId: string) => {
+    const newSelected = new Set(selectedImages);
+    if (newSelected.has(imageId)) {
+      newSelected.delete(imageId);
+    } else {
+      newSelected.add(imageId);
+    }
+    setSelectedImages(newSelected);
+
+    // Update select all state
+    const deletableImages = filteredImages.filter(img => !img.inUse);
+    setSelectAll(deletableImages.length > 0 &&
+      deletableImages.every(img => newSelected.has(img.imageId)));
+  };
+
   // Filter images
   const filteredImages = data?.images.filter(image => {
     const matchesSearch = 
@@ -226,6 +284,16 @@ export default function ImageManagement() {
             </div>
             
             <div className="flex items-center space-x-3">
+              {selectedImages.size > 0 && (
+                <button
+                  onClick={() => setBulkDeleteModalOpen(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Selected ({selectedImages.size})</span>
+                </button>
+              )}
+
               <button
                 onClick={() => pruneMutation.mutate(false)}
                 disabled={pruneMutation.isPending}
@@ -304,6 +372,14 @@ export default function ImageManagement() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Image
                     </th>
@@ -327,6 +403,15 @@ export default function ImageManagement() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredImages.map((image) => (
                     <tr key={image.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedImages.has(image.imageId)}
+                          onChange={() => handleImageSelect(image.imageId)}
+                          disabled={image.inUse}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <Package className="h-5 w-5 text-gray-400 mr-3" />
@@ -527,6 +612,87 @@ export default function ImageManagement() {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                     >
                       {pullMutation.isPending ? 'Pulling...' : 'Pull Image'}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Delete Modal */}
+      <AnimatePresence>
+        {bulkDeleteModalOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setBulkDeleteModalOpen(false)}
+            />
+            <motion.div
+              className="fixed inset-0 z-50 overflow-y-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="flex min-h-full items-center justify-center p-4">
+                <motion.div
+                  className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                >
+                  <div className="flex items-start">
+                    <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">Delete Multiple Images</h3>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Are you sure you want to delete {selectedImages.size} selected images?
+                      </p>
+
+                      <div className="mt-3 bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                        {Array.from(selectedImages).map(imageId => {
+                          const image = data?.images.find(img => img.imageId === imageId);
+                          return image ? (
+                            <div key={imageId} className="text-sm py-1">
+                              <span className="font-medium text-gray-900">
+                                {image.repository}:{image.tag}
+                              </span>
+                              <span className="text-xs text-gray-500 ml-2">
+                                ({image.size})
+                              </span>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+
+                      <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-sm text-yellow-800">
+                          This action cannot be undone. All selected images will be permanently removed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end space-x-3">
+                    <button
+                      onClick={() => setBulkDeleteModalOpen(false)}
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => bulkDeleteMutation.mutate({
+                        imageIds: Array.from(selectedImages),
+                        force: false
+                      })}
+                      disabled={bulkDeleteMutation.isPending}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {bulkDeleteMutation.isPending ? `Deleting...` : `Delete ${selectedImages.size} Images`}
                     </button>
                   </div>
                 </motion.div>

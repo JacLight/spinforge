@@ -57,6 +57,14 @@ app.use('/_api/customer', customerRoutes);
 const authRoutes = require('./routes/auth');
 app.use('/_auth', authRoutes);
 
+// Mount clone and template routes
+const cloneDeployRoutes = require('./routes/clone-deploy');
+app.use('/api/clone', cloneDeployRoutes);
+
+// Mount template library routes
+const templateLibraryRoutes = require('./routes/template-library');
+app.use('/api/template-library', templateLibraryRoutes);
+
 // MCP Discovery Routes
 const mcpRoutes = require('./routes/mcp');
 app.use('/api/mcp', mcpRoutes);
@@ -130,5 +138,21 @@ app.listen(PORT, async () => {
     logger.info(`Container IPs resolved on startup: ${stats.updated} updated, ${stats.failed} failed`);
   } catch (error) {
     logger.error('Failed to resolve container IPs on startup:', error);
+  }
+
+  // Start Container IP Monitor Service for real-time updates
+  try {
+    const ContainerIPMonitor = require('./services/container-ip-monitor');
+    const ipMonitor = new ContainerIPMonitor();
+    await ipMonitor.start();
+    logger.info('Container IP Monitor Service started - watching for container events');
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      ipMonitor.stop();
+      process.exit(0);
+    });
+  } catch (error) {
+    logger.error('Failed to start Container IP Monitor:', error);
   }
 });
