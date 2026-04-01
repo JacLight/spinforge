@@ -1,7 +1,7 @@
 /**
  * SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
  * Copyright (c) 2025 Jacob Ajiboye
- * 
+ *
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
@@ -11,15 +11,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { 
-  Home, 
-  Book, 
-  Rocket, 
-  Terminal,
-  Server,
+import {
+  Home,
+  Book,
+  Rocket,
   Shield,
-  DollarSign,
-  HelpCircle,
   Menu,
   X,
   ChevronRight,
@@ -44,7 +40,6 @@ const docSections: DocSection[] = [
     items: [
       { title: "Introduction", href: "/docs", description: "Welcome to SpinForge" },
       { title: "Quick Start", href: "/docs/quick-start", description: "Deploy your first app in minutes" },
-      { title: "Installation", href: "/docs/installation", description: "Install the SpinForge CLI" },
     ]
   },
   {
@@ -53,41 +48,6 @@ const docSections: DocSection[] = [
     items: [
       { title: "How SpinForge Works", href: "/docs/concepts/how-it-works", description: "Understanding the deployment model" },
       { title: "Pre-built Applications", href: "/docs/concepts/pre-built-apps", description: "Why we only run built apps" },
-      { title: "Deployments", href: "/docs/concepts/deployments", description: "Managing your deployments" },
-      { title: "Spinlets", href: "/docs/concepts/spinlets", description: "Lightweight application containers" },
-    ]
-  },
-  {
-    title: "CLI Reference",
-    icon: Terminal,
-    items: [
-      { title: "Overview", href: "/docs/cli/overview", description: "SpinForge CLI commands" },
-      { title: "auth", href: "/docs/cli/auth", description: "Authentication commands" },
-      { title: "deploy", href: "/docs/cli/deploy", description: "Deploy applications" },
-      { title: "deploy-folder", href: "/docs/cli/deploy-folder", description: "Deploy from a folder" },
-      { title: "list", href: "/docs/cli/list", description: "List deployments" },
-      { title: "logs", href: "/docs/cli/logs", description: "View deployment logs" },
-    ]
-  },
-  {
-    title: "Deployment",
-    icon: Rocket,
-    items: [
-      { title: "Deployment Overview", href: "/docs/deployment/overview", description: "Understanding deployments" },
-      { title: "Build Process", href: "/docs/deployment/build-process", description: "Building your app locally" },
-      { title: "Environment Variables", href: "/docs/deployment/env-vars", description: "Managing environment variables" },
-      { title: "Custom Domains", href: "/docs/deployment/custom-domains", description: "Using your own domain" },
-      { title: "Scaling", href: "/docs/deployment/scaling", description: "Scaling your deployments" },
-    ]
-  },
-  {
-    title: "Frameworks",
-    icon: Server,
-    items: [
-      { title: "Next.js", href: "/docs/frameworks/nextjs", description: "Deploy Next.js apps" },
-      { title: "Remix", href: "/docs/frameworks/remix", description: "Deploy Remix apps" },
-      { title: "Express", href: "/docs/frameworks/express", description: "Deploy Express apps" },
-      { title: "Static Sites", href: "/docs/frameworks/static", description: "Deploy static sites" },
     ]
   },
   {
@@ -95,12 +55,13 @@ const docSections: DocSection[] = [
     icon: Shield,
     items: [
       { title: "API Overview", href: "/docs/api", description: "REST API documentation" },
-      { title: "Authentication", href: "/docs/api/authentication", description: "Login, signup, OAuth" },
-      { title: "User Management", href: "/docs/api/user-management", description: "Profile and account management" },
-      { title: "Deployments", href: "/docs/api/deployments", description: "Deploy and manage applications" },
-      { title: "Domains", href: "/docs/api/domains", description: "Custom domains and SSL" },
-      { title: "Monitoring", href: "/docs/api/monitoring", description: "Metrics, logs, and spinlets" },
-      { title: "API Tokens", href: "/docs/api/tokens", description: "Generate and manage API tokens" },
+      { title: "Authentication", href: "/docs/api/authentication", description: "Admin and customer authentication" },
+      { title: "Sites Management", href: "/docs/api/sites", description: "Create and manage sites" },
+      { title: "Containers", href: "/docs/api/containers", description: "Docker container management" },
+      { title: "SSL Certificates", href: "/docs/api/certificates", description: "Manage SSL/TLS certificates" },
+      { title: "Metrics", href: "/docs/api/metrics", description: "Access metrics and logs" },
+      { title: "Templates", href: "/docs/api/templates", description: "Deploy from templates" },
+      { title: "Admin Operations", href: "/docs/api/admin", description: "Admin-only endpoints" },
     ]
   },
 ];
@@ -117,8 +78,8 @@ export default function DocsLayout({
   );
 
   const toggleSection = (title: string) => {
-    setExpandedSections(prev => 
-      prev.includes(title) 
+    setExpandedSections(prev =>
+      prev.includes(title)
         ? prev.filter(t => t !== title)
         : [...prev, title]
     );
@@ -139,9 +100,6 @@ export default function DocsLayout({
                 <nav className="flex space-x-4">
                   <Link href="/docs" className="text-gray-900 hover:text-gray-700 px-3 py-2 text-sm font-medium">
                     Documentation
-                  </Link>
-                  <Link href="/pricing" className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium">
-                    Pricing
                   </Link>
                   <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium">
                     Dashboard
@@ -202,7 +160,7 @@ export default function DocsLayout({
         {docSections.map((section) => {
           const Icon = section.icon;
           const isExpanded = expandedSections.includes(section.title);
-          
+
           return (
             <div key={section.title}>
               <button
