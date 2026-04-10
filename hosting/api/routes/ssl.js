@@ -1,520 +1,271 @@
 /**
  * SpinForge - SSL Certificate Management Routes
+ * Copyright (c) 2025 Jacob Ajiboye
+ *
+ * This software is licensed under the MIT License.
+ * See the LICENSE file in the root directory for details.
+ *
+ * Thin Express wrappers over CertStore + AcmeService. Used to be 523 lines
+ * of `docker exec spinforge-certbot certbot ...` and `openssl x509 ...`
+ * shell-outs with embedded command injection vulnerabilities. The new
+ * implementation has zero shell-outs and zero docker exec calls.
  */
-
 const express = require('express');
 const router = express.Router();
-const SSLCacheService = require('../services/SSLCacheService');
 const redisClient = require('../utils/redis');
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const fs = require('fs').promises;
-const path = require('path');
+const CertStore = require('../services/CertStore');
+const AcmeService = require('../services/AcmeService');
 
-const execAsync = promisify(exec);
-const sslCache = new SSLCacheService(redisClient);
+const certStore = new CertStore(redisClient);
+const acmeService = new AcmeService({ redis: redisClient, certStore });
 
-// Cache a specific certificate
+// ─── Validation helper ────────────────────────────────────────────────────
+// Reject anything that isn't a plausible DNS hostname before passing it to
+// the ACME flow. This is the first line of defence against the kind of
+// command-injection bug the old code shipped with.
+const DOMAIN_REGEX = /^(\*\.)?([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+function isValidDomain(d) {
+  return typeof d === 'string' && d.length <= 253 && DOMAIN_REGEX.test(d);
+}
+
+// ─── Hot-cache management (read by openresty/lua/ssl_handler.lua) ─────────
+
+// Refresh the in-Redis cert cache for a single domain.
 router.post('/cache/:domain', async (req, res) => {
   try {
     const { domain } = req.params;
-    const result = await sslCache.cacheCertificate(domain);
-    res.json(result);
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain' });
+    const ok = await certStore.refreshHotCache(domain);
+    res.json({ success: ok, domain });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Cache all certificates
+// Re-cache every active cert. Used by ops as a recovery action.
 router.post('/cache-all', async (req, res) => {
   try {
-    const results = await sslCache.cacheAllCertificates();
+    const count = await certStore.warmupHotCache();
+    res.json({ total: count, successful: count });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cache stats — kept compatible with the admin-ui expectations.
+router.get('/cache-stats', async (req, res) => {
+  try {
+    const certs = await certStore.listAll();
     res.json({
-      total: results.length,
-      successful: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length,
-      results
+      cached_certificates: certs.length,
+      domains: certs.map((c) => ({
+        domain: c.domain,
+        validTo: c.validTo,
+        status: c.status,
+      })),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get cache statistics
-router.get('/cache-stats', async (req, res) => {
-  try {
-    const stats = await sslCache.getCacheStats();
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Evict certificate from cache
 router.delete('/cache/:domain', async (req, res) => {
   try {
     const { domain } = req.params;
-    const result = await sslCache.evictCertificate(domain);
-    res.json(result);
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain' });
+    await certStore.evictHotCache(domain);
+    res.json({ success: true, domain });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get all certificates
+// ─── Certificate listing ──────────────────────────────────────────────────
+
 router.get('/certificates', async (req, res) => {
   try {
-    const certsPath = '/data/certs/live';
-    const certificates = [];
-    
-    try {
-      const dirs = await fs.readdir(certsPath);
-      
-      for (const domain of dirs) {
-        const certPath = path.join(certsPath, domain, 'cert.pem');
-        const keyPath = path.join(certsPath, domain, 'privkey.pem');
-        
-        try {
-          // Check if certificate files exist
-          await fs.access(certPath);
-          await fs.access(keyPath);
-          
-          // Get certificate info
-          const { stdout } = await execAsync(`openssl x509 -in ${certPath} -noout -dates -subject -issuer 2>/dev/null`);
-          
-          const validFrom = stdout.match(/notBefore=(.*)/)?.[1];
-          const validTo = stdout.match(/notAfter=(.*)/)?.[1];
-          const subject = stdout.match(/subject=(.*)/)?.[1];
-          
-          // Check if it's a wildcard certificate
-          const isWildcard = domain.startsWith('*.') || (subject && subject.includes('CN=*.'));
-          
-          // Determine status
-          let status = 'active';
-          if (validTo) {
-            const expiryDate = new Date(validTo);
-            const now = new Date();
-            if (expiryDate < now) {
-              status = 'expired';
-            } else if (expiryDate.getTime() - now.getTime() < 30 * 24 * 60 * 60 * 1000) {
-              status = 'expiring';
-            }
-          }
-          
-          certificates.push({
-            domain,
-            isWildcard,
-            status,
-            validFrom: validFrom ? new Date(validFrom).toISOString() : null,
-            validTo: validTo ? new Date(validTo).toISOString() : null,
-            issuer: 'Let\'s Encrypt',
-            autoRenew: true,
-            type: isWildcard ? 'wildcard' : 'standard'
-          });
-        } catch (err) {
-          // Certificate files don't exist or are invalid
-          console.log(`Skipping ${domain}: ${err.message}`);
-        }
-      }
-    } catch (err) {
-      console.log('Certificate directory not found:', err.message);
-    }
-    
-    res.json(certificates);
+    const certs = await certStore.listAll();
+    // Shape preserved for the existing admin-ui CertificateManager page.
+    res.json(
+      certs.map((c) => ({
+        domain: c.domain,
+        isWildcard: !!c.wildcard || (c.domain || '').startsWith('*.'),
+        type: c.type || 'standard',
+        status: c.status,
+        validFrom: c.validFrom || null,
+        validTo: c.validTo || null,
+        issuer: c.issuer || null,
+        autoRenew: c.autoRenew !== false,
+        daysUntilExpiry: c.daysUntilExpiry,
+        // Troubleshooting fields the old route never returned
+        lastAttemptAt: c.lastAttemptAt || null,
+        lastError: c.lastError || null,
+        attemptCount: c.attemptCount || 0,
+        failureCount: c.failureCount || 0,
+        nextAttemptAt: c.nextAttemptAt || null,
+        history: c.history || [],
+        preflight: c.preflight || null,
+        staging: !!c.staging,
+        filesExist: !!c.filesExist,
+      }))
+    );
   } catch (error) {
-    console.error('Error fetching certificates:', error);
+    console.error('Error listing certificates:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Register new certificate
+// ─── Issue a new certificate ──────────────────────────────────────────────
+
 router.post('/certificates', async (req, res) => {
   try {
-    const { 
-      domain, 
-      email, 
-      type,
-      validationMethod,
-      dnsProvider,
-      apiKey,
-      apiSecret,
-      subdomains 
-    } = req.body;
-    
-    if (!domain) {
-      return res.status(400).json({ error: 'Domain is required' });
+    const { domain, email, type, altNames, force } = req.body || {};
+
+    if (!isValidDomain(domain)) {
+      return res.status(400).json({ error: 'A valid domain is required' });
     }
-    
-    // Prepare the certbot command
-    const isWildcard = type === 'wildcard' || domain.startsWith('*.');
-    const certDomain = isWildcard && !domain.startsWith('*.') ? `*.${domain}` : domain;
-    const baseDomain = certDomain.replace('*.', '');
-    
-    let command;
-    if (isWildcard) {
-      // Wildcard certificates require DNS validation
-      if (validationMethod === 'automatic' && dnsProvider) {
-        // Automatic DNS validation using provider APIs
-        try {
-          // Store DNS provider credentials temporarily for certbot hooks
-          await redisClient.setex(`dns:creds:${baseDomain}`, 3600, JSON.stringify({
-            provider: dnsProvider,
-            apiKey,
-            apiSecret
-          }));
-          
-          // Build domains list including wildcard, base domain, and additional subdomains
-          const domains = [certDomain, baseDomain]; // Include both wildcard and base domain
-          if (subdomains && subdomains.length > 1) {
-            // Add additional subdomains (skip the wildcard itself)
-            subdomains.slice(1).forEach(sub => {
-              if (sub && sub !== '*') {
-                domains.push(`${sub}.${baseDomain}`);
-              }
-            });
-          }
-          
-          // Use DNS plugins based on provider
-          let dnsPlugin = '';
-          let credentials = '';
-          
-          switch (dnsProvider) {
-            case 'cloudflare':
-              dnsPlugin = 'dns-cloudflare';
-              // Create cloudflare credentials file
-              const cfCreds = `dns_cloudflare_api_token = ${apiKey}`;
-              await fs.writeFile(`/tmp/cloudflare-${baseDomain}.ini`, cfCreds, { mode: 0o600 });
-              credentials = `--dns-cloudflare-credentials /tmp/cloudflare-${baseDomain}.ini`;
-              break;
-              
-            case 'route53':
-              dnsPlugin = 'dns-route53';
-              // AWS credentials would be set as environment variables
-              process.env.AWS_ACCESS_KEY_ID = apiKey;
-              process.env.AWS_SECRET_ACCESS_KEY = apiSecret;
-              break;
-              
-            case 'digitalocean':
-              dnsPlugin = 'dns-digitalocean';
-              const doCreds = `dns_digitalocean_token = ${apiKey}`;
-              await fs.writeFile(`/tmp/digitalocean-${baseDomain}.ini`, doCreds, { mode: 0o600 });
-              credentials = `--dns-digitalocean-credentials /tmp/digitalocean-${baseDomain}.ini`;
-              break;
-              
-            default:
-              // For GoDaddy, Namecheap, etc., we'd need custom hooks
-              dnsPlugin = 'manual';
-              break;
-          }
-          
-          if (dnsPlugin !== 'manual') {
-            command = `docker exec spinforge-certbot certbot certonly ` +
-                      `--${dnsPlugin} ${credentials} ` +
-                      `--email ${email || `admin@${baseDomain}`} ` +
-                      `--agree-tos --no-eff-email ` +
-                      `--domains "${domains.join(',')}" ` +
-                      `--cert-name "${baseDomain}-wildcard"`;
-          } else {
-            // Fallback to manual with custom hooks for unsupported providers
-            command = `docker exec spinforge-certbot certbot certonly ` +
-                      `--manual --preferred-challenges dns ` +
-                      `--manual-auth-hook "/scripts/dns-auth-${dnsProvider}.sh" ` +
-                      `--manual-cleanup-hook "/scripts/dns-cleanup-${dnsProvider}.sh" ` +
-                      `--email ${email || `admin@${baseDomain}`} ` +
-                      `--agree-tos --no-eff-email ` +
-                      `--domains "${domains.join(',')}" ` +
-                      `--cert-name "${baseDomain}-wildcard"`;
-          }
-          
-          // Execute certbot command
-          const { stdout, stderr } = await execAsync(command);
-          
-          // Clean up credentials
-          if (dnsProvider === 'cloudflare') {
-            await fs.unlink(`/tmp/cloudflare-${baseDomain}.ini`).catch(() => {});
-          } else if (dnsProvider === 'digitalocean') {
-            await fs.unlink(`/tmp/digitalocean-${baseDomain}.ini`).catch(() => {});
-          }
-          
-          // Cache the new certificate
-          await sslCache.cacheCertificate(baseDomain);
-          
-          return res.json({
-            success: true,
-            message: 'Certificate registered successfully with automatic DNS validation',
-            domain: certDomain,
-            provider: dnsProvider,
-            output: stdout
-          });
-          
-        } catch (err) {
-          console.error('Automatic DNS validation failed:', err);
-          // Fall back to manual validation
-          validationMethod = 'manual';
-        }
-      }
-      
-      if (validationMethod === 'manual' || !dnsProvider) {
-        // Manual DNS validation
-        // Generate a validation token for tracking
-        const validationToken = require('crypto').randomBytes(16).toString('hex');
-        
-        // Store validation info in Redis
-        await redisClient.setex(`dns:validation:${baseDomain}`, 3600, JSON.stringify({
-          domain: certDomain,
-          token: validationToken,
-          status: 'pending',
-          created: new Date().toISOString()
-        }));
-        
-        // For manual validation, we need to run certbot in manual mode
-        // This would typically be done with --manual-public-ip-logging-ok flag
-        return res.json({
-          success: true,
-          message: 'Wildcard certificate requires DNS validation',
-          validationType: 'manual',
-          domain: certDomain,
-          baseDomain,
-          validationToken,
-          instructions: [
-            {
-              type: 'TXT',
-              name: `_acme-challenge.${baseDomain}`,
-              value: 'Will be provided by Let\'s Encrypt',
-              ttl: 300
-            }
-          ],
-          nextStep: 'Add the DNS TXT record above and call POST /api/ssl/certificates/:domain/validate',
-          type: 'wildcard'
-        });
-      }
-    } else {
-      // Standard certificates use HTTP validation
-      command = `docker exec spinforge-certbot certbot certonly ` +
-                `--webroot -w /var/www/certbot ` +
-                `--email ${email || `admin@${domain}`} ` +
-                `--agree-tos --no-eff-email ` +
-                `-d ${domain}`;
-      
-      // Execute certbot command
-      const { stdout, stderr } = await execAsync(command);
-      
-      // Cache the new certificate
-      await sslCache.cacheCertificate(domain);
-      
-      res.json({
-        success: true,
-        message: 'Certificate registered successfully',
-        domain,
-        output: stdout
+
+    const wildcard = type === 'wildcard' || domain.startsWith('*.');
+
+    // Wildcards require DNS-01, which needs a configured DNS provider. The
+    // hooks are stubs in AcmeService until somebody wires up Cloudflare/etc.
+    if (wildcard) {
+      return res.status(501).json({
+        error: 'Wildcard certificates require DNS-01 and a configured DNS provider',
+        hint: 'Implement AcmeService.challengeCreateDns01 with your DNS provider',
       });
     }
+
+    // Override contact email for this issuance if the caller passed one.
+    // AcmeService is single-flighted per domain via Redis lock, so this is
+    // safe even with concurrent requests.
+    if (email) acmeService.contactEmail = email;
+
+    const cert = await acmeService.issue(domain, {
+      altNames: altNames || [],
+      force: !!force,
+    });
+    res.json({ success: true, message: 'Certificate issued successfully', domain, cert });
   } catch (error) {
-    console.error('Error registering certificate:', error);
+    if (error.code === 'LOCKED') {
+      return res.status(409).json({ error: error.message, code: 'LOCKED' });
+    }
+    if (error.code === 'DNS_PREFLIGHT_FAILED') {
+      return res.status(412).json({
+        error: error.message,
+        code: 'DNS_PREFLIGHT_FAILED',
+        resolved: error.resolved,
+        expected: error.expected,
+        hint: 'Update your DNS A/AAAA records, or pass force=true to bypass the check.',
+      });
+    }
+    console.error('Error issuing certificate:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Upload existing certificate
+// ─── Manual upload of customer-provided cert ──────────────────────────────
+
 router.post('/certificates/upload', async (req, res) => {
   try {
-    const { domain, certificate, privateKey, chain } = req.body;
-    
-    if (!domain || !certificate || !privateKey) {
-      return res.status(400).json({ 
-        error: 'Domain, certificate, and private key are required' 
-      });
+    const { domain, certificate, privateKey, chain } = req.body || {};
+
+    if (!isValidDomain(domain)) {
+      return res.status(400).json({ error: 'A valid domain is required' });
     }
-    
-    // Validate certificate format
-    if (!certificate.includes('BEGIN CERTIFICATE') || !certificate.includes('END CERTIFICATE')) {
-      return res.status(400).json({ 
-        error: 'Invalid certificate format. Must be in PEM format.' 
-      });
+    if (!certificate || !privateKey) {
+      return res.status(400).json({ error: 'certificate and privateKey are required' });
     }
-    
-    if (!privateKey.includes('BEGIN') || !privateKey.includes('END')) {
-      return res.status(400).json({ 
-        error: 'Invalid private key format. Must be in PEM format.' 
-      });
+    if (!certificate.includes('BEGIN CERTIFICATE')) {
+      return res.status(400).json({ error: 'Invalid certificate format. Must be PEM.' });
     }
-    
-    // Create directory for the certificate
-    const certDir = `/data/certs/live/${domain}`;
-    await fs.mkdir(certDir, { recursive: true });
-    
-    // Write certificate files
-    await fs.writeFile(path.join(certDir, 'cert.pem'), certificate);
-    await fs.writeFile(path.join(certDir, 'privkey.pem'), privateKey);
-    
-    // Write chain if provided
-    if (chain) {
-      await fs.writeFile(path.join(certDir, 'chain.pem'), chain);
-      // Create fullchain by combining cert and chain
-      await fs.writeFile(path.join(certDir, 'fullchain.pem'), certificate + '\n' + chain);
-    } else {
-      // If no chain, fullchain is just the cert
-      await fs.writeFile(path.join(certDir, 'fullchain.pem'), certificate);
+    if (!privateKey.includes('BEGIN')) {
+      return res.status(400).json({ error: 'Invalid private key format. Must be PEM.' });
     }
-    
-    // Cache the uploaded certificate
-    await sslCache.cacheCertificate(domain);
-    
-    // Get certificate info
-    try {
-      const { stdout } = await execAsync(`openssl x509 -in ${path.join(certDir, 'cert.pem')} -noout -dates -subject 2>/dev/null`);
-      
-      const validFrom = stdout.match(/notBefore=(.*)/)?.[1];
-      const validTo = stdout.match(/notAfter=(.*)/)?.[1];
-      
-      res.json({
-        success: true,
-        message: 'Certificate uploaded successfully',
-        domain,
-        validFrom: validFrom ? new Date(validFrom).toISOString() : null,
-        validTo: validTo ? new Date(validTo).toISOString() : null,
-        isWildcard: domain.startsWith('*.')
-      });
-    } catch (certError) {
-      // Certificate info extraction failed, but upload succeeded
-      res.json({
-        success: true,
-        message: 'Certificate uploaded successfully',
-        domain,
-        isWildcard: domain.startsWith('*.')
-      });
-    }
-    
+
+    await certStore.writeCert(domain, { cert: certificate, key: privateKey, chain });
+
+    const parsed = certStore.parsePem(certificate);
+    const meta = await certStore.putMetadata(domain, {
+      ...parsed,
+      type: 'manual',
+      status: CertStore.CertStatus.ACTIVE,
+      uploadedAt: new Date().toISOString(),
+      autoRenew: false,
+    });
+    await redisClient.sAdd('active-certs', domain);
+    await certStore.appendHistory(domain, { action: 'upload:manual' });
+
+    res.json({
+      success: true,
+      message: 'Certificate uploaded successfully',
+      domain,
+      validFrom: meta.validFrom,
+      validTo: meta.validTo,
+      isWildcard: !!meta.wildcard || domain.startsWith('*.'),
+    });
   } catch (error) {
     console.error('Error uploading certificate:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Validate DNS records for wildcard certificate
+// ─── DNS-01 manual validate (legacy endpoint, kept as a stub) ─────────────
+
 router.post('/certificates/:domain/validate', async (req, res) => {
-  try {
-    const { domain } = req.params;
-    const baseDomain = domain.replace('*.', '');
-    
-    // Check if there's a pending validation
-    const validationData = await redisClient.get(`dns:validation:${baseDomain}`);
-    if (!validationData) {
-      return res.status(404).json({ 
-        error: 'No pending validation found for this domain' 
-      });
-    }
-    
-    const validation = JSON.parse(validationData);
-    
-    // Verify DNS records are properly set
-    const dns = require('dns').promises;
-    const challengeDomain = `_acme-challenge.${baseDomain}`;
-    
-    try {
-      const records = await dns.resolveTxt(challengeDomain);
-      
-      if (!records || records.length === 0) {
-        return res.status(400).json({
-          error: 'DNS TXT record not found',
-          domain: challengeDomain,
-          message: 'Please ensure the DNS TXT record has been added and propagated'
-        });
-      }
-      
-      // Update validation status
-      validation.status = 'validated';
-      validation.validated = new Date().toISOString();
-      await redisClient.setex(`dns:validation:${baseDomain}`, 3600, JSON.stringify(validation));
-      
-      // Now complete the certbot challenge
-      const certDomain = validation.domain;
-      const command = `docker exec spinforge-certbot certbot certonly ` +
-                      `--manual --preferred-challenges dns ` +
-                      `--manual-public-ip-logging-ok ` +
-                      `--email admin@${baseDomain} ` +
-                      `--agree-tos --no-eff-email ` +
-                      `--domains "${certDomain}" ` +
-                      `--cert-name "${baseDomain}-wildcard"`;
-      
-      const { stdout, stderr } = await execAsync(command);
-      
-      // Cache the new certificate
-      await sslCache.cacheCertificate(baseDomain);
-      
-      // Clean up validation data
-      await redisClient.del(`dns:validation:${baseDomain}`);
-      
-      res.json({
-        success: true,
-        message: 'Certificate validated and issued successfully',
-        domain: certDomain,
-        output: stdout
-      });
-      
-    } catch (dnsError) {
-      console.error('DNS lookup failed:', dnsError);
-      return res.status(400).json({
-        error: 'Failed to verify DNS records',
-        domain: challengeDomain,
-        details: dnsError.message,
-        message: 'Please ensure the DNS TXT record has been added and propagated'
-      });
-    }
-    
-  } catch (error) {
-    console.error('Error validating certificate:', error);
-    res.status(500).json({ error: error.message });
-  }
+  res.status(501).json({
+    error:
+      'Manual DNS-01 validation has been replaced. Configure a DNS provider in AcmeService.challengeCreateDns01 and POST /certificates again.',
+  });
 });
 
-// Renew certificate
+// ─── Renew (manual trigger from the admin UI) ─────────────────────────────
+
 router.post('/certificates/:domain/renew', async (req, res) => {
   try {
     const { domain } = req.params;
-    
-    // Run certbot renew for specific domain
-    const command = `docker exec spinforge-certbot certbot renew --cert-name ${domain}`;
-    const { stdout, stderr } = await execAsync(command);
-    
-    // Re-cache the renewed certificate
-    await sslCache.cacheCertificate(domain);
-    
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain' });
+    const force = req.query.force === '1' || req.query.force === 'true' || req.body?.force === true;
+    const cert = await acmeService.renew(domain, { force });
     res.json({
       success: true,
-      message: 'Certificate renewal initiated',
+      message: 'Certificate renewed',
       domain,
-      output: stdout
+      cert,
     });
   } catch (error) {
+    if (error.code === 'LOCKED') {
+      return res.status(409).json({ error: error.message, code: 'LOCKED' });
+    }
+    if (error.code === 'DNS_PREFLIGHT_FAILED') {
+      return res.status(412).json({
+        error: error.message,
+        code: 'DNS_PREFLIGHT_FAILED',
+        resolved: error.resolved,
+        expected: error.expected,
+        hint: 'Update DNS, or POST again with ?force=1 to bypass the check.',
+      });
+    }
     console.error('Error renewing certificate:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Delete certificate
+// ─── Delete ───────────────────────────────────────────────────────────────
+
 router.delete('/certificates/:domain', async (req, res) => {
   try {
     const { domain } = req.params;
-    
-    // Revoke and delete the certificate
-    const command = `docker exec spinforge-certbot certbot revoke --cert-path /etc/letsencrypt/live/${domain}/cert.pem --delete-after-revoke`;
-    
-    try {
-      await execAsync(command);
-    } catch (err) {
-      // If revoke fails, try to just delete
-      await execAsync(`docker exec spinforge-certbot rm -rf /etc/letsencrypt/live/${domain} /etc/letsencrypt/archive/${domain} /etc/letsencrypt/renewal/${domain}.conf`);
-    }
-    
-    // Remove from cache
-    await sslCache.evictCertificate(domain);
-    
-    res.json({
-      success: true,
-      message: 'Certificate deleted successfully',
-      domain
-    });
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain' });
+
+    // Best-effort revocation. Failure is not fatal — we still tear down the
+    // local cert files and metadata so the operator can re-issue cleanly.
+    await acmeService.revoke(domain);
+    await certStore.evictHotCache(domain);
+    await certStore.deleteFromDisk(domain);
+    await certStore.deleteMetadata(domain);
+
+    res.json({ success: true, message: 'Certificate deleted', domain });
   } catch (error) {
     console.error('Error deleting certificate:', error);
     res.status(500).json({ error: error.message });

@@ -539,7 +539,11 @@ router.post('/sites', async (req, res) => {
     };
     
     await redisClient.set(`site:${siteData.domain}`, JSON.stringify(site));
-    
+
+    // Caddy-style automatic SSL: fire a background ACME issuance if the
+    // customer enabled SSL on this site. Doesn't block the response.
+    require('../utils/auto-cert').maybeAutoIssueCert(site);
+
     res.status(201).json(site);
   } catch (error) {
     res.status(500).json({ error: error.message });

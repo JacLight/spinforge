@@ -113,29 +113,27 @@ class AdminService {
     };
   }
 
-  async validateToken(token) {
+  /**
+   * Validate a session token issued by /_admin/login.
+   * Checks the Redis session record AND verifies the JWT signature.
+   * Returns the admin record (without password) on success, or null.
+   *
+   * NOTE: this method is for HUMAN USER sessions only. The static
+   * process.env.ADMIN_TOKEN env-bypass and the multi-token API keys
+   * (sfa_*) live elsewhere — see utils/admin-auth.js. They are not
+   * accepted here so that callers can enforce a clean separation
+   * between user sessions and machine API keys.
+   */
+  async validateSessionToken(token) {
     try {
-      // Check if it's the static ADMIN_TOKEN for development/testing
-      if (process.env.ADMIN_TOKEN && token === process.env.ADMIN_TOKEN) {
-        // Return a default admin user for static token
-        return {
-          id: 'static-admin',
-          username: 'admin',
-          email: 'admin@spinforge.local',
-          createdAt: new Date().toISOString(),
-          isActive: true,
-          isSuperAdmin: true,
-        };
-      }
-
-      // Check if session exists
+      // The session record is the authoritative gate — even a still-valid
+      // JWT becomes useless once the session is deleted (logout).
       const session = await this.redis.get(`admin:session:${token}`);
       if (!session) return null;
 
-      // Verify JWT
+      // Verify JWT signature + expiry
       const decoded = jwt.verify(token, this.tokenSecret);
-      
-      // Get admin data
+
       const adminData = await this.redis.get(`admin:${decoded.id}`);
       if (!adminData) return null;
 
@@ -144,6 +142,14 @@ class AdminService {
     } catch (error) {
       return null;
     }
+  }
+
+  /**
+   * @deprecated kept for callers that haven't migrated yet. Prefer
+   * validateSessionToken + the env/API-key paths in utils/admin-auth.js.
+   */
+  async validateToken(token) {
+    return this.validateSessionToken(token);
   }
 
   async logout(token) {

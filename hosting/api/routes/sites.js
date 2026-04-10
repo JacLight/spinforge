@@ -419,6 +419,10 @@ router.post("/", async (req, res) => {
       }
     }
 
+    // Caddy-style automatic SSL: if ssl_enabled was set, fire a background
+    // ACME issuance. Failures retry on the renewal scheduler's next tick.
+    require('../utils/auto-cert').maybeAutoIssueCert(site);
+
     // Handle additional endpoints for containers
     if (
       site.type === "container" &&

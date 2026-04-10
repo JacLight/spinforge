@@ -32,19 +32,20 @@ apiClient.interceptors.request.use(
   (requestConfig: InternalAxiosRequestConfig) => {
     console.log(`[API] ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`);
 
-    // Attach X-Admin-Token to any request that hits an admin-gated endpoint.
-    // Prefer the JWT issued by /_admin/login (stored in localStorage); fall
-    // back to the shared token baked into the build so freshly-loaded tabs
-    // can still talk to /api/* before the user completes login.
+    // Logged-in admin user → send the session JWT as Authorization: Bearer.
+    // The browser NEVER sends machine API keys (X-API-Key); those are for
+    // CI/CD and scripts only. If there is no JWT in localStorage the request
+    // goes out anonymous and the server returns 401, which the response
+    // interceptor below catches and redirects to login.
     if (isAdminUrl(requestConfig.url)) {
       const sessionToken = localStorage.getItem("adminToken");
-      const token = sessionToken || config.ADMIN_TOKEN;
-      if (token) {
-        requestConfig.headers.set("X-Admin-Token", token);
+      if (sessionToken) {
+        requestConfig.headers.set("Authorization", `Bearer ${sessionToken}`);
       }
     }
 
-    // Add customer auth headers for customer API requests
+    // Customer dashboard requests use a separate header set against the
+    // customer auth middleware. Unaffected by the admin changes above.
     if (requestConfig.url?.includes("/_api/customer/")) {
       const customerId = localStorage.getItem("customerId");
       const authToken = localStorage.getItem("authToken");
@@ -82,14 +83,13 @@ apiClient.interceptors.response.use(
       message: error.message,
     });
 
-    // Handle authentication errors: /api/* is now admin-gated too, so a 401
-    // from either /_admin/* or /api/* means the stored token is no longer
-    // valid and the user needs to log in again.
+    // Handle authentication errors: /api/* is admin-gated too, so a 401 from
+    // either /_admin/* or /api/* means the stored session JWT is invalid or
+    // missing — drop it and force re-login.
     if (error.response?.status === 401) {
       const isAdminRequest = isAdminUrl(error.config?.url);
-      const responseData = error.response?.data as any;
 
-      if (isAdminRequest && responseData?.error?.includes("token")) {
+      if (isAdminRequest) {
         // Clear admin token and reload page to force re-authentication
         localStorage.removeItem("adminToken");
         window.location.href = "/";

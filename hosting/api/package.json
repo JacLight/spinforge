@@ -8,6 +8,7 @@
     "dev": "nodemon server-openresty.js"
   },
   "dependencies": {
+    "acme-client": "^5.4.0",
     "adm-zip": "^0.5.16",
     "axios": "^1.4.0",
     "bcrypt": "^5.1.1",

@@ -110,20 +110,34 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, async () => {
   logger.info(`SpinForge API (OpenResty version) listening on port ${PORT}`);
   
-  // Initialize SSL certificate cache
+  // ─── SSL: warm hot-cache and start the renewal scheduler ────────────
+  // Replaces the old SSLCacheService 5-minute polling loop AND the certbot
+  // container's renewal cron with a single Node-side scheduler.
   try {
-    const SSLCacheService = require('./services/SSLCacheService');
     const redisClient = require('./utils/redis');
-    const sslCache = new SSLCacheService(redisClient);
-    
-    logger.info('Initializing SSL certificate cache...');
-    await sslCache.cacheAllCertificates();
-    
-    // Start watching for certificate changes
-    sslCache.watchCertificates();
-    logger.info('SSL certificate cache initialized');
+    const CertStore = require('./services/CertStore');
+    const AcmeService = require('./services/AcmeService');
+    const CertRenewalScheduler = require('./services/CertRenewalScheduler');
+
+    const certStore = new CertStore(redisClient, { logger });
+    const acmeService = new AcmeService({ redis: redisClient, certStore, logger });
+    const renewalScheduler = new CertRenewalScheduler({
+      redis: redisClient,
+      certStore,
+      acmeService,
+      logger,
+    });
+
+    logger.info('SSL: warming certificate hot-cache...');
+    await certStore.warmupHotCache();
+
+    renewalScheduler.start();
+    logger.info('SSL: ACME renewal scheduler started');
+
+    // Expose for graceful shutdown below
+    app.locals.acme = { certStore, acmeService, renewalScheduler };
   } catch (error) {
-    logger.error('Failed to initialize SSL cache:', error);
+    logger.error('Failed to initialize SSL/ACME services:', error);
   }
   
   // Start container recovery service
@@ -154,9 +168,10 @@ app.listen(PORT, async () => {
     await ipMonitor.start();
     logger.info('Container IP Monitor Service started - watching for container events');
 
-    // Graceful shutdown
+    // Graceful shutdown — stop background services in reverse order of start
     process.on('SIGTERM', () => {
-      ipMonitor.stop();
+      try { app.locals.acme?.renewalScheduler?.stop(); } catch (_) {}
+      try { ipMonitor.stop(); } catch (_) {}
       process.exit(0);
     });
   } catch (error) {

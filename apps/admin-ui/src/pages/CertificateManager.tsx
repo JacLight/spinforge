@@ -20,10 +20,26 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
+interface PreflightInfo {
+  ok: boolean;
+  skipped?: boolean;
+  resolved?: string[];
+  expected?: string[];
+  reason?: string;
+  checkedAt?: string;
+}
+
+interface CertHistoryEntry {
+  at: string;
+  action: string;
+  // Free-form extras: error, validTo, resolved, expected, etc.
+  [key: string]: any;
+}
+
 interface Certificate {
   domain: string;
   isWildcard?: boolean;
-  status?: 'active' | 'pending' | 'expired' | 'error';
+  status?: 'active' | 'pending' | 'expired' | 'error' | 'issuing' | 'renewing';
   issuer?: string;
   validFrom?: string;
   validTo?: string;
@@ -31,6 +47,17 @@ interface Certificate {
   dnsValidated?: boolean;
   alternativeNames?: string[];
   type?: 'standard' | 'wildcard';
+  daysUntilExpiry?: number;
+  // Troubleshooting fields surfaced by the new ACME pipeline
+  lastAttemptAt?: string | null;
+  lastError?: string | null;
+  attemptCount?: number;
+  failureCount?: number;
+  nextAttemptAt?: string | null;
+  history?: CertHistoryEntry[];
+  preflight?: PreflightInfo | null;
+  staging?: boolean;
+  filesExist?: boolean;
 }
 
 interface CertificateDrawerProps {
@@ -206,17 +233,24 @@ function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: Certific
     }
   };
 
-  const handleRenew = async () => {
+  const handleRenew = async (force = false) => {
     if (!certificate) return;
 
     try {
-      const response = await fetch(`/api/ssl/certificates/${encodeURIComponent(certificate.domain)}/renew`, {
-        method: 'POST'
-      });
+      const url = `/api/ssl/certificates/${encodeURIComponent(certificate.domain)}/renew${force ? '?force=1' : ''}`;
+      const response = await fetch(url, { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) throw new Error('Failed to renew certificate');
-      
-      toast.success('Certificate renewal initiated');
+      if (!response.ok) {
+        if (data?.code === 'DNS_PREFLIGHT_FAILED') {
+          throw new Error(
+            `${data.error}. Click "Force Renew" to bypass the DNS check.`
+          );
+        }
+        throw new Error(data?.error || 'Failed to renew certificate');
+      }
+
+      toast.success(force ? 'Force renewal initiated' : 'Certificate renewal initiated');
       onRefresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -227,6 +261,8 @@ function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: Certific
     switch (status) {
       case 'active': return 'text-green-600 bg-green-50';
       case 'pending': return 'text-yellow-600 bg-yellow-50';
+      case 'issuing': return 'text-blue-600 bg-blue-50';
+      case 'renewing': return 'text-blue-600 bg-blue-50';
       case 'expired': return 'text-red-600 bg-red-50';
       case 'error': return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-50';
@@ -237,10 +273,53 @@ function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: Certific
     switch (status) {
       case 'active': return <CheckCircle className="w-4 h-4" />;
       case 'pending': return <Clock className="w-4 h-4" />;
+      case 'issuing': return <RefreshCw className="w-4 h-4 animate-spin" />;
+      case 'renewing': return <RefreshCw className="w-4 h-4 animate-spin" />;
       case 'expired': return <AlertCircle className="w-4 h-4" />;
       case 'error': return <AlertCircle className="w-4 h-4" />;
       default: return <Info className="w-4 h-4" />;
     }
+  };
+
+  const formatRelative = (iso?: string | null) => {
+    if (!iso) return null;
+    try {
+      const d = new Date(iso);
+      const diff = d.getTime() - Date.now();
+      const abs = Math.abs(diff);
+      const minutes = Math.round(abs / 60000);
+      if (minutes < 60) {
+        return diff >= 0 ? `in ${minutes} min` : `${minutes} min ago`;
+      }
+      const hours = Math.round(minutes / 60);
+      if (hours < 48) {
+        return diff >= 0 ? `in ${hours} h` : `${hours} h ago`;
+      }
+      const days = Math.round(hours / 24);
+      return diff >= 0 ? `in ${days} d` : `${days} d ago`;
+    } catch {
+      return null;
+    }
+  };
+
+  // Pretty label for the most common history actions, falling back to the
+  // raw action string for anything else.
+  const historyLabel = (action: string) => {
+    const map: Record<string, string> = {
+      'issue:start': 'Issuance started',
+      'issue:success': 'Certificate issued',
+      'issue:error': 'Issuance failed',
+      'renew:start': 'Renewal started',
+      'renew:success': 'Renewal succeeded',
+      'renew:error': 'Renewal failed',
+      'auto-issue:start': 'Auto-issue triggered',
+      'auto-issue:dns-not-ready': 'Auto-issue waiting for DNS',
+      'preflight:dns-mismatch': 'DNS preflight failed',
+      'upload:manual': 'Manual upload',
+      'revoke:success': 'Certificate revoked',
+      'revoke:error': 'Revocation failed',
+    };
+    return map[action] || action;
   };
 
   return (
@@ -439,14 +518,162 @@ function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: Certific
                   </div>
                 )}
 
+                {/* DNS preflight failure banner — most actionable error */}
+                {certificate.preflight && certificate.preflight.ok === false && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                    <div className="flex items-start">
+                      <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 mr-3 flex-shrink-0" />
+                      <div className="flex-1 text-sm">
+                        <h4 className="font-semibold text-amber-900 mb-1">DNS does not point here</h4>
+                        <p className="text-amber-800">
+                          Let&apos;s Encrypt validation will fail until DNS resolves to this server.
+                        </p>
+                        <div className="mt-3 grid grid-cols-1 gap-1 text-xs font-mono">
+                          <div>
+                            <span className="text-amber-700">resolved: </span>
+                            <span className="text-amber-900">
+                              {(certificate.preflight.resolved || []).join(', ') || '(none)'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-amber-700">expected: </span>
+                            <span className="text-amber-900">
+                              {(certificate.preflight.expected || []).join(', ') || '(none)'}
+                            </span>
+                          </div>
+                          {certificate.preflight.checkedAt && (
+                            <div className="text-amber-600 mt-1">
+                              checked {formatRelative(certificate.preflight.checkedAt)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Last error banner — shown when there's a non-DNS error */}
+                {certificate.lastError && !certificate.preflight?.reason && (
+                  <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+                    <div className="flex items-start">
+                      <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+                      <div className="flex-1 text-sm">
+                        <h4 className="font-semibold text-red-900 mb-1">Last error</h4>
+                        <p className="text-red-800 break-words font-mono text-xs">
+                          {certificate.lastError}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Troubleshooting summary */}
+                {(certificate.attemptCount || certificate.failureCount || certificate.lastAttemptAt || certificate.nextAttemptAt) && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-3">Troubleshooting</h3>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                      {typeof certificate.attemptCount === 'number' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Total attempts</span>
+                          <span className="text-gray-900 font-medium">{certificate.attemptCount}</span>
+                        </div>
+                      )}
+                      {typeof certificate.failureCount === 'number' && certificate.failureCount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Consecutive failures</span>
+                          <span className="text-red-600 font-medium">{certificate.failureCount}</span>
+                        </div>
+                      )}
+                      {certificate.lastAttemptAt && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Last attempt</span>
+                          <span className="text-gray-900">{formatRelative(certificate.lastAttemptAt)}</span>
+                        </div>
+                      )}
+                      {certificate.nextAttemptAt && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Next attempt</span>
+                          <span className="text-gray-900">{formatRelative(certificate.nextAttemptAt)}</span>
+                        </div>
+                      )}
+                      {certificate.staging && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Mode</span>
+                          <span className="text-amber-700 font-medium">Let&apos;s Encrypt staging (not browser-trusted)</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* History timeline */}
+                {certificate.history && certificate.history.length > 0 && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-3">Recent activity</h3>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <ul className="space-y-3">
+                        {certificate.history.slice(0, 10).map((entry, idx) => {
+                          const isError = /:error|mismatch|failed/i.test(entry.action);
+                          const isSuccess = /:success/i.test(entry.action);
+                          return (
+                            <li key={idx} className="flex items-start text-xs">
+                              <div
+                                className={`mt-1 mr-2 h-2 w-2 rounded-full flex-shrink-0 ${
+                                  isError
+                                    ? 'bg-red-500'
+                                    : isSuccess
+                                    ? 'bg-green-500'
+                                    : 'bg-blue-500'
+                                }`}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-gray-900 font-medium">
+                                    {historyLabel(entry.action)}
+                                  </span>
+                                  <span className="text-gray-500 ml-2 flex-shrink-0">
+                                    {formatRelative(entry.at)}
+                                  </span>
+                                </div>
+                                {entry.error && (
+                                  <p className="mt-0.5 text-red-700 break-words">{entry.error}</p>
+                                )}
+                                {entry.resolved && entry.expected && (
+                                  <p className="mt-0.5 text-gray-600 font-mono">
+                                    {entry.resolved.join(',') || '(none)'} → expected {entry.expected.join(',')}
+                                  </p>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="space-y-3">
                   <button
-                    onClick={handleRenew}
+                    onClick={() => handleRenew(false)}
                     className="w-full flex items-center justify-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all"
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Renew Certificate
+                  </button>
+
+                  {/* Force renew bypasses the DNS preflight — useful when the
+                      admin knows DNS is correct but the check is wrong. */}
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Force renew bypasses the DNS preflight check. Only use this if you know DNS is correct. Continue?')) {
+                        handleRenew(true);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center px-4 py-2 border border-amber-300 text-amber-800 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Force Renew (skip DNS check)
                   </button>
 
                   <button

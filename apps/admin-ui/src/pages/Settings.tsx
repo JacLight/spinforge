@@ -95,7 +95,6 @@ const settingSections: SettingSection[] = [
 
 export default function Settings() {
   const [activeSection, setActiveSection] = useState("authentication");
-  const [adminToken, setAdminToken] = useState("");
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
@@ -289,16 +288,8 @@ export default function Settings() {
     }
   }, [serverSettings]);
 
-  useEffect(() => {
-    const token = localStorage.getItem("adminToken") || "";
-    setAdminToken(token);
-  }, []);
-
   const handleSave = async () => {
     try {
-      // Save admin token to localStorage
-      api.setAdminToken(adminToken);
-
       // Save settings to server
       const settings = {
         build: {
@@ -358,33 +349,6 @@ export default function Settings() {
         const tokens: AdminApiToken[] = adminTokensData?.tokens ?? [];
         return (
           <div className="space-y-6">
-            {/* Local saved token (for pasting one in manually — kept for parity with old UX) */}
-            <div>
-              <label
-                htmlFor="adminToken"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Active Admin Token
-              </label>
-              <div className="flex rounded-xl shadow-sm">
-                <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50">
-                  <Key className="h-4 w-4 text-gray-500" />
-                </span>
-                <input
-                  type="password"
-                  id="adminToken"
-                  value={adminToken}
-                  onChange={(e) => setAdminToken(e.target.value)}
-                  className="flex-1 block w-full min-w-0 rounded-none rounded-r-xl border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 px-4 py-3"
-                  placeholder="Paste a token to override this browser's session"
-                />
-              </div>
-              <p className="mt-2 text-sm text-gray-500">
-                Used as <code>X-Admin-Token</code> on every API call from this browser. Leave
-                blank to use the JWT issued by login.
-              </p>
-            </div>
-
             {/* New token generated banner */}
             {generatedToken && (
               <motion.div
@@ -562,11 +526,18 @@ export default function Settings() {
                 <div className="ml-3 text-sm text-blue-800">
                   <p className="font-medium">How to use these tokens</p>
                   <p className="mt-1 text-blue-700">
-                    Send the token as an <code>X-Admin-Token</code> header on any request to
-                    <code className="mx-1">/api/*</code> or
+                    These are <strong>machine API keys</strong> for CI/CD, scripts, and
+                    automation. Send them as the <code>X-API-Key</code> header on any
+                    request to <code className="mx-1">/api/*</code> or
                     <code className="mx-1">/_admin/*</code>:
                   </p>
-                  <pre className="mt-2 bg-blue-100/60 text-blue-900 text-xs p-3 rounded overflow-x-auto">{`curl -H "X-Admin-Token: sfa_..." https://api.spinforge.dev/api/sites`}</pre>
+                  <pre className="mt-2 bg-blue-100/60 text-blue-900 text-xs p-3 rounded overflow-x-auto">{`curl -H "X-API-Key: sfa_..." https://api.spinforge.dev/api/sites`}</pre>
+                  <p className="mt-3 text-xs text-blue-700">
+                    Logged-in admin users authenticate differently — the dashboard sends your
+                    session JWT as <code>Authorization: Bearer …</code> automatically. Do not
+                    paste your login JWT into a script; create a dedicated API key here
+                    instead.
+                  </p>
                 </div>
               </div>
             </div>

@@ -110,17 +110,11 @@ services:
       retries: 5
       start_period: 30s
 
-  certbot:
-    image: certbot/certbot:latest
-    container_name: spinforge-certbot
-    restart: unless-stopped
-    volumes:
-      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certs:/etc/letsencrypt
-      - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-webroot:/var/www/certbot
-    networks:
-      spinforge:
-        ipv4_address: 172.18.0.13
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --deploy-hook \"chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive\"; sleep 12h & wait $${!}; done;'"
+  # The certbot container has been removed. ACME issuance and renewal now
+  # happen inside the api container via services/AcmeService.js (acme-client
+  # npm package). The /data/certbot-webroot directory and openresty's
+  # /.well-known/acme-challenge route are still used — the api container now
+  # writes challenge files there instead of certbot.
 
   admin-ui:
     build:
