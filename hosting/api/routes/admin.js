@@ -9,32 +9,19 @@ const express = require('express');
 const router = express.Router();
 const redisClient = require('../utils/redis');
 const CustomerService = require('../services/CustomerService');
-const AdminService = require('../services/AdminService');
+const { adminService, adminTokenService, authenticateAdmin } = require('../utils/admin-auth');
 const certificatesRouter = require('./certificates');
 
 // Initialize services
 const customerService = new CustomerService(redisClient);
-const adminService = new AdminService(redisClient);
 
-// Initialize default admin on startup
-adminService.initializeDefaultAdmin();
-
-// Admin authentication middleware
-const authenticateAdmin = async (req, res, next) => {
-  const token = req.headers['x-admin-token'];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Admin authentication required' });
-  }
-
-  const admin = await adminService.validateToken(token);
-  if (!admin) {
-    return res.status(401).json({ error: 'Invalid or expired admin token' });
-  }
-
-  req.admin = admin;
-  next();
-};
+// Initialize default admin on startup. Credentials come from the env file
+// (ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL) on first boot only.
+adminService.initializeDefaultAdmin(
+  process.env.ADMIN_USERNAME,
+  process.env.ADMIN_PASSWORD,
+  process.env.ADMIN_EMAIL,
+);
 
 // Public admin routes (no auth required)
 router.post('/login', async (req, res) => {
@@ -476,6 +463,98 @@ router.get('/stats', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Admin API Tokens ──────────────────────────────────────────────────────
+// Multi-token API access for admin users. Used by automation/CI to call
+// admin-gated endpoints (/api/* and /_admin/*) without holding a JWT session.
+
+// List all admin API tokens
+router.get('/tokens', async (req, res) => {
+  try {
+    const tokens = await adminTokenService.listTokens();
+    res.json({ tokens });
+  } catch (error) {
+    console.error('Failed to list admin tokens:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new admin API token. The plaintext is returned exactly once.
+router.post('/tokens', async (req, res) => {
+  try {
+    const { name, expiry, role } = req.body || {};
+    if (!name) {
+      return res.status(400).json({ error: 'Token name is required' });
+    }
+
+    const created = await adminTokenService.createToken({
+      name,
+      expiry,
+      role,
+      createdBy: req.admin?.username || 'admin',
+    });
+
+    res.status(201).json(created);
+  } catch (error) {
+    if (error.code === 'DUPLICATE_NAME') {
+      return res.status(409).json({ error: error.message });
+    }
+    if (/Invalid role/i.test(error.message)) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Failed to create admin token:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Revoke ALL admin API tokens. Used for incident response.
+//   ?keepCurrent=1  → preserve the calling token if the request is using one
+// IMPORTANT: this route MUST be defined before /tokens/:id so the /:id matcher
+// does not capture the bare /tokens DELETE as if "tokens" were the id.
+router.delete('/tokens', async (req, res) => {
+  try {
+    const keepCurrent = req.query.keepCurrent === '1' || req.query.keepCurrent === 'true';
+    const exceptId = keepCurrent ? req.admin?.tokenId : null;
+
+    const revoked = await adminTokenService.deleteAll({ exceptId });
+
+    res.json({
+      success: true,
+      revoked,
+      kept: exceptId ? 1 : 0,
+      message: exceptId
+        ? `Revoked ${revoked} tokens. Your current token was preserved.`
+        : `Revoked ${revoked} tokens.`,
+    });
+  } catch (error) {
+    console.error('Failed to bulk-revoke admin tokens:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Revoke an admin API token by id
+router.delete('/tokens/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Don't let an API token revoke itself — that would lock the caller out
+    // mid-request and confuse downstream code that may still rely on req.admin.
+    if (req.admin?.tokenId === id) {
+      return res.status(400).json({
+        error: 'A token cannot revoke itself. Use a different token or session.',
+      });
+    }
+
+    const ok = await adminTokenService.deleteToken(id);
+    if (!ok) {
+      return res.status(404).json({ error: 'Token not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete admin token:', error);
     res.status(500).json({ error: error.message });
   }
 });

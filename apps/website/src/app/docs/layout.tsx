@@ -19,7 +19,10 @@ import {
   Menu,
   X,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Terminal,
+  LifeBuoy,
+  Code
 } from "lucide-react";
 
 interface DocSection {
@@ -39,6 +42,7 @@ const docSections: DocSection[] = [
     icon: Home,
     items: [
       { title: "Introduction", href: "/docs", description: "Welcome to SpinForge" },
+      { title: "Installation", href: "/docs/installation", description: "Install CLI and prerequisites" },
       { title: "Quick Start", href: "/docs/quick-start", description: "Deploy your first app in minutes" },
     ]
   },
@@ -48,6 +52,45 @@ const docSections: DocSection[] = [
     items: [
       { title: "How SpinForge Works", href: "/docs/concepts/how-it-works", description: "Understanding the deployment model" },
       { title: "Pre-built Applications", href: "/docs/concepts/pre-built-apps", description: "Why we only run built apps" },
+    ]
+  },
+  {
+    title: "Deployment Guides",
+    icon: Rocket,
+    items: [
+      { title: "Static Sites", href: "/docs/deployment/static-sites", description: "Deploy HTML, CSS, JS, and SPAs" },
+      { title: "Node.js Apps", href: "/docs/deployment/nodejs", description: "Deploy Node.js, Next.js, Express" },
+      { title: "Docker Compose", href: "/docs/deployment/docker-compose", description: "Multi-container deployments" },
+      { title: "Flutter Web", href: "/docs/deployment/flutter-web", description: "Deploy Flutter web builds" },
+      { title: "Custom Domains", href: "/docs/deployment/custom-domains", description: "Connect your own domain" },
+      { title: "Environment Variables", href: "/docs/deployment/env-vars", description: "Configure runtime environment" },
+      { title: "SSL & HTTPS", href: "/docs/deployment/ssl", description: "Automatic certificates with Let's Encrypt" },
+    ]
+  },
+  {
+    title: "Frameworks",
+    icon: Code,
+    items: [
+      { title: "Next.js", href: "/docs/frameworks/nextjs", description: "Deploy Next.js applications" },
+      { title: "Remix", href: "/docs/frameworks/remix", description: "Deploy Remix applications" },
+      { title: "Express", href: "/docs/frameworks/express", description: "Deploy Express servers" },
+      { title: "Static", href: "/docs/frameworks/static", description: "Deploy static sites and SPAs" },
+    ]
+  },
+  {
+    title: "CLI Reference",
+    icon: Terminal,
+    items: [
+      { title: "CLI Overview", href: "/docs/cli/overview", description: "All CLI commands at a glance" },
+      { title: "View Logs", href: "/docs/cli/logs", description: "Stream and query logs" },
+    ]
+  },
+  {
+    title: "Troubleshooting",
+    icon: LifeBuoy,
+    items: [
+      { title: "Common Issues", href: "/docs/troubleshooting", description: "Fixes for the most frequent problems" },
+      { title: "FAQ", href: "/docs/troubleshooting/faq", description: "Frequently asked questions" },
     ]
   },
   {

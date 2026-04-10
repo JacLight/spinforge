@@ -16,18 +16,39 @@ class AdminService {
     this.sessionTimeout = sessionTimeout; // 24 hours
   }
 
-  async initializeDefaultAdmin(username = 'admin', password = 'admin123') {
+  /**
+   * On first boot only (no admins in Redis), seed a single super-admin from
+   * the arguments passed in — which in production come from the env file
+   * (ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL). If any of those are
+   * missing we fall back to safe defaults so the bootstrap never silently
+   * fails, but a warning is logged. Once an admin exists in Redis, this
+   * function becomes a no-op — subsequent login and token validation go
+   * through the database, not the env file.
+   */
+  async initializeDefaultAdmin(username, password, email) {
     const admins = await this.getAllAdmins();
-    if (admins.length === 0) {
-      // Create default admin user
-      await this.createAdmin({
-        username,
-        password,
-        email: 'admin@spinforge.local',
-        isSuperAdmin: true,
-      });
-      console.log('Default admin user created:', username);
+    if (admins.length > 0) {
+      // Admin already exists in the database — never overwrite from env.
+      return;
     }
+
+    const seedUsername = username || 'admin';
+    const seedPassword = password || 'admin123';
+    const seedEmail = email || 'admin@spinforge.local';
+
+    if (!username || !password) {
+      console.warn(
+        '[AdminService] No ADMIN_USERNAME/ADMIN_PASSWORD in env — seeding with insecure defaults. Set them in .env before exposing this instance.'
+      );
+    }
+
+    await this.createAdmin({
+      username: seedUsername,
+      password: seedPassword,
+      email: seedEmail,
+      isSuperAdmin: true,
+    });
+    console.log(`[AdminService] Bootstrap admin created from env: ${seedUsername}`);
   }
 
   async createAdmin(data) {

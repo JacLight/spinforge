@@ -11,6 +11,7 @@ const corsMiddleware = require('./utils/cors');
 const routes = require('./routes');
 const { register, httpMetricsMiddleware } = require('./utils/prometheus');
 const logger = require('./utils/logger');
+const { authenticateAdminOrPublic } = require('./utils/admin-auth');
 
 const app = express();
 app.use(express.json());
@@ -30,6 +31,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Gate every /api/* mount behind the admin token. Paths listed in
+// utils/admin-auth.js PUBLIC_API_PATHS (e.g. /api/health) stay public.
+// Customer dashboard traffic uses /_api/customer/* which has its own auth.
+app.use('/api', authenticateAdminOrPublic);
+
 // Mount all API routes
 app.use('/api', routes);
 
@@ -41,7 +47,7 @@ app.use('/_metrics', metricsRoutes);
 const adminRoutes = require('./routes/admin');
 app.use('/_admin', adminRoutes);
 
-// Mount operations routes
+// Mount operations routes (now protected by the /api middleware above)
 const operationsRoutes = require('./routes/operations');
 app.use('/api/operations', operationsRoutes);
 
@@ -69,7 +75,8 @@ app.use('/api/template-library', templateLibraryRoutes);
 const mcpRoutes = require('./routes/mcp');
 app.use('/api/mcp', mcpRoutes);
 
-// MCP Server (actual protocol implementation)
+// MCP Server (actual protocol implementation) — mounted at /mcp (not /api/mcp)
+// and kept public so unauthenticated MCP clients can still perform protocol handshakes.
 const mcpServer = require('./routes/mcp-server');
 app.use('/mcp', mcpServer);
 

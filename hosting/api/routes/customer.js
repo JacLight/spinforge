@@ -9,8 +9,14 @@ const express = require('express');
 const router = express.Router();
 const redisClient = require('../utils/redis');
 const { checkStaticFiles } = require('../utils/site-helpers');
+const CustomerTokenService = require('../services/CustomerTokenService');
 
-// Customer authentication middleware
+const customerTokenService = new CustomerTokenService(redisClient);
+
+// Customer authentication middleware. Accepts (in order):
+//   1. apitoken:<token>          → legacy short-lived API token from /_auth/customer/login
+//   2. session:<token>           → browser session from /_auth/customer/login
+//   3. sfc_<token>               → long-lived customer API token from /_api/customer/tokens
 const authenticateCustomer = async (req, res, next) => {
   const authToken = req.headers['authorization']?.replace('Bearer ', '') || req.headers['x-auth-token'];
 
@@ -19,29 +25,37 @@ const authenticateCustomer = async (req, res, next) => {
   }
 
   try {
-    // Validate token and get customer ID from it
+    // 1+2. Legacy session/apitoken paths (cheapest, single Redis GET each)
     const tokenData = await redisClient.get(`apitoken:${authToken}`);
-    if (!tokenData) {
-      // Try session token
-      const sessionData = await redisClient.get(`session:${authToken}`);
-      if (!sessionData) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
-      }
-      const session = JSON.parse(sessionData);
-      req.customerId = session.customerId;
-      req.userId = session.userId;
-      req.userEmail = session.email;
-    } else {
+    if (tokenData) {
       const token = JSON.parse(tokenData);
       req.customerId = token.customerId;
       req.userId = token.userId;
       req.userEmail = token.email;
+    } else {
+      const sessionData = await redisClient.get(`session:${authToken}`);
+      if (sessionData) {
+        const session = JSON.parse(sessionData);
+        req.customerId = session.customerId;
+        req.userId = session.userId;
+        req.userEmail = session.email;
+      } else {
+        // 3. Long-lived customer API token
+        const apiToken = await customerTokenService.validatePlaintext(authToken);
+        if (!apiToken) {
+          return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        req.customerId = apiToken.customerId;
+        req.userId = apiToken.userId;
+        req.userEmail = apiToken.userEmail;
+        req.apiTokenId = apiToken.tokenId;
+      }
     }
-    
+
     if (!req.customerId) {
       return res.status(401).json({ error: 'Invalid customer token' });
     }
-    
+
     next();
   } catch (error) {
     console.error('Auth error:', error);
@@ -51,6 +65,83 @@ const authenticateCustomer = async (req, res, next) => {
 
 // Apply authentication to all routes
 router.use(authenticateCustomer);
+
+// ─── Customer API Tokens ───────────────────────────────────────────────────
+// Per-customer long-lived tokens. Each token is scoped to its owning customer
+// and grants the same access as that customer's session.
+
+// List the customer's tokens
+router.get('/tokens', async (req, res) => {
+  try {
+    const tokens = await customerTokenService.listTokens(req.customerId);
+    res.json({ tokens });
+  } catch (error) {
+    console.error('Failed to list customer tokens:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new customer API token. Plaintext returned exactly once.
+router.post('/tokens', async (req, res) => {
+  try {
+    const { name, expiry } = req.body || {};
+    if (!name) {
+      return res.status(400).json({ error: 'Token name is required' });
+    }
+    const created = await customerTokenService.createToken({
+      customerId: req.customerId,
+      userId: req.userId,
+      userEmail: req.userEmail,
+      name,
+      expiry,
+    });
+    res.status(201).json(created);
+  } catch (error) {
+    if (error.code === 'DUPLICATE_NAME') {
+      return res.status(409).json({ error: error.message });
+    }
+    console.error('Failed to create customer token:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Bulk revoke. NOTE: must be defined before /tokens/:id so the parameterized
+// route does not capture the bare DELETE on /tokens.
+router.delete('/tokens', async (req, res) => {
+  try {
+    const keepCurrent = req.query.keepCurrent === '1' || req.query.keepCurrent === 'true';
+    const exceptId = keepCurrent ? req.apiTokenId : null;
+    const revoked = await customerTokenService.deleteAll(req.customerId, { exceptId });
+    res.json({
+      success: true,
+      revoked,
+      kept: exceptId ? 1 : 0,
+    });
+  } catch (error) {
+    console.error('Failed to bulk-revoke customer tokens:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Revoke a single customer token by id
+router.delete('/tokens/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.apiTokenId === id) {
+      return res.status(400).json({
+        error: 'A token cannot revoke itself. Use a different token or session.',
+      });
+    }
+    const ok = await customerTokenService.deleteToken(req.customerId, id);
+    if (!ok) {
+      return res.status(404).json({ error: 'Token not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete customer token:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Get customer's own sites/deployments
 router.get('/deployments', async (req, res) => {

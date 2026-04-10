@@ -17,33 +17,47 @@ const apiClient = axios.create({
   },
 });
 
+// True when the URL targets an endpoint that requires admin authentication.
+// Matches both /_admin/* and /api/* (the latter was previously unauthenticated
+// and is now protected by the admin middleware on the server).
+function isAdminUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  if (url.includes("/_admin/")) return true;
+  // Match /api/... but not /_api/customer/... which has its own auth.
+  return /(^|\/)api\//.test(url) && !url.includes("/_api/customer/");
+}
+
 // Add request interceptor
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+  (requestConfig: InternalAxiosRequestConfig) => {
+    console.log(`[API] ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`);
 
-    // Add admin token to all admin requests
-    if (config.url?.includes("/_admin/")) {
-      const adminToken = localStorage.getItem("adminToken");
-      if (adminToken) {
-        config.headers.set("X-Admin-Token", adminToken);
+    // Attach X-Admin-Token to any request that hits an admin-gated endpoint.
+    // Prefer the JWT issued by /_admin/login (stored in localStorage); fall
+    // back to the shared token baked into the build so freshly-loaded tabs
+    // can still talk to /api/* before the user completes login.
+    if (isAdminUrl(requestConfig.url)) {
+      const sessionToken = localStorage.getItem("adminToken");
+      const token = sessionToken || config.ADMIN_TOKEN;
+      if (token) {
+        requestConfig.headers.set("X-Admin-Token", token);
       }
     }
 
     // Add customer auth headers for customer API requests
-    if (config.url?.includes("/_api/customer/")) {
+    if (requestConfig.url?.includes("/_api/customer/")) {
       const customerId = localStorage.getItem("customerId");
       const authToken = localStorage.getItem("authToken");
 
       if (customerId) {
-        config.headers.set("X-Customer-ID", customerId);
+        requestConfig.headers.set("X-Customer-ID", customerId);
       }
       if (authToken) {
-        config.headers.set("Authorization", `Bearer ${authToken}`);
+        requestConfig.headers.set("Authorization", `Bearer ${authToken}`);
       }
     }
 
-    return config;
+    return requestConfig;
   },
   (error) => {
     console.error("[API] Request error:", error);
@@ -68,9 +82,11 @@ apiClient.interceptors.response.use(
       message: error.message,
     });
 
-    // Handle authentication errors
+    // Handle authentication errors: /api/* is now admin-gated too, so a 401
+    // from either /_admin/* or /api/* means the stored token is no longer
+    // valid and the user needs to log in again.
     if (error.response?.status === 401) {
-      const isAdminRequest = error.config?.url?.includes("/_admin/");
+      const isAdminRequest = isAdminUrl(error.config?.url);
       const responseData = error.response?.data as any;
 
       if (isAdminRequest && responseData?.error?.includes("token")) {

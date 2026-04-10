@@ -341,6 +341,37 @@ export interface Settings {
   };
 }
 
+// Hierarchical roles. Each token gets exactly one role; higher roles
+// implicitly grant lower-role privileges.
+//   read  → GET on /api/*
+//   write → GET + POST/PUT/DELETE on /api/* (sites, containers, etc.)
+//   admin → everything, including /_admin/* (token mgmt, user mgmt, settings)
+export type AdminTokenRole = "read" | "write" | "admin";
+
+// Admin API token shape returned by /_admin/tokens. The plaintext value is
+// only ever included on the response from POST (creation), never on list.
+export interface AdminApiToken {
+  id: string;
+  name: string;
+  role: AdminTokenRole;
+  createdAt: string;
+  createdBy: string;
+  expiresAt: string | null;
+  lastUsed: string | null;
+  useCount: number;
+}
+
+export interface AdminApiTokenWithSecret extends AdminApiToken {
+  token: string;
+}
+
+export interface BulkRevokeResult {
+  success: boolean;
+  revoked: number;
+  kept: number;
+  message?: string;
+}
+
 class SpinForgeAPI {
   setAdminToken(token: string) {
     localStorage.setItem('adminToken', token);
@@ -398,6 +429,32 @@ class SpinForgeAPI {
 
   async extendIdleTimeout(spinletId: string, seconds: number = 300): Promise<any> {
     return this.request('post', `/_admin/spinlets/${spinletId}/extend-timeout`, { seconds });
+  }
+
+  // ─── Admin API Tokens ──────────────────────────────────────────────
+  async listAdminTokens(): Promise<{ tokens: AdminApiToken[] }> {
+    return this.request<{ tokens: AdminApiToken[] }>('get', '/_admin/tokens');
+  }
+
+  async createAdminToken(
+    name: string,
+    expiry: string = 'never',
+    role: AdminTokenRole = 'admin'
+  ): Promise<AdminApiTokenWithSecret> {
+    return this.request<AdminApiTokenWithSecret>('post', '/_admin/tokens', {
+      name,
+      expiry,
+      role,
+    });
+  }
+
+  async deleteAdminToken(id: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('delete', `/_admin/tokens/${id}`);
+  }
+
+  async revokeAllAdminTokens(keepCurrent: boolean = true): Promise<BulkRevokeResult> {
+    const url = `/_admin/tokens${keepCurrent ? '?keepCurrent=1' : ''}`;
+    return this.request<BulkRevokeResult>('delete', url);
   }
 
   async createRoute(route: Route) {

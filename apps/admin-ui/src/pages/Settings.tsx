@@ -6,8 +6,8 @@
  * See the LICENSE file in the root directory for details.
  */
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../services/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, type AdminApiToken, type AdminTokenRole } from "../services/api";
 import {
   Save,
   Key,
@@ -32,10 +32,14 @@ import {
   Package,
   Upload,
   LayoutDashboard,
+  Plus,
+  Trash2,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface SettingSection {
   id: string;
@@ -93,6 +97,105 @@ export default function Settings() {
   const [activeSection, setActiveSection] = useState("authentication");
   const [adminToken, setAdminToken] = useState("");
   const [saved, setSaved] = useState(false);
+  const queryClient = useQueryClient();
+
+  // ─── Admin API Tokens state ───────────────────────────────────────
+  const [showNewTokenModal, setShowNewTokenModal] = useState(false);
+  const [newTokenName, setNewTokenName] = useState("");
+  const [newTokenExpiry, setNewTokenExpiry] = useState("never");
+  const [newTokenRole, setNewTokenRole] = useState<AdminTokenRole>("admin");
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+
+  const {
+    data: adminTokensData,
+    isLoading: isLoadingAdminTokens,
+    refetch: refetchAdminTokens,
+  } = useQuery({
+    queryKey: ["adminTokens"],
+    queryFn: () => api.listAdminTokens(),
+    enabled: activeSection === "authentication",
+  });
+
+  const createTokenMutation = useMutation({
+    mutationFn: ({
+      name,
+      expiry,
+      role,
+    }: {
+      name: string;
+      expiry: string;
+      role: AdminTokenRole;
+    }) => api.createAdminToken(name, expiry, role),
+    onSuccess: (data) => {
+      setGeneratedToken(data.token);
+      setNewTokenName("");
+      setNewTokenExpiry("never");
+      setNewTokenRole("admin");
+      setShowNewTokenModal(false);
+      toast.success("Admin API token created");
+      queryClient.invalidateQueries({ queryKey: ["adminTokens"] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to create token");
+    },
+  });
+
+  const deleteTokenMutation = useMutation({
+    mutationFn: (id: string) => api.deleteAdminToken(id),
+    onSuccess: () => {
+      toast.success("Token revoked");
+      queryClient.invalidateQueries({ queryKey: ["adminTokens"] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to revoke token");
+    },
+  });
+
+  const revokeAllMutation = useMutation({
+    mutationFn: () => api.revokeAllAdminTokens(true),
+    onSuccess: (data) => {
+      toast.success(data.message || `Revoked ${data.revoked} tokens`);
+      queryClient.invalidateQueries({ queryKey: ["adminTokens"] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to revoke all tokens");
+    },
+  });
+
+  const handleCreateToken = () => {
+    if (!newTokenName.trim()) {
+      toast.error("Please enter a token name");
+      return;
+    }
+    createTokenMutation.mutate({
+      name: newTokenName.trim(),
+      expiry: newTokenExpiry,
+      role: newTokenRole,
+    });
+  };
+
+  const handleCopyToken = (value: string) => {
+    navigator.clipboard.writeText(value);
+    toast.success("Copied to clipboard");
+  };
+
+  const formatRelativeDate = (iso: string | null | undefined) => {
+    if (!iso) return "Never";
+    const date = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (days < 0) {
+      const futureDays = Math.abs(days);
+      if (futureDays === 0) return "Today";
+      if (futureDays === 1) return "Tomorrow";
+      return `In ${futureDays} days`;
+    }
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
 
   // Fetch real metrics data
   const { data: allMetrics } = useQuery({
@@ -251,15 +354,17 @@ export default function Settings() {
 
   const renderSectionContent = () => {
     switch (activeSection) {
-      case "authentication":
+      case "authentication": {
+        const tokens: AdminApiToken[] = adminTokensData?.tokens ?? [];
         return (
           <div className="space-y-6">
+            {/* Local saved token (for pasting one in manually — kept for parity with old UX) */}
             <div>
               <label
                 htmlFor="adminToken"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Admin API Token
+                Active Admin Token
               </label>
               <div className="flex rounded-xl shadow-sm">
                 <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50">
@@ -271,45 +376,203 @@ export default function Settings() {
                   value={adminToken}
                   onChange={(e) => setAdminToken(e.target.value)}
                   className="flex-1 block w-full min-w-0 rounded-none rounded-r-xl border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 px-4 py-3"
-                  placeholder="Enter your admin token"
+                  placeholder="Paste a token to override this browser's session"
                 />
               </div>
               <p className="mt-2 text-sm text-gray-500">
-                Required for API access. Find it in your .env file or Docker
-                logs.
+                Used as <code>X-Admin-Token</code> on every API call from this browser. Leave
+                blank to use the JWT issued by login.
               </p>
             </div>
 
-            {!adminToken && (
-              <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4">
+            {/* New token generated banner */}
+            {generatedToken && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl bg-green-50 border border-green-200 p-4"
+              >
                 <div className="flex">
-                  <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5" />
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-yellow-800">
-                      Admin token not configured
-                    </h3>
-                    <div className="mt-2 text-sm text-yellow-700">
-                      <p>To find your admin token, run:</p>
-                      <pre className="mt-2 bg-yellow-100 p-2 rounded text-xs">
-                        docker logs spinforge-hub | grep "Admin token"
-                      </pre>
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                  <div className="ml-3 flex-1">
+                    <h3 className="text-sm font-medium text-green-800">New token created</h3>
+                    <p className="mt-1 text-sm text-green-700">
+                      Copy this value now — it will not be shown again.
+                    </p>
+                    <div className="mt-3 flex items-center space-x-2">
+                      <code className="flex-1 px-3 py-2 bg-white rounded-lg border border-green-300 text-xs font-mono text-gray-900 break-all">
+                        {generatedToken}
+                      </code>
+                      <button
+                        onClick={() => handleCopyToken(generatedToken)}
+                        className="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                      >
+                        <Copy className="h-4 w-4 mr-1" /> Copy
+                      </button>
+                      <button
+                        onClick={() => setGeneratedToken(null)}
+                        className="px-3 py-2 text-sm text-green-700 hover:text-green-900"
+                      >
+                        Done
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
+            {/* Admin API Tokens list */}
             <div className="border-t pt-6">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">
-                API Key Management
-              </h3>
-              <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Generate New API Key
-              </button>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">Admin API Tokens</h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Long-lived tokens for CI/CD, scripts, and automation. Each token carries a
+                    role — pick the lowest one that gets the job done.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => refetchAdminTokens()}
+                    className="p-2 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                  {tokens.length > 0 && (
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Revoke ALL ${tokens.length} admin tokens?\n\n` +
+                              `This is for incident response. Anything still using these tokens ` +
+                              `will get 401 immediately. Your current browser session will be preserved.`
+                          )
+                        ) {
+                          revokeAllMutation.mutate();
+                        }
+                      }}
+                      disabled={revokeAllMutation.isPending}
+                      className="inline-flex items-center px-3 py-2 border border-red-200 text-red-700 text-sm font-medium rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+                      title="Revoke every admin API token"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Revoke All
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowNewTokenModal(true)}
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-xl hover:shadow-lg transition-all duration-200"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Token
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                {isLoadingAdminTokens ? (
+                  <div className="flex items-center justify-center py-10 text-gray-500">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading tokens…
+                  </div>
+                ) : tokens.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Key className="mx-auto h-10 w-10 text-gray-300" />
+                    <h4 className="mt-2 text-sm font-medium text-gray-900">No tokens yet</h4>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Create your first admin API token to start scripting against the API.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {tokens.map((token) => (
+                      <div
+                        key={token.id}
+                        className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center flex-shrink-0">
+                            <Key className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {token.name}
+                              </p>
+                              <span
+                                className={`px-2 py-0.5 text-[10px] font-semibold uppercase rounded ${
+                                  token.role === "admin"
+                                    ? "bg-purple-100 text-purple-700"
+                                    : token.role === "write"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {token.role}
+                              </span>
+                              {token.expiresAt && new Date(token.expiresAt) < new Date() && (
+                                <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded bg-red-100 text-red-700">
+                                  Expired
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-3 mt-0.5 text-xs text-gray-500">
+                              <span>Created {formatRelativeDate(token.createdAt)}</span>
+                              <span>·</span>
+                              <span>Last used {formatRelativeDate(token.lastUsed)}</span>
+                              {token.expiresAt && (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-orange-600">
+                                    Expires {formatRelativeDate(token.expiresAt)}
+                                  </span>
+                                </>
+                              )}
+                              <span>·</span>
+                              <span>{token.useCount} uses</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Revoke "${token.name}"? Anything still using this token will start receiving 401 immediately.`
+                              )
+                            ) {
+                              deleteTokenMutation.mutate(token.id);
+                            }
+                          }}
+                          disabled={deleteTokenMutation.isPending}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                          title="Revoke token"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
+              <div className="flex">
+                <Shield className="h-5 w-5 text-blue-500 mt-0.5" />
+                <div className="ml-3 text-sm text-blue-800">
+                  <p className="font-medium">How to use these tokens</p>
+                  <p className="mt-1 text-blue-700">
+                    Send the token as an <code>X-Admin-Token</code> header on any request to
+                    <code className="mx-1">/api/*</code> or
+                    <code className="mx-1">/_admin/*</code>:
+                  </p>
+                  <pre className="mt-2 bg-blue-100/60 text-blue-900 text-xs p-3 rounded overflow-x-auto">{`curl -H "X-Admin-Token: sfa_..." https://api.spinforge.dev/api/sites`}</pre>
+                </div>
+              </div>
             </div>
           </div>
         );
+      }
 
       case "build":
         return (
@@ -1052,7 +1315,7 @@ export default function Settings() {
 
             {/* Content */}
             <div className="flex-1">
-              <motion.div 
+              <motion.div
                 className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg p-8"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1064,6 +1327,140 @@ export default function Settings() {
           </div>
         </motion.div>
       </div>
+
+      {/* New admin token modal */}
+      <AnimatePresence>
+        {showNewTokenModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => !createTokenMutation.isPending && setShowNewTokenModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                Create Admin API Token
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                The token will be shown once. Copy it somewhere safe before closing the dialog.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newTokenName}
+                    onChange={(e) => setNewTokenName(e.target.value)}
+                    placeholder="CI/CD pipeline, deploy bot, etc."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Role
+                  </label>
+                  <select
+                    value={newTokenRole}
+                    onChange={(e) => setNewTokenRole(e.target.value as AdminTokenRole)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="read">read — GET only on /api/*</option>
+                    <option value="write">
+                      write — read + create/update/delete on /api/*
+                    </option>
+                    <option value="admin">
+                      admin — everything, including /_admin/* (full superuser)
+                    </option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Pick the lowest role that gets the job done. You can always create more
+                    tokens later.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Expiry
+                  </label>
+                  <select
+                    value={newTokenExpiry}
+                    onChange={(e) => setNewTokenExpiry(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="never">Never expires</option>
+                    <option value="7d">7 days</option>
+                    <option value="30d">30 days</option>
+                    <option value="90d">90 days</option>
+                    <option value="1y">1 year</option>
+                  </select>
+                </div>
+                <div
+                  className={`border rounded-lg p-3 text-xs ${
+                    newTokenRole === "admin"
+                      ? "bg-amber-50 border-amber-200 text-amber-800"
+                      : "bg-gray-50 border-gray-200 text-gray-700"
+                  }`}
+                >
+                  {newTokenRole === "admin" ? (
+                    <>
+                      <strong>Warning:</strong> a token with the <code>admin</code> role has
+                      full superuser access — same as logging in via the dashboard. Use a lower
+                      role unless you really need it.
+                    </>
+                  ) : newTokenRole === "write" ? (
+                    <>
+                      A <code>write</code> token can create, update, and delete sites, but
+                      cannot manage admin users, settings, or other tokens.
+                    </>
+                  ) : (
+                    <>
+                      A <code>read</code> token can only fetch data via GET requests. Safe for
+                      monitoring and reporting tools.
+                    </>
+                  )}
+                </div>
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowNewTokenModal(false);
+                      setNewTokenName("");
+                      setNewTokenExpiry("never");
+                    }}
+                    disabled={createTokenMutation.isPending}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateToken}
+                    disabled={createTokenMutation.isPending}
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 text-sm font-medium disabled:opacity-50"
+                  >
+                    {createTokenMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" /> Create Token
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
