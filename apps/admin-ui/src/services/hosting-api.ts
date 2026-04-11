@@ -5,26 +5,21 @@
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
-import axios from 'axios';
+// Use the shared axios instance from axios-config.ts. That instance has
+// the request interceptor that attaches `Authorization: Bearer <jwt>` on
+// every admin-gated URL. Previously hosting-api.ts created its own
+// `axios.create()` instance which bypassed the interceptor entirely —
+// that's why every /api/sites? request was going out without auth and
+// getting 401 even though the user was logged in.
+import apiClient from './axios-config';
 
-// Dynamically determine API URL based on current location
+// Kept for the few callsites outside this module that still import it.
 export const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  
   return window.origin;
 };
-
-const API_BASE_URL = getApiBaseUrl();
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
 
 export interface VHost {
   id: string; // kept for backward compatibility
