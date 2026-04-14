@@ -15,6 +15,15 @@ local logger = require "logger"
 local utils = require "utils"
 local container_discovery = require "container_discovery"
 
+-- Consul upstream resolver: used for sites that are managed by Nomad
+-- (site.orchestrator == "nomad"). Legacy sites with a hardcoded target
+-- don't touch this module and continue to work as before.
+local consul_upstream = nil
+do
+    local ok, mod = pcall(require, "consul_upstream")
+    if ok then consul_upstream = mod end
+end
+
 -- Try to load auth gateway module
 local auth_gateway = nil
 local ok, auth_module = pcall(require, "auth_gateway")
@@ -302,11 +311,13 @@ if not site then
         return ngx.exit(503)
     end
     
-    -- No site configured - serve default landing page
-    ngx.log(ngx.INFO, "Router: No site configured for domain: ", host, ", serving default page")
-    ngx.var.route_type = "static"
-    ngx.var.target_root = os.getenv("STATIC_ROOT") or "/data/static"
-    update_metrics(host, 404)
+    -- No site configured → send the caller to the SpinForge marketing
+    -- site. The content_by_lua_block in nginx.conf picks up this
+    -- `spinforge_fallback` route type and ngx.exec's into the named
+    -- location @fallback_to_spinforge_dev.
+    ngx.log(ngx.INFO, "Router: No site for domain: ", host, " — proxying to spinforge.dev")
+    ngx.var.route_type = "spinforge_fallback"
+    update_metrics(host, 200)
     return
 end
 
@@ -368,12 +379,36 @@ elseif site.type == "proxy" then
         ngx.var.preserve_host = "1"
     end
     ngx.log(ngx.INFO, "Proxying to: ", ngx.var.proxy_target, " preserve_host: ", site.preserve_host or false, " transparent: ", site.transparent_proxy or false)
-elseif site.type == "container" then
-    -- Container sites work like proxy sites
+elseif site.type == "container" or site.type == "node" then
+    -- Container and node sites both route as proxies. The difference is
+    -- just where the upstream URL comes from:
+    --
+    --   legacy (dockerode-managed):  site.target is pre-computed by
+    --                                container-ip-monitor and written
+    --                                to Redis (e.g. "http://172.18.0.42:3000")
+    --
+    --   nomad-managed:               site.orchestrator == "nomad" and
+    --                                we resolve the upstream live from
+    --                                Consul's /v1/health/service API
     ngx.var.route_type = "proxy"
-    -- Use container target directly
-    ngx.var.proxy_target = site.target or ""
-    ngx.log(ngx.INFO, "Proxying to container: ", ngx.var.proxy_target)
+
+    if site.orchestrator == "nomad" and consul_upstream then
+        local endpoint = consul_upstream.resolve(site.domain)
+        if endpoint then
+            ngx.var.proxy_target = "http://" .. endpoint
+            ngx.log(ngx.INFO, "Router(nomad): ", site.domain, " → ", ngx.var.proxy_target)
+        else
+            ngx.log(ngx.ERR, "Router(nomad): no healthy allocations for ", site.domain)
+            ngx.status = 503
+            ngx.header["Content-Type"] = "text/plain"
+            ngx.say("No healthy allocations for ", site.domain)
+            return ngx.exit(503)
+        end
+    else
+        -- Legacy path: dockerode-managed sites
+        ngx.var.proxy_target = site.target or ""
+        ngx.log(ngx.INFO, "Router(legacy): proxying to container: ", ngx.var.proxy_target)
+    end
 elseif site.type == "loadbalancer" then
     ngx.var.route_type = "proxy"  -- Use proxy type for handling
     

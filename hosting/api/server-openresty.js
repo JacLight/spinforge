@@ -63,6 +63,12 @@ app.use('/_api/customer', customerRoutes);
 const authRoutes = require('./routes/auth');
 app.use('/_auth', authRoutes);
 
+// Mount third-party partner token exchange routes. This tree is NOT under
+// /api/* because it's gated by X-Partner-Key (a per-partner credential),
+// not by admin auth. See routes/partners.js for the exchange flow.
+const partnersRoutes = require('./routes/partners');
+app.use('/_partners', partnersRoutes);
+
 // Mount clone and template routes
 const cloneDeployRoutes = require('./routes/clone-deploy');
 app.use('/api/clone', cloneDeployRoutes);

@@ -294,7 +294,33 @@ router.post("/", async (req, res) => {
         });
       }
     }
-    // Handle simple container deployment
+    // ─── Nomad path (multi-node orchestration) ────────────────────────
+    // When site.orchestrator === "nomad" OR USE_NOMAD=1 is set globally,
+    // delegate the entire workload lifecycle to NomadService instead of
+    // shelling into dockerode. The site record still lives in Redis so
+    // OpenResty can route to it; the upstream resolution happens via
+    // Consul service discovery (consul_upstream.lua).
+    else if (
+      (site.orchestrator === 'nomad' || process.env.USE_NOMAD === '1') &&
+      (site.type === 'container' || site.type === 'node')
+    ) {
+      try {
+        const NomadService = require('../services/NomadService');
+        const nomad = new NomadService();
+        site.orchestrator = 'nomad';  // make it explicit on disk
+        const deployed = await nomad.deploySite(site);
+        site.nomadJobId = deployed.jobId;
+        site.nomadEvalId = deployed.evalId;
+        console.log(`Nomad deployment dispatched for ${site.domain}: job=${deployed.jobId}`);
+      } catch (error) {
+        console.error('Nomad deployment failed:', error);
+        return res.status(500).json({
+          error: 'Nomad deployment failed',
+          details: error.message,
+        });
+      }
+    }
+    // Handle simple container deployment (legacy dockerode path)
     else if (site.type === "container" && site.containerConfig) {
       try {
         let containerName = `spinforge-${site.domain.replace(/\./g, "-")}`;
@@ -619,6 +645,13 @@ router.put("/:domain", async (req, res) => {
     // Save to Redis first
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
 
+    // Auto-issue cert on update too — covers the case where an existing
+    // site gets ssl_enabled flipped from false → true. The helper is
+    // idempotent: if we already have a valid cert it no-ops. If DNS
+    // doesn't point here, the helper records a backoff instead of burning
+    // Let's Encrypt rate-limit slots.
+    require('../utils/auto-cert').maybeAutoIssueCert(site);
+
     // Register additional endpoints as separate routes
     if (site.additionalEndpoints && site.additionalEndpoints.length > 0) {
       for (const endpoint of site.additionalEndpoints) {
@@ -872,8 +905,23 @@ router.delete("/:domain", async (req, res) => {
       }
     }
 
-    // Handle container cleanup
-    if (site.type === "container") {
+    // ─── Nomad teardown ───────────────────────────────────────────────
+    // If this site was deployed via Nomad, purge its job. We do this BEFORE
+    // the legacy dockerode cleanup branch so a Nomad-managed site never
+    // hits the docker shell paths below.
+    if (site.orchestrator === 'nomad') {
+      try {
+        const NomadService = require('../services/NomadService');
+        const nomad = new NomadService();
+        const stopped = await nomad.stopSite(site.domain);
+        console.log(`Nomad teardown for ${site.domain}: ${stopped ? 'job purged' : 'job not found'}`);
+      } catch (error) {
+        console.error('Nomad teardown failed (continuing with cleanup):', error.message);
+      }
+    }
+
+    // Handle container cleanup (legacy dockerode path)
+    if (site.type === "container" && site.orchestrator !== 'nomad') {
       // Clean up additional endpoints first
       if (site.additionalEndpoints && site.additionalEndpoints.length > 0) {
         for (const endpoint of site.additionalEndpoints) {

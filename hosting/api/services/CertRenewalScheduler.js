@@ -11,11 +11,22 @@
  *      (so DNS that just propagated gets picked up automatically)
  *   3. Retries failed issuances with simple exponential backoff
  *
- * Single-flighted globally so two scheduler ticks can never overlap, and
- * single-flighted per-domain via AcmeService's Redis lock.
+ * Three layers of single-flighting:
+ *   • in-process `_running` flag — cheap check, skips overlapping ticks on
+ *     the same replica
+ *   • cluster-wide Redis lock — ensures only one api replica runs a tick
+ *     across the whole cluster (critical now that we run N replicas)
+ *   • per-domain Redis lock inside AcmeService — ensures a single domain
+ *     can only be issued/renewed by one caller at a time
  */
 const DAY_MS = 24 * 60 * 60 * 1000;
 const { preflight: dnsPreflight } = require('../utils/dns-preflight');
+const { withClusterLock } = require('../utils/cluster-lock');
+
+// How long one scheduler tick is allowed to hold the cluster lock before
+// it's considered dead. Must be longer than a realistic slow tick; the
+// watchdog extends it automatically if we're still running.
+const TICK_LOCK_TTL_SECONDS = 15 * 60;
 
 class CertRenewalScheduler {
   /**
@@ -64,14 +75,34 @@ class CertRenewalScheduler {
 
   /**
    * Run a single tick of the scheduler. Safe to call manually (e.g. for
-   * tests or to trigger from an admin endpoint). Single-flighted: if
-   * another tick is in progress, this one is a no-op.
+   * tests or to trigger from an admin endpoint). Three-layer single-flight:
+   * local `_running` flag, cluster Redis lock, and per-domain locks inside
+   * AcmeService.
    */
   async runOnce() {
     if (this._running) {
-      this.logger.info?.('CertRenewalScheduler: tick skipped, previous tick still running');
-      return { skipped: true };
+      this.logger.info?.('CertRenewalScheduler: tick skipped, previous tick still running (local)');
+      return { skipped: true, reason: 'local-inflight' };
     }
+
+    // Cluster-wide lock: ensures only one api replica runs a tick at a time
+    // across the whole fleet. `ran: false` means another replica has it —
+    // this is a normal, expected outcome, not an error.
+    const locked = await withClusterLock(
+      'cron:cert-renewal',
+      TICK_LOCK_TTL_SECONDS,
+      () => this._runOnceInner()
+    );
+
+    if (!locked.ran) {
+      this.logger.info?.('CertRenewalScheduler: tick skipped, another replica holds the lock');
+      return { skipped: true, reason: 'cluster-lock-held' };
+    }
+    if (locked.error) throw locked.error;
+    return locked.result;
+  }
+
+  async _runOnceInner() {
     this._running = true;
     const startedAt = Date.now();
     const result = { renewed: [], issued: [], skipped: [], errored: [] };

@@ -38,12 +38,23 @@ services:
       - "80:80"
       - "443:443"
       - "8082:8081"
+      # HAProxy pass-through ports. HAProxy at 192.168.88.20 targets
+      # these; they require a PROXY v2 header or the connection is rejected.
+      # NOT for direct client use — customer traffic hits :80/:443.
+      - "8480:8480"
+      - "8443:8443"
     env_file:
       - .env
     environment:
       - REDIS_HOST=${REDIS_HOST:-172.18.0.10}
       - REDIS_PORT=16378
       - REDIS_DB=1
+      # Space-separated IPs/CIDRs allowed to send PROXY protocol v2
+      # headers. Rendered into /etc/openresty/conf.d/real_ip.conf by
+      # docker-entrypoint.sh at container start. Default trusts the
+      # whole Proxmox LAN — narrow it to specific HAProxy IPs in
+      # production: HAPROXY_TRUSTED_IP="192.168.88.154 192.168.88.155"
+      - HAPROXY_TRUSTED_IP=${HAPROXY_TRUSTED_IP:-192.168.88.0/24}
     dns_opt:
       - use-vc        # force TCP for DNS (avoids flaky UDP)
       - timeout:2

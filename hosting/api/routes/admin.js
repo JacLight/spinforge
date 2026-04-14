@@ -10,6 +10,9 @@ const router = express.Router();
 const redisClient = require('../utils/redis');
 const CustomerService = require('../services/CustomerService');
 const { adminService, adminTokenService, authenticateAdmin } = require('../utils/admin-auth');
+const PartnerService = require('../services/PartnerService');
+
+const partnerService = new PartnerService(redisClient);
 const certificatesRouter = require('./certificates');
 
 // Initialize services
@@ -531,6 +534,87 @@ router.delete('/tokens', async (req, res) => {
     });
   } catch (error) {
     console.error('Failed to bulk-revoke admin tokens:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Third-party Partners ──────────────────────────────────────────────────
+// Partner registration lives under /_admin/partners/*. Partner keys grant
+// access to the public /_partners/exchange endpoint, which lets partner
+// backends trade a customer token (from their own auth system) for a
+// SpinForge customer token scoped to that customer.
+
+// List all partners
+router.get('/partners', async (req, res) => {
+  try {
+    const partners = await partnerService.listPartners();
+    res.json({ partners });
+  } catch (error) {
+    console.error('Failed to list partners:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new partner. The plaintext API key is returned EXACTLY ONCE.
+router.post('/partners', async (req, res) => {
+  try {
+    const created = await partnerService.createPartner(req.body || {});
+    res.status(201).json(created);
+  } catch (error) {
+    if (error.code === 'DUPLICATE_NAME') {
+      return res.status(409).json({ error: error.message });
+    }
+    if (/required|valid/i.test(error.message)) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Failed to create partner:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get one partner
+router.get('/partners/:id', async (req, res) => {
+  try {
+    const partner = await partnerService.getPartner(req.params.id);
+    if (!partner) return res.status(404).json({ error: 'Partner not found' });
+    res.json(partnerService.toPublic(partner));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update a partner (name, validation URL, method, headers, enabled flag, etc.)
+router.put('/partners/:id', async (req, res) => {
+  try {
+    const updated = await partnerService.updatePartner(req.params.id, req.body || {});
+    if (!updated) return res.status(404).json({ error: 'Partner not found' });
+    res.json(updated);
+  } catch (error) {
+    if (error.code === 'DUPLICATE_NAME') {
+      return res.status(409).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Rotate the partner's API key. Returns the new plaintext key (shown once).
+router.post('/partners/:id/rotate-key', async (req, res) => {
+  try {
+    const rotated = await partnerService.rotateApiKey(req.params.id);
+    if (!rotated) return res.status(404).json({ error: 'Partner not found' });
+    res.json(rotated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a partner (invalidates their API key immediately)
+router.delete('/partners/:id', async (req, res) => {
+  try {
+    const ok = await partnerService.deletePartner(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Partner not found' });
+    res.json({ success: true });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
