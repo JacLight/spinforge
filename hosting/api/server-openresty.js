@@ -6,12 +6,18 @@
  * See the LICENSE file in the root directory for details.
  */
 
+// The JWT signing secret must be resolved before any module that reads
+// process.env.ADMIN_TOKEN_SECRET is loaded (notably utils/admin-auth and
+// services/AdminService). Do this first, above all other requires.
+require('./utils/admin-bootstrap').loadOrCreateJwtSecret();
+
 const express = require('express');
 const corsMiddleware = require('./utils/cors');
 const routes = require('./routes');
 const { register, httpMetricsMiddleware } = require('./utils/prometheus');
 const logger = require('./utils/logger');
-const { authenticateAdminOrPublic } = require('./utils/admin-auth');
+const { authenticateAdminOrPublic, adminService } = require('./utils/admin-auth');
+const { ensureSetupTokenIfNeeded } = require('./utils/admin-bootstrap');
 
 const app = express();
 app.use(express.json());
@@ -107,7 +113,13 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, async () => {
   logger.info(`SpinForge API (OpenResty version) listening on port ${PORT}`);
-  
+
+  try {
+    await ensureSetupTokenIfNeeded(adminService);
+  } catch (error) {
+    logger.error('Failed to run admin setup-token check:', error);
+  }
+
   // ─── SSL: warm hot-cache and start the renewal scheduler ────────────
   // Replaces the old SSLCacheService 5-minute polling loop AND the certbot
   // container's renewal cron with a single Node-side scheduler.

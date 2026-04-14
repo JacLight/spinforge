@@ -18,13 +18,58 @@ const certificatesRouter = require('./certificates');
 // Initialize services
 const customerService = new CustomerService(redisClient);
 
-// Initialize default admin on startup. Credentials come from the env file
-// (ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL) on first boot only.
-adminService.initializeDefaultAdmin(
-  process.env.ADMIN_USERNAME,
-  process.env.ADMIN_PASSWORD,
-  process.env.ADMIN_EMAIL,
-);
+const {
+  validateSetupToken,
+  clearSetupToken,
+} = require('../utils/admin-bootstrap');
+
+// Surface whether first-run setup is needed so the admin UI can redirect
+// to the setup screen instead of showing a login form nobody can use.
+router.get('/setup/status', async (req, res) => {
+  try {
+    const admins = await adminService.getAllAdmins();
+    res.json({ setupRequired: admins.length === 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// First-run admin bootstrap. Consumes the one-time token written to
+// /data/admin/first-run-token.txt and creates the initial super-admin.
+// Fails once an admin already exists — this endpoint never edits an
+// existing account.
+router.post('/setup', async (req, res) => {
+  try {
+    const { setupToken, username, password, email } = req.body || {};
+
+    const admins = await adminService.getAllAdmins();
+    if (admins.length > 0) {
+      return res.status(409).json({ error: 'Admin already provisioned' });
+    }
+
+    if (!validateSetupToken(setupToken)) {
+      return res.status(401).json({ error: 'Invalid or expired setup token' });
+    }
+    if (!username || !password) {
+      return res.status(400).json({ error: 'username and password are required' });
+    }
+    if (password.length < 10) {
+      return res.status(400).json({ error: 'password must be at least 10 characters' });
+    }
+
+    const admin = await adminService.createAdmin({
+      username,
+      password,
+      email: email || 'admin@spinforge.local',
+      isSuperAdmin: true,
+    });
+    clearSetupToken();
+
+    res.json({ message: 'Admin created. Log in at /_admin/login.', admin });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Public admin routes (no auth required)
 router.post('/login', async (req, res) => {

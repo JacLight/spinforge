@@ -15,9 +15,6 @@
  *   │                                                  login              │
  *   │ Machine API integration  X-API-Key               sfa_… (created via │
  *   │                                                  /_admin/tokens)    │
- *   │                                                  OR the static      │
- *   │                                                  ADMIN_TOKEN env    │
- *   │                                                  bypass             │
  *   └──────────────────────────────────────────────────────────────────────┘
  *
  * Used by routes/admin.js (mounts /_admin/*) and by server-openresty.js to
@@ -88,20 +85,10 @@ async function identify(req) {
   }
 
   // ─── Path 2: X-API-Key (machine API key) ─────────────────────────────
+  // Database-backed sfa_ tokens with explicit roles. There is no env-bypass
+  // — all machine credentials live in Redis and can be revoked individually.
   const apiKey = req.headers['x-api-key'];
   if (apiKey) {
-    // 2a. Static env bypass — useful for emergency / internal services.
-    if (process.env.ADMIN_TOKEN && apiKey === process.env.ADMIN_TOKEN) {
-      return {
-        id: 'env-admin',
-        username: 'env',
-        email: 'admin@spinforge.local',
-        isSuperAdmin: true,
-        role: 'admin',
-        authMethod: 'env',
-      };
-    }
-    // 2b. Database-backed sfa_ tokens with explicit roles.
     const apiAdmin = await adminTokenService.validatePlaintext(apiKey);
     if (apiAdmin) {
       return { ...apiAdmin, authMethod: 'apikey' };
