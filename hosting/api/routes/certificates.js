@@ -9,7 +9,6 @@ const express = require('express');
 const router = express.Router();
 const CertificateService = require('../services/CertificateService');
 const redisClient = require('../utils/redis');
-const { execSync } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -217,14 +216,8 @@ function updateNginxForSSL(domain) {
   }
 }
 
-// Helper function to reload nginx
-function reloadNginx() {
-  try {
-    execSync('docker exec spinforge-openresty openresty -s reload', { stdio: 'pipe' });
-    console.log('Nginx reloaded successfully');
-  } catch (error) {
-    console.error('Error reloading nginx:', error);
-  }
-}
+// OpenResty loads certs dynamically via ssl_certificate_by_lua, so a
+// process reload is no longer needed after issuing/renewing a cert.
+function reloadNginx() {}
 
 module.exports = router;

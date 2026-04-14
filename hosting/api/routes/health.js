@@ -9,7 +9,6 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const redisClient = require('../utils/redis');
-const { execAsync } = require('../utils/docker');
 
 // Basic health check endpoint
 router.get('/', (req, res) => {
@@ -93,14 +92,22 @@ async function getServiceHealth() {
     });
   }
   
-  // Check OpenResty
+  // Check OpenResty by HTTP-probing its in-cluster DNS name.
   try {
-    await execAsync('docker ps | grep openresty');
+    const http = require('http');
+    await new Promise((resolve, reject) => {
+      const req = http.get('http://openresty:8081/api/health', { timeout: 1500 }, (r) => {
+        r.resume();
+        r.statusCode === 200 ? resolve() : reject(new Error(`status ${r.statusCode}`));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(new Error('timeout')); });
+    });
     services.push({
       name: 'OpenResty',
       status: 'healthy',
       uptime: Date.now() / 1000,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     });
   } catch (error) {
     services.push({
@@ -108,7 +115,7 @@ async function getServiceHealth() {
       status: 'unhealthy',
       uptime: 0,
       lastCheck: new Date().toISOString(),
-      details: { error: 'Container not running' }
+      details: { error: error.message },
     });
   }
   

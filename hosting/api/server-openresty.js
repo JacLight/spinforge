@@ -47,14 +47,6 @@ app.use('/_metrics', metricsRoutes);
 const adminRoutes = require('./routes/admin');
 app.use('/_admin', adminRoutes);
 
-// Mount operations routes (now protected by the /api middleware above)
-const operationsRoutes = require('./routes/operations');
-app.use('/api/operations', operationsRoutes);
-
-// Mount image management routes
-const imagesRoutes = require('./routes/images');
-app.use('/api/images', imagesRoutes);
-
 // Mount customer API routes
 const customerRoutes = require('./routes/customer');
 app.use('/_api/customer', customerRoutes);
@@ -145,42 +137,9 @@ app.listen(PORT, async () => {
   } catch (error) {
     logger.error('Failed to initialize SSL/ACME services:', error);
   }
-  
-  // Start container recovery service
-  try {
-    const containerRecovery = require('./services/container-recovery');
-    await containerRecovery.start();
-    logger.info('Container recovery service started');
-  } catch (error) {
-    logger.error('Failed to start container recovery:', error);
-  }
-  
-  // Resolve container IPs on startup
-  try {
-    const ContainerIPResolver = require('./resolve-container-ips');
-    const resolver = new ContainerIPResolver();
-    await resolver.connect();
-    const stats = await resolver.resolveAllContainers();
-    await resolver.disconnect();
-    logger.info(`Container IPs resolved on startup: ${stats.updated} updated, ${stats.failed} failed`);
-  } catch (error) {
-    logger.error('Failed to resolve container IPs on startup:', error);
-  }
 
-  // Start Container IP Monitor Service for real-time updates
-  try {
-    const ContainerIPMonitor = require('./services/container-ip-monitor');
-    const ipMonitor = new ContainerIPMonitor();
-    await ipMonitor.start();
-    logger.info('Container IP Monitor Service started - watching for container events');
-
-    // Graceful shutdown — stop background services in reverse order of start
-    process.on('SIGTERM', () => {
-      try { app.locals.acme?.renewalScheduler?.stop(); } catch (_) {}
-      try { ipMonitor.stop(); } catch (_) {}
-      process.exit(0);
-    });
-  } catch (error) {
-    logger.error('Failed to start Container IP Monitor:', error);
-  }
+  process.on('SIGTERM', () => {
+    try { app.locals.acme?.renewalScheduler?.stop(); } catch (_) {}
+    process.exit(0);
+  });
 });

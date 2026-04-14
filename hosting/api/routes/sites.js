@@ -11,12 +11,10 @@ const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const path = require("path");
-const yaml = require("js-yaml");
 const multer = require("multer");
 const AdmZip = require("adm-zip");
 const tar = require("tar");
 const redisClient = require("../utils/redis");
-const { execAsync } = require("../utils/docker");
 const { STATIC_ROOT, UPLOADS_ROOT } = require("../utils/constants");
 const { checkStaticFiles } = require("../utils/site-helpers");
 const { addRouteAuth } = require("../route-helper/auth-gateway-helper");
@@ -222,214 +220,21 @@ router.post("/", async (req, res) => {
       );
     }
 
-    // Handle Docker Compose deployment
-    if (site.type === "compose") {
-      try {
-        const composeYaml = site.compose;
-        if (!composeYaml) {
-          return res.status(400).json({
-            error: "Compose configuration is required for compose deployment"
-          });
-        }
-
-        // Generate project name
-        const projectName = `spinforge-${site.domain.replace(/\./g, '-')}`;
-        const projectPath = path.join('/data/compose', projectName);
-        
-        // Create project directory
-        await execAsync(`mkdir -p ${projectPath}`);
-        
-        // Validate and write compose file
-        let composeContent;
-        if (typeof composeYaml === 'string') {
-          // Validate YAML
-          yaml.load(composeYaml);
-          composeContent = composeYaml;
-        } else {
-          composeContent = yaml.dump(composeYaml);
-        }
-        
-        const composeFilePath = path.join(projectPath, 'docker-compose.yml');
-        await fs.promises.writeFile(composeFilePath, composeContent);
-        
-        // Deploy using docker-compose
-        console.log(`Deploying compose project: ${projectName}`);
-        const { stdout, stderr } = await execAsync(
-          `cd ${projectPath} && docker-compose -p ${projectName} up -d`,
-          { maxBuffer: 10 * 1024 * 1024 }
-        );
-        
-        // Get container info
-        const containers = await execAsync(
-          `docker ps --filter "label=com.docker.compose.project=${projectName}" --format "{{.Names}}|{{.Image}}|{{.State}}"`
-        );
-        
-        const deployedContainers = [];
-        const lines = containers.stdout.split('\n').filter(line => line.trim());
-        
-        for (const line of lines) {
-          const [name, image, state] = line.split('|');
-          if (name) {
-            deployedContainers.push({
-              name: name,
-              image: image,
-              state: state
-            });
-          }
-        }
-        
-        // Store compose-specific info
-        site.type = 'compose';
-        site.projectName = projectName;
-        site.projectPath = projectPath;
-        site.containers = deployedContainers;
-        site.composeYaml = composeContent;
-        
-        console.log(`Compose deployment successful for ${site.domain}`);
-      } catch (error) {
-        console.error("Compose deployment failed:", error);
-        return res.status(500).json({
-          error: "Compose deployment failed",
-          details: error.message,
-        });
-      }
-    }
-    // ─── Nomad path (multi-node orchestration) ────────────────────────
-    // When site.orchestrator === "nomad" OR USE_NOMAD=1 is set globally,
-    // delegate the entire workload lifecycle to NomadService instead of
-    // shelling into dockerode. The site record still lives in Redis so
-    // OpenResty can route to it; the upstream resolution happens via
-    // Consul service discovery (consul_upstream.lua).
-    else if (
-      (site.orchestrator === 'nomad' || process.env.USE_NOMAD === '1') &&
-      (site.type === 'container' || site.type === 'node')
-    ) {
+    // Container and node workloads run on Nomad. The site record still
+    // lives in Redis so OpenResty can route to it; upstream resolution
+    // happens through Consul service discovery (consul_upstream.lua).
+    if (site.type === 'container' || site.type === 'node') {
       try {
         const NomadService = require('../services/NomadService');
         const nomad = new NomadService();
-        site.orchestrator = 'nomad';  // make it explicit on disk
+        site.orchestrator = 'nomad';
         const deployed = await nomad.deploySite(site);
         site.nomadJobId = deployed.jobId;
         site.nomadEvalId = deployed.evalId;
-        console.log(`Nomad deployment dispatched for ${site.domain}: job=${deployed.jobId}`);
       } catch (error) {
         console.error('Nomad deployment failed:', error);
         return res.status(500).json({
           error: 'Nomad deployment failed',
-          details: error.message,
-        });
-      }
-    }
-    // Handle simple container deployment (legacy dockerode path)
-    else if (site.type === "container" && site.containerConfig) {
-      try {
-        let containerName = `spinforge-${site.domain.replace(/\./g, "-")}`;
-        const config = site.containerConfig;
-
-        // Build docker run command
-        let dockerCmd = `docker run -d --name ${containerName}`;
-        dockerCmd += ` --network spinforge_spinforge`;
-        dockerCmd += ` --restart ${config.restartPolicy || "unless-stopped"}`;
-
-        // Add TTY and stdin support for interactive containers
-        dockerCmd += ` -t`;
-
-        // Add default terminal environment variables
-        dockerCmd += ` -e TERM=xterm-256color`;
-        dockerCmd += ` -e LANG=C.UTF-8`;
-        dockerCmd += ` -e LC_ALL=C.UTF-8`;
-
-        // Don't expose port - container will be accessed internally through network
-
-        // Add environment variables - handle both object and array formats
-        if (config.env) {
-          console.log(
-            "Environment variables found during creation:",
-            JSON.stringify(config.env, null, 2)
-          );
-          if (Array.isArray(config.env) && config.env.length > 0) {
-            // Old array format [{key, value}]
-            console.log(
-              "Processing as array format with",
-              config.env.length,
-              "items"
-            );
-            config.env.forEach((env) => {
-              if (env.key && env.value !== undefined) {
-                console.log(`  Adding env var: ${env.key}=${env.value}`);
-                dockerCmd += ` -e "${env.key}=${env.value}"`;
-              }
-            });
-          } else if (
-            typeof config.env === "object" &&
-            !Array.isArray(config.env) &&
-            Object.keys(config.env).length > 0
-          ) {
-            // New object format {KEY: value}
-            console.log(
-              "Processing as object format with",
-              Object.keys(config.env).length,
-              "keys"
-            );
-            Object.entries(config.env).forEach(([key, value]) => {
-              if (key && value !== undefined) {
-                console.log(`  Adding env var: ${key}=${value}`);
-                dockerCmd += ` -e "${key}=${value}"`;
-              }
-            });
-          }
-        }
-
-        // Add volume mounts
-        if (config.volumes && config.volumes.length > 0) {
-          for (const vol of config.volumes) {
-            await createDirIfNotExists(vol.host);
-            dockerCmd += ` -v "${vol.host}:${vol.container}"`;
-          }
-        }
-
-        // Add resource limits
-        if (config.memoryLimit) {
-          dockerCmd += ` --memory="${config.memoryLimit}"`;
-        }
-        if (config.cpuLimit) {
-          dockerCmd += ` --cpus="${config.cpuLimit}"`;
-        }
-
-        // Add labels for metadata
-        dockerCmd += ` --label spinforge.domain="${site.domain}"`;
-        dockerCmd += ` --label spinforge.type="container"`;
-        dockerCmd += ` --label spinforge.created="${site.createdAt}"`;
-
-        // Add the image
-        dockerCmd += ` ${config.image}`;
-
-        // Add command override if specified
-        if (config.command) {
-          dockerCmd += ` ${config.command}`;
-        }
-
-        console.log("Deploying container:", dockerCmd);
-
-        // Execute docker run
-        const { stdout, stderr } = await execAsync(dockerCmd);
-        const containerId = stdout.trim();
-
-        // Store container ID in site config
-        site.containerId = containerId;
-        site.containerName = containerName;
-
-        // Wait a moment for container to start
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Use container name for internal routing (more reliable than IP)
-        site.target = `http://${containerName}:${config.port}`;
-        
-        console.log(`Container deployed: ${containerName} -> ${site.target}`);
-      } catch (error) {
-        console.error("Container deployment failed:", error);
-        return res.status(500).json({
-          error: "Container deployment failed",
           details: error.message,
         });
       }
@@ -459,11 +264,11 @@ router.post("/", async (req, res) => {
         if (endpoint.enabled && endpoint.domain && endpoint.port) {
           // Create a proxy route for each additional endpoint
           const endpointRoute = {
-            type: "proxy",
+            type: 'container',
             domain: endpoint.domain,
-            target: `http://${site.containerName || site.containerId}:${
-              endpoint.port
-            }`,
+            orchestrator: 'nomad',
+            consulService: `site-${site.domain.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`,
+            port: endpoint.port,
             enabled: true,
             parentSite: site.domain,
             isAdditionalEndpoint: true,
@@ -474,9 +279,6 @@ router.post("/", async (req, res) => {
           await redisClient.set(
             `site:${endpoint.domain}`,
             JSON.stringify(endpointRoute)
-          );
-          console.log(
-            `Registered additional endpoint: ${endpoint.domain} -> ${site.containerName}:${endpoint.port}`
           );
         }
       }
@@ -658,11 +460,11 @@ router.put("/:domain", async (req, res) => {
         if (endpoint.enabled && endpoint.domain && endpoint.port) {
           // Create a proxy route for each additional endpoint
           const endpointRoute = {
-            type: "proxy",
+            type: 'container',
             domain: endpoint.domain,
-            target: `http://${site.containerName || site.containerId}:${
-              endpoint.port
-            }`,
+            orchestrator: 'nomad',
+            consulService: `site-${domain.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`,
+            port: endpoint.port,
             enabled: true,
             parentSite: domain,
             isAdditionalEndpoint: true,
@@ -674,158 +476,23 @@ router.put("/:domain", async (req, res) => {
             `site:${endpoint.domain}`,
             JSON.stringify(endpointRoute)
           );
-          console.log(
-            `Registered additional endpoint: ${endpoint.domain} -> ${site.containerName}:${endpoint.port}`
-          );
         }
       }
     }
 
-    // Handle container rebuild if configuration changed
-    if (containerConfigChanged && site.containerName) {
+    if (containerConfigChanged) {
       try {
-        console.log(
-          `Container configuration changed for ${domain}, rebuilding...`
-        );
-
-        // Check if container exists and is running
-        let containerRunning = false;
-        try {
-          const { stdout: status } = await execAsync(
-            `docker inspect -f '{{.State.Running}}' ${site.containerName}`
-          );
-          containerRunning = status.trim() === "true";
-        } catch (e) {
-          // Container doesn't exist or error checking
-          console.log("Container not found or error checking status");
-        }
-
-        // Stop and remove old container if it exists
-        try {
-          await execAsync(`docker stop ${site.containerName}`);
-          await execAsync(`docker rm ${site.containerName}`);
-          console.log(`Removed old container: ${site.containerName}`);
-        } catch (e) {
-          // Container might not exist, continue
-          console.log("Container cleanup skipped:", e.message);
-        }
-
-        // Rebuild container with new configuration
-        const config = site.containerConfig;
-        
-        // Log image change if it occurred
-        if (oldSite.containerConfig && oldSite.containerConfig.image !== config.image) {
-          console.log(`Image changed from ${oldSite.containerConfig.image} to ${config.image}`);
-          
-          // Pull the new image first
-          try {
-            console.log(`Pulling new image: ${config.image}`);
-            await execAsync(`docker pull ${config.image}`);
-            console.log(`Successfully pulled image: ${config.image}`);
-          } catch (pullError) {
-            console.log(`Warning: Could not pull image ${config.image}, will try to use local`, pullError.message);
-          }
-        }
-        
-        let dockerCmd = `docker run -d --name ${site.containerName}`;
-        dockerCmd += ` --network spinforge_spinforge`;
-        dockerCmd += ` --restart ${config.restartPolicy || "unless-stopped"}`;
-        dockerCmd += ` -t`;
-        dockerCmd += ` -e TERM=xterm-256color`;
-        dockerCmd += ` -e LANG=C.UTF-8`;
-        dockerCmd += ` -e LC_ALL=C.UTF-8`;
-
-        // Add environment variables - handle both object and array formats
-        if (config.env) {
-          console.log(
-            "Environment variables found during creation:",
-            JSON.stringify(config.env, null, 2)
-          );
-          if (Array.isArray(config.env) && config.env.length > 0) {
-            // Old array format [{key, value}]
-            console.log(
-              "Processing as array format with",
-              config.env.length,
-              "items"
-            );
-            config.env.forEach((env) => {
-              if (env.key && env.value !== undefined) {
-                console.log(`  Adding env var: ${env.key}=${env.value}`);
-                dockerCmd += ` -e "${env.key}=${env.value}"`;
-              }
-            });
-          } else if (
-            typeof config.env === "object" &&
-            !Array.isArray(config.env) &&
-            Object.keys(config.env).length > 0
-          ) {
-            // New object format {KEY: value}
-            console.log(
-              "Processing as object format with",
-              Object.keys(config.env).length,
-              "keys"
-            );
-            Object.entries(config.env).forEach(([key, value]) => {
-              if (key && value !== undefined) {
-                console.log(`  Adding env var: ${key}=${value}`);
-                dockerCmd += ` -e "${key}=${value}"`;
-              }
-            });
-          }
-        }
-
-        // Add volume mounts
-        if (config.volumes && config.volumes.length > 0) {
-          config.volumes.forEach((vol) => {
-            dockerCmd += ` -v "${vol.host}:${vol.container}"`;
-          });
-        }
-
-        // Add resource limits
-        if (config.memoryLimit) {
-          dockerCmd += ` --memory="${config.memoryLimit}"`;
-        }
-        if (config.cpuLimit) {
-          dockerCmd += ` --cpus="${config.cpuLimit}"`;
-        }
-
-        // Add labels
-        dockerCmd += ` --label spinforge.domain="${site.domain}"`;
-        dockerCmd += ` --label spinforge.type="container"`;
-        dockerCmd += ` --label spinforge.updated="${site.updatedAt}"`;
-
-        // Add the image
-        dockerCmd += ` ${config.image}`;
-
-        // Add command override if specified
-        if (config.command) {
-          dockerCmd += ` ${config.command}`;
-        }
-
-        console.log("Recreating container with command:", dockerCmd);
-        const { stdout, stderr } = await execAsync(dockerCmd);
-        const containerId = stdout.trim();
-
-        // Update container ID
-        site.containerId = containerId;
-
-        // Wait for container to start
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        // Use container name for internal routing (more reliable than IP)
-        site.target = `http://${site.containerName}:${config.port}`;
-        
-        // Save updated site with new container info
+        const NomadService = require('../services/NomadService');
+        const nomad = new NomadService();
+        site.orchestrator = 'nomad';
+        const deployed = await nomad.deploySite(site);
+        site.nomadJobId = deployed.jobId;
+        site.nomadEvalId = deployed.evalId;
         await redisClient.set(`site:${domain}`, JSON.stringify(site));
-
-        console.log(
-          `Container rebuilt successfully: ${site.containerName} -> ${site.target}`
-        );
       } catch (error) {
-        console.error("Container rebuild failed:", error);
-        // Don't fail the entire update, but log the error
+        console.error('Nomad redeploy failed:', error);
         return res.status(500).json({
-          error: "Configuration updated but container rebuild failed",
+          error: 'Configuration updated but Nomad redeploy failed',
           details: error.message,
         });
       }
@@ -905,57 +572,20 @@ router.delete("/:domain", async (req, res) => {
       }
     }
 
-    // ─── Nomad teardown ───────────────────────────────────────────────
-    // If this site was deployed via Nomad, purge its job. We do this BEFORE
-    // the legacy dockerode cleanup branch so a Nomad-managed site never
-    // hits the docker shell paths below.
-    if (site.orchestrator === 'nomad') {
+    if (site.type === 'container' || site.type === 'node') {
       try {
         const NomadService = require('../services/NomadService');
         const nomad = new NomadService();
-        const stopped = await nomad.stopSite(site.domain);
-        console.log(`Nomad teardown for ${site.domain}: ${stopped ? 'job purged' : 'job not found'}`);
+        await nomad.stopSite(site.domain, { purge: true });
       } catch (error) {
         console.error('Nomad teardown failed (continuing with cleanup):', error.message);
       }
-    }
 
-    // Handle container cleanup (legacy dockerode path)
-    if (site.type === "container" && site.orchestrator !== 'nomad') {
-      // Clean up additional endpoints first
       if (site.additionalEndpoints && site.additionalEndpoints.length > 0) {
         for (const endpoint of site.additionalEndpoints) {
           if (endpoint.domain) {
-            try {
-              await redisClient.del(`site:${endpoint.domain}`);
-              console.log(`Deleted additional endpoint: ${endpoint.domain}`);
-            } catch (error) {
-              console.error(
-                `Failed to delete endpoint ${endpoint.domain}:`,
-                error
-              );
-            }
+            await redisClient.del(`site:${endpoint.domain}`);
           }
-        }
-      }
-
-      // Check if it's a compose deployment
-      if (site.composeProject) {
-        try {
-          console.log(`Stopping compose project: ${site.composeProject}`);
-          // await composeManager.stopCompose(domain);
-        } catch (error) {
-          console.error("Compose cleanup failed:", error);
-          // Continue with deletion even if cleanup fails
-        }
-      } else if (site.containerName) {
-        try {
-          console.log(`Stopping and removing container: ${site.containerName}`);
-          await execAsync(`docker stop ${site.containerName}`);
-          await execAsync(`docker rm ${site.containerName}`);
-        } catch (error) {
-          console.error("Container cleanup failed:", error);
-          // Continue with deletion even if container cleanup fails
         }
       }
     }
@@ -969,200 +599,50 @@ router.delete("/:domain", async (req, res) => {
   }
 });
 
-// Check if container is ready (actually responding to requests)
 router.get('/:domain/readiness', async (req, res) => {
   try {
     const domain = req.params.domain;
     const data = await redisClient.get(`site:${domain}`);
-    
+
     if (!data) {
-      return res.status(404).json({ 
-        ready: false, 
-        error: 'Site not found',
-        status: 'not_found'
-      });
+      return res.status(404).json({ ready: false, error: 'Site not found', status: 'not_found' });
     }
-    
+
     const site = JSON.parse(data);
-    
-    // Only check containers
-    if (site.type !== 'container') {
-      // For non-container sites, just check if they exist
-      if (site.type === 'static') {
-        const folderName = domain.replace(/\./g, "_");
-        const staticPath = path.join(STATIC_ROOT, folderName);
-        const filesExist = fs.existsSync(staticPath) && fs.readdirSync(staticPath).length > 0;
-        
-        return res.json({
-          ready: filesExist,
-          type: 'static',
-          status: filesExist ? 'ready' : 'no_files'
-        });
-      }
-      
-      // Proxy and loadbalancer are ready if configured
-      return res.json({
-        ready: true,
-        type: site.type,
-        status: 'ready'
-      });
-    }
-    
-    // Check if container exists and is running
-    const containerName = site.containerName || `spinforge-${domain.replace(/\./g, '-')}`;
-    
-    try {
-      // Check if container is running
-      const runningCheck = await execAsync(
-        `docker inspect -f '{{.State.Running}}' ${containerName} 2>/dev/null || echo "false"`
-      );
-      
-      if (runningCheck.trim() !== 'true') {
-        return res.json({
-          ready: false,
-          type: 'container',
-          status: 'not_running',
-          details: 'Container is not running'
-        });
-      }
-      
-      // Get container health status if available
-      const healthCheck = await execAsync(
-        `docker inspect -f '{{.State.Health.Status}}' ${containerName} 2>/dev/null || echo "none"`
-      );
-      
-      const healthStatus = healthCheck.trim();
-      
-      // If container has health check, use that
-      if (healthStatus !== 'none' && healthStatus !== '') {
-        return res.json({
-          ready: healthStatus === 'healthy',
-          type: 'container',
-          status: healthStatus,
-          details: `Container health: ${healthStatus}`
-        });
-      }
-      
-      // Otherwise, check if the container port is responding
-      const port = site.containerConfig?.port || 80;
-      
-      // Try to make an HTTP request to the container
-      const curlCheck = await execAsync(
-        `docker exec ${containerName} sh -c 'curl -s -o /dev/null -w "%{http_code}" -m 3 http://localhost:${port}/ 2>/dev/null || echo "000"' 2>/dev/null || echo "000"`
-      );
-      
-      const httpCode = curlCheck.trim();
-      
-      // Consider 2xx, 3xx, and 401/403 as "ready" (app is responding)
-      const isResponding = httpCode.match(/^[23]\d\d$/) || httpCode === '401' || httpCode === '403';
-      
-      if (isResponding) {
-        return res.json({
-          ready: true,
-          type: 'container',
-          status: 'ready',
-          details: `Container is responding (HTTP ${httpCode})`
-        });
-      }
-      
-      // Check how long the container has been running
-      const startTime = await execAsync(
-        `docker inspect -f '{{.State.StartedAt}}' ${containerName}`
-      );
-      
-      const startedAt = new Date(startTime.trim());
-      const runningSeconds = Math.floor((Date.now() - startedAt.getTime()) / 1000);
-      
-      // If container just started (less than 30 seconds), it might still be initializing
-      if (runningSeconds < 30) {
-        return res.json({
-          ready: false,
-          type: 'container',
-          status: 'starting',
-          details: `Container is starting (${runningSeconds}s elapsed)`,
-          runningSeconds
-        });
-      }
-      
-      // Container is running but not responding
-      return res.json({
-        ready: false,
-        type: 'container', 
-        status: 'not_responding',
-        details: `Container is running but not responding on port ${port}`,
-        httpCode: httpCode === '000' ? null : httpCode
-      });
-      
-    } catch (error) {
-      // Container doesn't exist
-      return res.json({
-        ready: false,
-        type: 'container',
-        status: 'not_found',
-        details: 'Container does not exist',
-        error: error.message
-      });
-    }
-    
-  } catch (error) {
-    res.status(500).json({ 
-      ready: false,
-      error: error.message,
-      status: 'error'
-    });
-  }
-});
 
+    if (site.type === 'static') {
+      const folderName = domain.replace(/\./g, '_');
+      const staticPath = path.join(STATIC_ROOT, folderName);
+      const filesExist = fs.existsSync(staticPath) && fs.readdirSync(staticPath).length > 0;
+      return res.json({ ready: filesExist, type: 'static', status: filesExist ? 'ready' : 'no_files' });
+    }
 
-// Manage Docker Compose project
-router.post('/:domain/compose/:action', async (req, res) => {
-  try {
-    const { domain, action } = req.params;
-    const validActions = ['stop', 'start', 'restart', 'down', 'logs', 'ps'];
-    
-    if (!validActions.includes(action)) {
-      return res.status(400).json({ error: `Invalid action. Valid actions: ${validActions.join(', ')}` });
+    if (site.type === 'container' || site.type === 'node') {
+      try {
+        const NomadService = require('../services/NomadService');
+        const nomad = new NomadService();
+        const status = await nomad.getSiteStatus(domain);
+        if (!status) {
+          return res.json({ ready: false, type: site.type, status: 'not_found' });
+        }
+        const allocs = status.allocations || [];
+        const running = allocs.filter((a) => a.status === 'running').length;
+        const healthy = allocs.filter((a) => a.healthy).length;
+        const ready = running > 0 && healthy === running;
+        return res.json({
+          ready,
+          type: site.type,
+          status: ready ? 'ready' : running > 0 ? 'starting' : 'not_running',
+          details: status,
+        });
+      } catch (error) {
+        return res.json({ ready: false, type: site.type, status: 'error', error: error.message });
+      }
     }
-    
-    // Get project info
-    const siteData = await redisClient.get(`site:${domain}`);
-    if (!siteData) {
-      return res.status(404).json({ error: 'Compose project not found' });
-    }
-    
-    const site = JSON.parse(siteData);
-    if (site.type !== 'compose') {
-      return res.status(400).json({ error: 'Not a compose project' });
-    }
-    
-    const { projectName, projectPath } = site;
-    
-    // Execute docker-compose command
-    let command = `cd ${projectPath} && docker-compose -p ${projectName} ${action}`;
-    
-    // Add options for specific actions
-    if (action === 'logs') {
-      const { tail = 100, follow = false, service } = req.query;
-      command += ` --tail ${tail}`;
-      if (follow) command += ' -f';
-      if (service) command += ` ${service}`;
-    }
-    
-    const { stdout, stderr } = await execAsync(command);
-    
-    // Update site status if needed
-    if (action === 'down') {
-      await redisClient.del(`site:${domain}`);
-      return res.json({ message: 'Compose project removed', output: stdout });
-    }
-    
-    res.json({
-      message: `Compose action '${action}' executed`,
-      output: stdout || stderr
-    });
-    
+
+    return res.json({ ready: true, type: site.type, status: 'ready' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ ready: false, error: error.message, status: 'error' });
   }
 });
 

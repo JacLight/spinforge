@@ -239,191 +239,22 @@ router.post('/:id/deploy', async (req, res) => {
     // Add to customer's site list
     await redisClient.sAdd(`customer:${customerName}:sites`, domain);
     
-    // For container deployments, create docker-compose stack
     if (templateData.category === 'container' && config.containerConfig) {
       try {
-        const { exec } = require('child_process');
-        const { promisify } = require('util');
-        const fs = require('fs').promises;
-        const path = require('path');
-        const yaml = require('js-yaml');
-        const execAsync = promisify(exec);
-        
-        // Create namespace directory for this deployment
-        const namespace = `${customerName}-${deployName}`;
-        const deploymentDir = path.join('/data/deployments', namespace);
-        
-        // Create deployment directory
-        await fs.mkdir(deploymentDir, { recursive: true });
-        
-        // Build docker-compose configuration
-        const composeConfig = {
-          version: '3.8',
-          networks: {
-            [namespace]: {
-              name: `spinforge-${namespace}`,
-              driver: 'bridge'
-            },
-            spinforge: {
-              external: true,
-              name: 'spinforge_default'
-            }
-          },
-          services: {}
-        };
-        
-        // Main application service
-        const mainService = {
-          image: config.containerConfig.image,
-          container_name: config.containerName,
-          restart: config.containerConfig.restartPolicy || 'unless-stopped',
-          networks: [namespace, 'spinforge'],  // Connect to both networks
-          environment: config.containerConfig.env || {},
-          labels: {
-            ...config.containerConfig.labels,
-            'spinforge.domain': domain,
-            'spinforge.namespace': namespace,
-            'spinforge.customer': customerName,
-            'spinforge.deployment': deployName,
-            'spinforge.port': String(config.containerConfig.port || 80)
-          }
-        };
-        
-        // Add volumes if needed
-        if (config.containerConfig.volumeMounts && config.containerConfig.volumeMounts.length > 0) {
-          mainService.volumes = config.containerConfig.volumeMounts.map(v => 
-            `${namespace}-${v.name}:${v.path}`
-          );
-          
-          // Define named volumes
-          composeConfig.volumes = {};
-          config.containerConfig.volumeMounts.forEach(v => {
-            composeConfig.volumes[`${namespace}-${v.name}`] = {
-              name: `spinforge-${namespace}-${v.name}`
-            };
-          });
-        }
-        
-        // Add the main service
-        composeConfig.services.app = mainService;
-        
-        // Check if this template needs additional services (like database)
-        if (templateData.id === 'wordpress' || config.containerConfig.image.includes('wordpress')) {
-          // Add MySQL service for WordPress
-          composeConfig.services.mysql = {
-            image: 'mysql:8.0',
-            container_name: `${config.containerName}-mysql`,
-            restart: 'unless-stopped',
-            networks: [namespace],  // MySQL only needs internal network
-            environment: {
-              MYSQL_ROOT_PASSWORD: config.containerConfig.env.WORDPRESS_DB_PASSWORD || 'changeme',
-              MYSQL_DATABASE: config.containerConfig.env.WORDPRESS_DB_NAME || 'wordpress',
-              MYSQL_USER: config.containerConfig.env.WORDPRESS_DB_USER || 'wordpress',
-              MYSQL_PASSWORD: config.containerConfig.env.WORDPRESS_DB_PASSWORD || 'changeme'
-            },
-            volumes: [`${namespace}-mysql-data:/var/lib/mysql`],
-            labels: {
-              'spinforge.customer': customerName,
-              'spinforge.deployment': deployName,
-              'spinforge.service': 'mysql'
-            }
-          };
-          
-          // Update WordPress to use local MySQL
-          mainService.environment.WORDPRESS_DB_HOST = 'mysql';
-          mainService.depends_on = ['mysql'];
-          
-          // Add MySQL volume
-          if (!composeConfig.volumes) composeConfig.volumes = {};
-          composeConfig.volumes[`${namespace}-mysql-data`] = {
-            name: `spinforge-${namespace}-mysql-data`
-          };
-        }
-        
-        // Add similar patterns for other stacks (e.g., Drupal, Joomla, Ghost, etc.)
-        if (templateData.id === 'postgresql' || config.containerConfig.image.includes('postgres')) {
-          // PostgreSQL doesn't need additional services, but ensure data persistence
-          if (!mainService.volumes) mainService.volumes = [];
-          mainService.volumes.push(`${namespace}-postgres-data:/var/lib/postgresql/data`);
-          
-          if (!composeConfig.volumes) composeConfig.volumes = {};
-          composeConfig.volumes[`${namespace}-postgres-data`] = {
-            name: `spinforge-${namespace}-postgres-data`
-          };
-        }
-        
-        if (templateData.id === 'mongodb' || config.containerConfig.image.includes('mongo')) {
-          // MongoDB data persistence
-          if (!mainService.volumes) mainService.volumes = [];
-          mainService.volumes.push(`${namespace}-mongo-data:/data/db`);
-          
-          if (!composeConfig.volumes) composeConfig.volumes = {};
-          composeConfig.volumes[`${namespace}-mongo-data`] = {
-            name: `spinforge-${namespace}-mongo-data`
-          };
-        }
-        
-        // Write docker-compose.yml
-        const composeYaml = yaml.dump(composeConfig);
-        await fs.writeFile(path.join(deploymentDir, 'docker-compose.yml'), composeYaml);
-        
-        // Store deployment metadata
-        const metadata = {
-          namespace,
-          domain,
-          customerName,
-          deployName,
-          template: templateData.id,
-          createdAt: new Date().toISOString(),
-          composeFile: path.join(deploymentDir, 'docker-compose.yml')
-        };
-        await fs.writeFile(path.join(deploymentDir, 'metadata.json'), JSON.stringify(metadata, null, 2));
-        
-        console.log(`Deploying stack in namespace: ${namespace}`);
-        
-        // Deploy with docker-compose
-        const { stdout, stderr } = await execAsync(
-          `docker-compose up -d`,
-          { cwd: deploymentDir }
-        );
-        
-        if (stderr && !stderr.includes('WARNING')) {
-          console.error('Docker compose stderr:', stderr);
-        }
-        
+        const NomadService = require('../services/NomadService');
+        const nomad = new NomadService();
+        config.orchestrator = 'nomad';
+        config.type = 'container';
+        const deployed = await nomad.deploySite(config);
+        config.nomadJobId = deployed.jobId;
+        config.nomadEvalId = deployed.evalId;
         config.status = 'running';
-        config.namespace = namespace;
-        config.deploymentDir = deploymentDir;
-        
-        // Since container is on spinforge network, proxy can reach it by container name
-        config.target = `http://${config.containerName}:${config.containerConfig.port || 80}`;
-        
-        // Create the vhost configuration for the proxy
-        const vhostConfig = {
-          domain: domain,
-          type: 'proxy',
-          target: config.target,
-          ssl_enabled: false,
-          created_at: new Date().toISOString(),
-          template: templateData.id,
-          namespace: namespace,
-          customer: customerName,
-          deployment: deployName
-        };
-        
-        // Register with the proxy (save to Redis where OpenResty will find it)
-        const vhostKey = `vhost:${domain}`;
-        await redisClient.set(vhostKey, JSON.stringify(vhostConfig));
-        
-        // Also save customer mapping
         await redisClient.set(siteKey, JSON.stringify(config));
         await redisClient.set(customerSiteKey, JSON.stringify(config));
-        
-      } catch (dockerError) {
-        console.error('Docker deployment error:', dockerError);
-        // Still save the config even if container fails
+      } catch (err) {
+        console.error('Nomad template deployment error:', err);
         config.status = 'error';
-        config.error = dockerError.message;
+        config.error = err.message;
       }
     }
     

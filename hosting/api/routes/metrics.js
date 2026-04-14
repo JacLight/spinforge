@@ -8,7 +8,10 @@
 const express = require('express');
 const router = express.Router();
 const redisClient = require('../utils/redis');
-const { execAsync } = require('../utils/docker');
+const { promisify } = require('util');
+const execAsync = promisify(require('child_process').exec);
+const NomadService = require('../services/NomadService');
+const nomad = new NomadService();
 const { formatBytes, parseBytes } = require('../utils/site-helpers');
 
 // Get hosting metrics for a specific site
@@ -303,61 +306,45 @@ async function getSystemMetrics() {
   }
 }
 
-// Get Docker container stats
+// Aggregate workload stats from Nomad — replaces the old `docker stats` scan.
 async function getDockerStats() {
   try {
-    const { stdout: containerList } = await execAsync("docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.ID}}'");
-    const lines = containerList.split('\n').slice(1).filter(line => line.trim());
-    
+    const keys = await redisClient.keys('site:*');
     const containers = [];
     let runningCount = 0;
-    
-    for (const line of lines) {
-      const [name, image, status, id] = line.split('\t');
-      if (!name || name === 'NAMES') continue;
-      
-      const isRunning = status.includes('Up');
-      if (isRunning) runningCount++;
-      
-      let cpu = 0, memory = { percent: 0, usage: 0 }, network = { rx: 0, tx: 0 };
-      
-      if (isRunning) {
-        try {
-          const { stdout: statsOutput } = await execAsync(`docker stats ${name} --no-stream --format "{{.CPUPerc}}\t{{.MemPerc}}\t{{.MemUsage}}\t{{.NetIO}}"`);
-          const [cpuPerc, memPerc, memUsage, netIO] = statsOutput.trim().split('\t');
-          
-          cpu = parseFloat(cpuPerc.replace('%', '')) || 0;
-          memory.percent = parseFloat(memPerc.replace('%', '')) || 0;
-          
-          // Parse network I/O (format: "1.2kB / 3.4kB")
-          if (netIO && netIO.includes('/')) {
-            const [rx, tx] = netIO.split('/').map(s => s.trim());
-            network.rx = parseBytes(rx);
-            network.tx = parseBytes(tx);
-          }
-        } catch (e) {
-          // Skip if stats unavailable
+
+    for (const key of keys) {
+      const raw = await redisClient.get(key);
+      if (!raw) continue;
+      let site;
+      try { site = JSON.parse(raw); } catch (_) { continue; }
+      if (site.type !== 'container' && site.type !== 'node') continue;
+
+      let status = 'unknown';
+      let running = 0;
+      let allocs = 0;
+      try {
+        const s = await nomad.getSiteStatus(site.domain);
+        if (s) {
+          status = s.status;
+          allocs = (s.allocations || []).length;
+          running = (s.allocations || []).filter((a) => a.status === 'running').length;
         }
-      }
-      
+      } catch (_) {}
+
+      if (running > 0) runningCount++;
       containers.push({
-        id: id.substring(0, 12),
-        name: name,
-        image: image,
-        status: status,
-        cpu: cpu,
-        memory: memory,
-        network: network
+        name: site.domain,
+        image: site.containerConfig?.image || site.image || null,
+        status,
+        allocations: allocs,
+        running,
       });
     }
-    
-    return {
-      containers: containers,
-      running: runningCount,
-      total: containers.length
-    };
+
+    return { containers, running: runningCount, total: containers.length };
   } catch (error) {
-    console.error('Error getting Docker stats:', error);
+    console.error('Error getting workload stats:', error);
     return { containers: [], running: 0, total: 0 };
   }
 }
@@ -424,14 +411,22 @@ async function getServiceHealth() {
     });
   }
   
-  // Check Nginx/OpenResty
+  // OpenResty health: HTTP probe, not docker ps.
   try {
-    await execAsync('docker ps | grep openresty');
+    const http = require('http');
+    await new Promise((resolve, reject) => {
+      const req = http.get('http://openresty:8081/api/health', { timeout: 1500 }, (r) => {
+        r.resume();
+        r.statusCode === 200 ? resolve() : reject(new Error(`status ${r.statusCode}`));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(new Error('timeout')); });
+    });
     services.push({
       name: 'OpenResty',
       status: 'healthy',
       uptime: Date.now() / 1000,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     });
   } catch (error) {
     services.push({
@@ -439,7 +434,7 @@ async function getServiceHealth() {
       status: 'unhealthy',
       uptime: 0,
       lastCheck: new Date().toISOString(),
-      details: { error: 'Container not running' }
+      details: { error: error.message },
     });
   }
   

@@ -13,16 +13,7 @@ local redis = require "resty.redis"
 local cjson = require "cjson"
 local logger = require "logger"
 local utils = require "utils"
-local container_discovery = require "container_discovery"
-
--- Consul upstream resolver: used for sites that are managed by Nomad
--- (site.orchestrator == "nomad"). Legacy sites with a hardcoded target
--- don't touch this module and continue to work as before.
-local consul_upstream = nil
-do
-    local ok, mod = pcall(require, "consul_upstream")
-    if ok then consul_upstream = mod end
-end
+local consul_upstream = require "consul_upstream"
 
 -- Try to load auth gateway module
 local auth_gateway = nil
@@ -361,53 +352,42 @@ elseif site.type == "proxy" then
         ngx.var.route_type = "proxy"
     end
     
-    local target = site.target or site.upstream
-    
-    -- Check if target uses container name or IP
-    -- If it's an IP, verify it's reachable, otherwise trigger discovery
-    if target and target:match("172%.%d+%.%d+%.%d+") then
-        -- It's an IP address, let's verify it's still valid
-        -- We'll let the proxy handler deal with connection failures
-        -- and trigger discovery if needed
-        ngx.ctx.may_need_discovery = true
-        ngx.ctx.original_domain = host
-    end
-    
-    ngx.var.proxy_target = target
+    ngx.var.proxy_target = site.target or site.upstream
     -- Pass preserve_host setting to nginx
     if site.preserve_host then
         ngx.var.preserve_host = "1"
     end
     ngx.log(ngx.INFO, "Proxying to: ", ngx.var.proxy_target, " preserve_host: ", site.preserve_host or false, " transparent: ", site.transparent_proxy or false)
 elseif site.type == "container" or site.type == "node" then
-    -- Container and node sites both route as proxies. The difference is
-    -- just where the upstream URL comes from:
-    --
-    --   legacy (dockerode-managed):  site.target is pre-computed by
-    --                                container-ip-monitor and written
-    --                                to Redis (e.g. "http://172.18.0.42:3000")
-    --
-    --   nomad-managed:               site.orchestrator == "nomad" and
-    --                                we resolve the upstream live from
-    --                                Consul's /v1/health/service API
+    -- Container/node workloads are orchestrated by Nomad and registered
+    -- in Consul. Resolve the upstream live from Consul's health API.
     ngx.var.route_type = "proxy"
 
-    if site.orchestrator == "nomad" and consul_upstream then
-        local endpoint = consul_upstream.resolve(site.domain)
-        if endpoint then
-            ngx.var.proxy_target = "http://" .. endpoint
-            ngx.log(ngx.INFO, "Router(nomad): ", site.domain, " → ", ngx.var.proxy_target)
-        else
-            ngx.log(ngx.ERR, "Router(nomad): no healthy allocations for ", site.domain)
-            ngx.status = 503
-            ngx.header["Content-Type"] = "text/plain"
-            ngx.say("No healthy allocations for ", site.domain)
-            return ngx.exit(503)
-        end
+    if not consul_upstream then
+        ngx.log(ngx.ERR, "Router: consul_upstream module unavailable")
+        ngx.status = 503
+        ngx.header["Content-Type"] = "text/plain"
+        ngx.say("Service discovery unavailable")
+        return ngx.exit(503)
+    end
+
+    local lookup = site.parentSite or site.domain
+    local endpoint = consul_upstream.resolve(lookup)
+    if not endpoint then
+        ngx.log(ngx.ERR, "Router: no healthy allocations for ", lookup)
+        ngx.status = 503
+        ngx.header["Content-Type"] = "text/plain"
+        ngx.say("No healthy allocations for ", site.domain)
+        return ngx.exit(503)
+    end
+
+    -- Additional endpoints override the port: strip "host:port" → "host" and
+    -- append the endpoint's port. Main sites use the Consul-registered port.
+    if site.port then
+        local host = endpoint:match("^([^:]+)")
+        ngx.var.proxy_target = "http://" .. host .. ":" .. site.port
     else
-        -- Legacy path: dockerode-managed sites
-        ngx.var.proxy_target = site.target or ""
-        ngx.log(ngx.INFO, "Router(legacy): proxying to container: ", ngx.var.proxy_target)
+        ngx.var.proxy_target = "http://" .. endpoint
     end
 elseif site.type == "loadbalancer" then
     ngx.var.route_type = "proxy"  -- Use proxy type for handling

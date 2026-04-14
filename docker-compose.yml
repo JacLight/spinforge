@@ -105,7 +105,6 @@ services:
     volumes:
       # Single data mount point
       - ${SPINFORGE_DATA_ROOT:-./hosting/data}:/data
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       spinforge:
         ipv4_address: 172.18.0.12
