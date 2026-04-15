@@ -24,6 +24,8 @@ import {
   Archive,
   Users,
   UserCog,
+  Briefcase,
+  Mail,
   HardDrive,
   User,
   LogOut,
@@ -90,6 +92,18 @@ const navItems = [
     icon: Users,
     label: "Customers",
     color: "from-teal-500 to-teal-600",
+  },
+  {
+    path: "/partners",
+    icon: Briefcase,
+    label: "Partners",
+    color: "from-amber-500 to-amber-600",
+  },
+  {
+    path: "/email-templates",
+    icon: Mail,
+    label: "Email Templates",
+    color: "from-pink-500 to-pink-600",
   },
   {
     path: "/admin-users",

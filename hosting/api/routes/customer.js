@@ -606,6 +606,30 @@ router.post('/sites', async (req, res) => {
     // hasn't propagated yet.
     require('../utils/auto-cert').maybeAutoIssueCert(site);
 
+    // Fire site_created / custom_domain_added notifications. Non-blocking —
+    // look up the owning customer's email for the "to" field. If the site
+    // uses a *.spinforge.dev subdomain we treat it as a hosted domain (no
+    // DNS setup needed) and send `site_created`. Custom domains get the
+    // DNS-setup walkthrough instead.
+    try {
+      const notify = req.app?.locals?.notifications;
+      if (notify) {
+        const custRaw = await redisClient.get(`customer:${customerId}`);
+        const customer = custRaw ? JSON.parse(custRaw) : null;
+        const to = customer?.email;
+        const isHosted = /\.spinforge\.dev$/i.test(site.domain);
+        const event = isHosted ? 'site_created' : 'custom_domain_added';
+        const context = {
+          name: customer?.name || to || 'there',
+          domain: site.domain,
+          type: site.type,
+          sslStatus: site.ssl_enabled ? 'auto-issuing' : 'disabled',
+          edgeIp: process.env.PUBLIC_IP || process.env.BASE_DOMAIN || 'the IP you were given',
+        };
+        notify.notify(event, { to, context });
+      }
+    } catch (_) { /* never let notify break the deploy */ }
+
     res.status(201).json(site);
   } catch (error) {
     res.status(500).json({ error: error.message });

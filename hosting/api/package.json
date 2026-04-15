@@ -10,6 +10,7 @@
   "dependencies": {
     "acme-client": "^5.4.0",
     "adm-zip": "^0.5.16",
+    "@aws-sdk/client-ses": "^3.614.0",
     "axios": "^1.4.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",

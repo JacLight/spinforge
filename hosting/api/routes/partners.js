@@ -108,32 +108,45 @@ async function ensureSpinForgeCustomer({ partnerId, externalCustomerId, email, n
   return customerId;
 }
 
-// Pull identity out of the partner's validation response. Accepts a few
-// common shapes so new partners don't have to reshape their existing
-// endpoints:
-//   { customerId, email, name }                               ← preferred
-//   { id, email, name }
-//   { user, firstName, lastName }                             ← appengine shape
-//   { data: { email, name } } / nested variations
+// Pull account identity out of the partner's validation response. The
+// account (org) is the thing that owns hosting; users inside the account
+// share the same SpinForge customer.
+//
+//   orgId:  orgId > org_id > data.orgId > name
+//   email:  email > user > data.email        (account registration email)
+//   name:   fullName > firstName+lastName > displayName > email
+//
+// orgId is required — partners must either set an explicit orgId or use
+// the `name` slot (as appengine does). A partner with no org model needs
+// to expose one before they can integrate.
 function extractIdentity(body) {
   const b = body && typeof body === 'object' ? body : {};
   const d = b.data && typeof b.data === 'object' ? b.data : {};
 
-  const email = b.user || b.email || d.email || null;
+  const email = b.email || b.user || d.email || null;
+
+  const orgId =
+    b.orgId || b.org_id || d.orgId || d.org_id ||
+    b.name || d.name ||
+    null;
+
   const firstName = b.firstName || d.firstName || '';
   const lastName = b.lastName || d.lastName || '';
-  const name =
-    (firstName || lastName)
-      ? `${firstName} ${lastName}`.trim()
-      : b.name || b.fullName || d.name || d.fullName || email || null;
-
-  const externalCustomerId =
-    b.customerId || b.customer_id || b.externalCustomerId ||
-    b.id || b.sub || b.user_id ||
+  // Display name for the account. Prefer an explicit human label
+  // (displayName/fullName/first+last), otherwise use the orgId itself —
+  // which for appengine-shaped partners IS the account's human label.
+  const displayName =
+    b.displayName || b.fullName || d.displayName || d.fullName ||
+    ((firstName || lastName) ? `${firstName} ${lastName}`.trim() : null) ||
+    (orgId ? String(orgId) : null) ||
     email ||
-    d.id || d.sub || d.username || null;
+    null;
 
-  return { externalCustomerId: externalCustomerId ? String(externalCustomerId) : null, email, name };
+  return {
+    orgId: orgId ? String(orgId) : null,
+    email,
+    name: displayName,
+  };
 }
 
 // ─── POST /_partners/auth ────────────────────────────────────────────
@@ -190,19 +203,35 @@ router.post('/auth', async (req, res) => {
   const ok = partnerResponse.status >= 200 && partnerResponse.status < 300;
   const allow = ok && body.allow !== false;
 
+  // Always log the partner's response on reject so operators can tell
+  // whether the partner said "no" or the partner's endpoint is broken.
   if (!allow) {
+    const bodyPreview =
+      typeof body === 'string' ? body.slice(0, 500)
+      : JSON.stringify(body).slice(0, 500);
+    logger.warn(
+      `[partners/auth] partner=${partner.id} REJECTED status=${partnerResponse.status} body=${bodyPreview}`
+    );
     return res.status(403).json({
       error: 'Partner did not allow this customer',
-      reason: body.reason || body.error || null,
+      reason: body.reason || body.error || body.message || null,
       partnerStatus: partnerResponse.status,
+      // Forward the partner's body verbatim so the caller can see exactly
+      // what the partner said. Keep it size-capped to avoid echoing huge
+      // pages in our error response.
+      partnerBody: typeof body === 'string' ? body.slice(0, 1000) : body,
     });
   }
 
-  const { externalCustomerId, email, name } = extractIdentity(body);
-  if (!externalCustomerId) {
+  const { orgId, email, name } = extractIdentity(body);
+
+  // The SpinForge customer represents the *account* on the partner side,
+  // never the logged-in user. Individual users within the account share
+  // the same sfc_ token and see the same set of sites.
+  if (!orgId) {
     return res.status(502).json({
-      error: 'Partner allowed the customer but returned no usable identity',
-      hint: 'Response must include customerId / id / email / user.',
+      error: 'Partner allowed the customer but returned no orgId',
+      hint: 'Validation response must include an orgId (or use the `name` field as the org slug).',
     });
   }
 
@@ -210,9 +239,10 @@ router.post('/auth', async (req, res) => {
   try {
     spinforgeCustomerId = await ensureSpinForgeCustomer({
       partnerId: partner.id,
-      externalCustomerId,
+      externalCustomerId: orgId,
       email,
       name,
+      metadata: { orgId },
     });
   } catch (err) {
     logger.error('[partners/auth] failed to provision customer:', err);
@@ -250,6 +280,24 @@ router.post('/auth', async (req, res) => {
 // Partner ping — useful for setup / health monitoring on the partner side.
 router.get('/health', (req, res) => {
   res.json({ ok: true, partner: { id: req.partner.id, name: req.partner.name } });
+});
+
+// Helpful response for someone who hits /_partners/auth with the wrong
+// method (most often a GET from a browser address bar). Express's default
+// 404 here is a bare "Cannot GET" HTML page that confuses people debugging
+// the integration — point them at the right shape instead.
+router.all('/auth', (req, res) => {
+  res.status(405).json({
+    error: 'Method Not Allowed',
+    expected: 'POST application/json',
+    body: {
+      token: '<your customer\'s auth token>',
+      headers: '{ optional per-request headers forwarded to your validation URL }',
+      payload: '{ optional JSON body forwarded to your validation URL }',
+    },
+    requiredHeaders: { 'X-Partner-Key': 'sfpk_...' },
+    docsHint: 'See /_partners/health to verify your partner key, then POST here.',
+  });
 });
 
 module.exports = router;

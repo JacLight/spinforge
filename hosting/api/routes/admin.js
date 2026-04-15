@@ -668,6 +668,87 @@ router.delete('/partners/:id', async (req, res) => {
   }
 });
 
+// ─── Email templates + send history ───────────────────────────────────
+//
+// Operators edit the transactional email copy used by the api's
+// notification hooks. All templates are seeded on first boot (see
+// services/email-templates.default.js) so this endpoint can't create
+// brand-new events — it only updates existing ones. Send-test hits SES
+// directly using the current template content so edits can be verified
+// before the real event fires.
+
+const EmailTemplateService = require('../services/EmailTemplateService');
+const NotificationService  = require('../services/NotificationService');
+const { sendEmail, mailerStatus } = require('../utils/ses');
+const emailTemplates = new EmailTemplateService(redisClient);
+
+router.get('/email-templates', async (req, res) => {
+  try {
+    const templates = await emailTemplates.list();
+    res.json({ templates, mailer: mailerStatus() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/email-templates/:event', async (req, res) => {
+  try {
+    const tmpl = await emailTemplates.get(req.params.event);
+    if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+    res.json(tmpl);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/email-templates/:event', async (req, res) => {
+  try {
+    const allowed = ['subject', 'html', 'text', 'enabled', 'variables'];
+    const patch = {};
+    for (const k of allowed) if (req.body[k] !== undefined) patch[k] = req.body[k];
+    const updated = await emailTemplates.update(req.params.event, patch);
+    res.json(updated);
+  } catch (error) {
+    const status = /not found/i.test(error.message) ? 404 : 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// Render + send the current template against arbitrary context, straight
+// to SES (no queue, no retries) so operators can iterate on copy without
+// waiting for real events.
+router.post('/email-templates/:event/test', async (req, res) => {
+  try {
+    const { to, context = {} } = req.body || {};
+    if (!to) return res.status(400).json({ error: '"to" is required' });
+    const tmpl = await emailTemplates.get(req.params.event);
+    if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+
+    const rendered = emailTemplates.render(tmpl, context);
+    const messageId = await sendEmail({
+      to,
+      subject: `[TEST] ${rendered.subject}`,
+      html: rendered.html,
+      text: rendered.text,
+    });
+    res.json({ sent: true, messageId, rendered });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Recent send log (bounded list maintained by EmailWorker).
+router.get('/email-templates/log/recent', async (req, res) => {
+  try {
+    const limit = Math.min(200, parseInt(req.query.limit, 10) || 50);
+    const notifications = new NotificationService(redisClient);
+    const entries = await notifications.recentLog(limit);
+    res.json({ entries });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Revoke an admin API token by id
 router.delete('/tokens/:id', async (req, res) => {
   try {

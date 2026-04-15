@@ -731,6 +731,103 @@ class SpinForgeAPI {
   async updateCertificateSettings(domain: string, settings: { autoRenew?: boolean }) {
     return this.request('put', `/_admin/certificates/${encodeURIComponent(domain)}/settings`, settings);
   }
+
+  // ─── Partners ──────────────────────────────────────────────────────
+  async listPartners(): Promise<{ partners: Partner[] }> {
+    return this.request('get', '/_admin/partners');
+  }
+
+  async createPartner(data: PartnerInput): Promise<Partner & { apiKey: string }> {
+    return this.request('post', '/_admin/partners', data);
+  }
+
+  async updatePartner(id: string, data: Partial<PartnerInput>): Promise<Partner> {
+    return this.request('put', `/_admin/partners/${id}`, data);
+  }
+
+  async deletePartner(id: string): Promise<{ success: boolean }> {
+    return this.request('delete', `/_admin/partners/${id}`);
+  }
+
+  async rotatePartnerKey(id: string): Promise<Partner & { apiKey: string }> {
+    return this.request('post', `/_admin/partners/${id}/rotate-key`, {});
+  }
+
+  // ─── Email templates ───────────────────────────────────────────────
+  async listEmailTemplates(): Promise<{ templates: EmailTemplate[]; mailer: MailerStatus }> {
+    return this.request('get', '/_admin/email-templates');
+  }
+
+  async getEmailTemplate(event: string): Promise<EmailTemplate> {
+    return this.request('get', `/_admin/email-templates/${event}`);
+  }
+
+  async updateEmailTemplate(event: string, data: Partial<EmailTemplate>): Promise<EmailTemplate> {
+    return this.request('put', `/_admin/email-templates/${event}`, data);
+  }
+
+  async sendTestEmail(event: string, to: string, context: Record<string, any>): Promise<{ sent: boolean; messageId: string; rendered: any }> {
+    return this.request('post', `/_admin/email-templates/${event}/test`, { to, context });
+  }
+
+  async recentEmailLog(limit = 50): Promise<{ entries: EmailLogEntry[] }> {
+    return this.request('get', `/_admin/email-templates/log/recent?limit=${limit}`);
+  }
+}
+
+export interface EmailTemplate {
+  event: string;
+  subject: string;
+  html: string;
+  text?: string;
+  variables?: string[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MailerStatus {
+  hasRegion: boolean;
+  hasCredentials: boolean;
+  from: string;
+  region: string;
+}
+
+export interface EmailLogEntry {
+  event: string;
+  to: string;
+  subject: string;
+  status: 'sent' | 'failed_permanent' | 'failed_retries_exhausted';
+  messageId?: string;
+  error?: string;
+  queuedAt: string;
+  sentAt?: string;
+  failedAt?: string;
+  durationMs?: number;
+  attempts?: number;
+}
+
+export interface Partner {
+  id: string;
+  name: string;
+  validationUrl: string;
+  validationMethod: 'GET' | 'POST' | 'PUT' | 'PATCH';
+  validationHeaders?: Record<string, string>;
+  tokenTtlSeconds: number;
+  enabled: boolean;
+  useCount?: number;
+  lastUsedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerInput {
+  name: string;
+  validationUrl: string;
+  validationMethod?: 'GET' | 'POST' | 'PUT' | 'PATCH';
+  validationHeaders?: Record<string, string>;
+  tokenTtlSeconds?: number;
+  enabled?: boolean;
 }
 
 // Customer-specific API class that uses customer endpoints

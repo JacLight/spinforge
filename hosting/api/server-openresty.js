@@ -103,10 +103,46 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// Error handling middleware
+// JSON-only 404. Default Express returns "Cannot GET /foo" as HTML which
+// is useless to API clients. This catches every unmatched route on the
+// api process — anything outside /api/*, /_admin/*, /_api/*, /_partners/*,
+// /_auth/*, /_metrics/*, /metrics, /health.
+//
+// 404 here means: the api process is up and reachable, but no route is
+// registered for this METHOD on this PATH. Most common causes:
+//   * Wrong HTTP method (POST endpoint hit with GET, etc.)
+//   * Typo in the path (e.g. /partners/auth instead of /_partners/auth)
+//   * Hitting an endpoint that was renamed or removed
+//
+// We surface the known mounts so the caller can see what *does* exist.
+const KNOWN_MOUNTS = [
+  '/api/*',          // admin-gated platform API (sites, ssl, metrics, …)
+  '/_admin/*',       // admin user mgmt, partner mgmt, settings, tokens
+  '/_api/customer/*',// customer-scoped surface used by partners + dashboard
+  '/_partners/*',    // third-party partner exchange (POST /_partners/auth)
+  '/_auth/*',        // customer login/register
+  '/_metrics/*',     // metrics passthrough
+  '/metrics',        // prometheus scrape
+  '/health',         // process liveness
+];
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Route not found on the SpinForge API',
+    method: req.method,
+    path:   req.originalUrl,
+    hint:   'The api is running but no handler matches this method+path. Check for a typo, wrong HTTP method, or a removed endpoint.',
+    knownMounts: KNOWN_MOUNTS,
+  });
+});
+
+// JSON-only error handler. Keep the body small — never leak stack traces
+// to API consumers, log them server-side instead.
 app.use((err, req, res, next) => {
   logger.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(err.status || 500).json({
+    error:   err.expose ? err.message : 'Internal server error',
+    details: err.expose ? err.details : undefined,
+  });
 });
 
 // Start the server
@@ -128,6 +164,30 @@ app.listen(PORT, async () => {
     }
   } catch (error) {
     logger.error('Failed to warm sites index:', error);
+  }
+
+  // ─── Notifications: seed templates + start send worker ─────────────
+  try {
+    const redisClient = require('./utils/redis');
+    const EmailTemplateService = require('./services/EmailTemplateService');
+    const EmailWorker = require('./services/EmailWorker');
+    const NotificationService = require('./services/NotificationService');
+
+    const templates = new EmailTemplateService(redisClient);
+    const seed = await templates.seedDefaults();
+    if (seed.created > 0) {
+      logger.info(`email-templates: seeded ${seed.created} default(s) (${seed.total} total)`);
+    }
+
+    const notifications = new NotificationService(redisClient, { logger });
+    const worker = new EmailWorker(redisClient, { logger });
+    worker.start();
+    logger.info('email-worker: started');
+
+    app.locals.notifications = notifications;
+    app.locals.emailWorker = worker;
+  } catch (error) {
+    logger.error('Failed to initialize notifications subsystem:', error);
   }
 
   // ─── SSL: warm hot-cache and start the renewal scheduler ────────────
