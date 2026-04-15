@@ -8,11 +8,13 @@
 const express = require('express');
 const router = express.Router();
 const redisClient = require('../utils/redis');
+const sitesIndex = require('../utils/sites-index');
 
 // Get statistics
 router.get('/stats', async (req, res) => {
   try {
-    const keys = await redisClient.keys('site:*');
+    const domains = await sitesIndex.listAllDomains();
+    const keys = domains.map((d) => `site:${d}`);
     const stats = {
       total_sites: 0,
       static_sites: 0,
@@ -54,7 +56,8 @@ router.get('/stats', async (req, res) => {
 // Get all routes (returns sites formatted as routes for UI compatibility)
 router.get('/routes', async (req, res) => {
   try {
-    const keys = await redisClient.keys('site:*');
+    const domains = await sitesIndex.listAllDomains();
+    const keys = domains.map((d) => `site:${d}`);
     const routes = [];
     
     for (const key of keys) {

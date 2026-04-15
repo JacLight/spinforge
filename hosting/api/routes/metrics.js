@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const redisClient = require('../utils/redis');
+const sitesIndex = require('../utils/sites-index');
 const { promisify } = require('util');
 const execAsync = promisify(require('child_process').exec);
 const NomadService = require('../services/NomadService');
@@ -137,7 +138,7 @@ router.get('/global', async (req, res) => {
     const timeRange = req.query.range || '24h';
     
     // Get all site keys
-    const siteKeys = await redisClient.keys('site:*');
+    const siteKeys = await sitesIndex.listAllSiteKeys();
     
     let totalRequests = 0;
     let totalBandwidth = 0;
@@ -309,7 +310,7 @@ async function getSystemMetrics() {
 // Aggregate workload stats from Nomad — replaces the old `docker stats` scan.
 async function getDockerStats() {
   try {
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const containers = [];
     let runningCount = 0;
 
@@ -453,7 +454,7 @@ async function getServiceHealth() {
 router.get('/', async (req, res) => {
   try {
     // Get all sites for metrics
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const sites = [];
     
     for (const key of keys) {
@@ -536,7 +537,7 @@ router.get('/all', async (req, res) => {
 // Get deployment stats
 async function getDeploymentStats() {
   try {
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const deployments = [];
     const frameworks = {};
     let totalDeployments = 0;
@@ -636,7 +637,7 @@ router.get('/deployments', async (req, res) => {
 // Get bandwidth statistics
 async function getBandwidthStats() {
   try {
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     let totalBandwidthOut = 0;
     let totalBandwidthIn = 0;
     const domainBandwidth = {};
@@ -691,7 +692,7 @@ router.get('/bandwidth', async (req, res) => {
 // Request metrics endpoint
 router.get('/requests', async (req, res) => {
   try {
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     let totalRequests = 0;
     let totalErrors = 0;
     let totalBandwidth = 0;

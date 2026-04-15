@@ -22,6 +22,7 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 const { preflight: dnsPreflight } = require('../utils/dns-preflight');
 const { withClusterLock } = require('../utils/cluster-lock');
+const sitesIndex = require('../utils/sites-index');
 
 // How long one scheduler tick is allowed to hold the cluster lock before
 // it's considered dead. Must be longer than a realistic slow tick; the
@@ -219,7 +220,7 @@ class CertRenewalScheduler {
   async findSitesNeedingCerts() {
     const result = [];
     try {
-      const siteKeys = await this.redis.keys('site:*');
+      const siteKeys = await sitesIndex.listAllSiteKeys();
       for (const key of siteKeys || []) {
         const data = await this.redis.get(key);
         if (!data) continue;

@@ -10,6 +10,7 @@ const router = express.Router();
 const redisClient = require('../utils/redis');
 const CustomerService = require('../services/CustomerService');
 const { adminService, adminTokenService, authenticateAdmin } = require('../utils/admin-auth');
+const sitesIndex = require('../utils/sites-index');
 const PartnerService = require('../services/PartnerService');
 
 const partnerService = new PartnerService(redisClient);
@@ -22,6 +23,7 @@ const {
   validateSetupToken,
   clearSetupToken,
 } = require('../utils/admin-bootstrap');
+const { rateLimit } = require('../utils/rate-limit');
 
 // Surface whether first-run setup is needed so the admin UI can redirect
 // to the setup screen instead of showing a login form nobody can use.
@@ -38,7 +40,7 @@ router.get('/setup/status', async (req, res) => {
 // /data/admin/first-run-token.txt and creates the initial super-admin.
 // Fails once an admin already exists — this endpoint never edits an
 // existing account.
-router.post('/setup', async (req, res) => {
+router.post('/setup', rateLimit({ name: 'admin-setup', max: 5, windowSec: 60 }), async (req, res) => {
   try {
     const { setupToken, username, password, email } = req.body || {};
 
@@ -72,7 +74,7 @@ router.post('/setup', async (req, res) => {
 });
 
 // Public admin routes (no auth required)
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimit({ name: 'admin-login', max: 5, windowSec: 60 }), async (req, res) => {
   try {
     const { username, password } = req.body;
     
@@ -200,8 +202,9 @@ router.get('/customers/:customerId/routes', async (req, res) => {
   try {
     const { customerId } = req.params;
     
-    // Get all sites and filter by customerId
-    const siteKeys = await redisClient.keys('site:*');
+    // Get domains owned by this customer from the maintained index.
+    const domains = await sitesIndex.listDomainsForCustomer(customerId);
+    const siteKeys = domains.map((d) => `site:${d}`);
     const routes = [];
     
     for (const key of siteKeys) {
@@ -480,7 +483,8 @@ router.get('/stats', async (req, res) => {
     const customerResult = await customerService.getAllCustomers({ limit: 0 });
     
     // Get site count
-    const siteKeys = await redisClient.keys('site:*');
+    const siteDomains = await sitesIndex.listAllDomains();
+    const siteKeys = siteDomains.map((d) => `site:${d}`);
     
     // Get admin count
     const admins = await adminService.getAllAdmins();

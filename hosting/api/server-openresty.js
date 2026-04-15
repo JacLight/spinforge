@@ -120,6 +120,16 @@ app.listen(PORT, async () => {
     logger.error('Failed to run admin setup-token check:', error);
   }
 
+  try {
+    const sitesIndex = require('./utils/sites-index');
+    const result = await sitesIndex.ensureIndexOnBoot();
+    if (!result.skipped) {
+      logger.info(`sites-index: rebuilt ${result.domains} domains across ${result.customers} customers`);
+    }
+  } catch (error) {
+    logger.error('Failed to warm sites index:', error);
+  }
+
   // ─── SSL: warm hot-cache and start the renewal scheduler ────────────
   // Replaces the old SSLCacheService 5-minute polling loop AND the certbot
   // container's renewal cron with a single Node-side scheduler.

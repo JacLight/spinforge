@@ -10,6 +10,7 @@ const router = express.Router();
 const redisClient = require('../utils/redis');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { rateLimit } = require('../utils/rate-limit');
 
 // Helper to generate IDs
 function generateId(prefix = '') {
@@ -105,7 +106,7 @@ router.post('/customer/register', async (req, res) => {
 });
 
 // Login customer
-router.post('/customer/login', async (req, res) => {
+router.post('/customer/login', rateLimit({ name: 'customer-login', max: 5, windowSec: 60 }), async (req, res) => {
   try {
     const { email, password } = req.body;
     

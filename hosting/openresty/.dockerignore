@@ -5,6 +5,7 @@
 !nginx.conf
 !lua/
 !generate-default-cert.sh
+!docker-entrypoint.sh
 
 # Exclude logs even if in lua directory
 lua/*.log

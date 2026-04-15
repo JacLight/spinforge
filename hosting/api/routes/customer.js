@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const redisClient = require('../utils/redis');
+const sitesIndex = require('../utils/sites-index');
 const { checkStaticFiles } = require('../utils/site-helpers');
 const CustomerTokenService = require('../services/CustomerTokenService');
 
@@ -147,7 +148,7 @@ router.delete('/tokens/:id', async (req, res) => {
 router.get('/deployments', async (req, res) => {
   try {
     const { customerId } = req;
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const deployments = [];
     
     for (const key of keys) {
@@ -191,7 +192,7 @@ router.get('/deployments', async (req, res) => {
 router.get('/domains', async (req, res) => {
   try {
     const { customerId } = req;
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const domains = [];
     
     for (const key of keys) {
@@ -239,7 +240,7 @@ router.get('/domains', async (req, res) => {
 router.get('/usage', async (req, res) => {
   try {
     const { customerId } = req;
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     
     let siteCount = 0;
     let containerCount = 0;
@@ -423,7 +424,7 @@ router.put('/deployments/:id', async (req, res) => {
 router.get('/sites', async (req, res) => {
   try {
     const { customerId } = req;
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const sites = [];
     
     for (const key of keys) {
@@ -452,7 +453,7 @@ router.get('/sites/search', async (req, res) => {
   try {
     const { customerId } = req;
     const { search, type } = req.query;
-    const keys = await redisClient.keys('site:*');
+    const keys = await sitesIndex.listAllSiteKeys();
     const sites = [];
     
     for (const key of keys) {

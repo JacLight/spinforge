@@ -15,6 +15,7 @@ const multer = require("multer");
 const AdmZip = require("adm-zip");
 const tar = require("tar");
 const redisClient = require("../utils/redis");
+const sitesIndex = require("../utils/sites-index");
 const { STATIC_ROOT, UPLOADS_ROOT } = require("../utils/constants");
 const { checkStaticFiles } = require("../utils/site-helpers");
 const { addRouteAuth } = require("../route-helper/auth-gateway-helper");
@@ -65,11 +66,11 @@ router.get("/", async (req, res) => {
     const limit = parseInt(req.query.limit) || 0;
     const offset = parseInt(req.query.offset) || 0;
 
-    const keys = await redisClient.keys("site:*");
+    const domains = await sitesIndex.listAllDomains();
     const sites = [];
 
-    for (const key of keys) {
-      const data = await redisClient.get(key);
+    for (const domain of domains) {
+      const data = await redisClient.get(`site:${domain}`);
       if (data) {
         try {
           let site = JSON.parse(data);
@@ -242,6 +243,7 @@ router.post("/", async (req, res) => {
 
     // Save to Redis - domain is the key!
     await redisClient.set(`site:${site.domain}`, JSON.stringify(site));
+    await sitesIndex.registerSite(site.domain, site.customerId);
 
     // Handle aliases - each alias points to the primary domain
     if (site.aliases && site.aliases.length > 0) {
@@ -446,6 +448,7 @@ router.put("/:domain", async (req, res) => {
 
     // Save to Redis first
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    await sitesIndex.registerSite(domain, site.customerId);
 
     // Auto-issue cert on update too — covers the case where an existing
     // site gets ssl_enabled flipped from false → true. The helper is
@@ -592,6 +595,7 @@ router.delete("/:domain", async (req, res) => {
 
     // Delete from Redis
     await redisClient.del(`site:${domain}`);
+    await sitesIndex.unregisterSite(domain, site.customerId);
 
     res.json({ message: "Site deleted", domain });
   } catch (error) {
