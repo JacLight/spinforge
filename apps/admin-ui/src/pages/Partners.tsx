@@ -48,6 +48,17 @@ export default function Partners() {
   const [revealKey, setRevealKey] = useState<{ name: string; apiKey: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Dedicated rotate confirmation so it's impossible to fat-finger through
+  // a native confirm(). Requires typing the partner name to proceed — same
+  // guardrail GitHub uses for destructive repo actions.
+  const [rotateConfirm, setRotateConfirm] = useState<Partner | null>(null);
+  const [rotateTyped, setRotateTyped] = useState('');
+  const [rotating, setRotating] = useState(false);
+
+  const [deleteConfirm, setDeleteConfirm] = useState<Partner | null>(null);
+  const [deleteTyped, setDeleteTyped] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
   async function load() {
     try {
       setLoading(true);
@@ -125,24 +136,53 @@ export default function Partners() {
     }
   }
 
-  async function del(p: Partner) {
-    if (!window.confirm(`Delete partner "${p.name}"? Existing sfpk_ key becomes invalid.`)) return;
+  function askDelete(p: Partner) {
+    setDeleteConfirm(p);
+    setDeleteTyped('');
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    if (deleteTyped !== deleteConfirm.name) return;
+    setDeleting(true);
+    setErr(null);
     try {
-      await api.deletePartner(p.id);
+      await api.deletePartner(deleteConfirm.id);
+      setDeleteConfirm(null);
       await load();
     } catch (e: any) {
       setErr(e?.response?.data?.error || 'Delete failed');
+    } finally {
+      setDeleting(false);
     }
   }
 
-  async function rotate(p: Partner) {
-    if (!window.confirm(`Rotate ${p.name}'s API key? The old sfpk_ key stops working immediately.`)) return;
+  function askRotate(p: Partner) {
+    setRotateConfirm(p);
+    setRotateTyped('');
+  }
+
+  async function confirmRotate() {
+    if (!rotateConfirm) return;
+    if (rotateTyped !== rotateConfirm.name) return;
+    setRotating(true);
+    setErr(null);
     try {
-      const rotated = await api.rotatePartnerKey(p.id);
-      if (rotated.apiKey) setRevealKey({ name: rotated.name, apiKey: rotated.apiKey });
+      const rotated = await api.rotatePartnerKey(rotateConfirm.id);
+      setRotateConfirm(null);
+      // Always show the new key — if the API didn't return one we raise,
+      // otherwise the operator would close the dialog with nothing to
+      // hand to the partner and lock themselves out.
+      if (!rotated.apiKey) {
+        setErr('Rotate succeeded but the API did not return a new key. Check server logs and rotate again.');
+      } else {
+        setRevealKey({ name: rotated.name, apiKey: rotated.apiKey });
+      }
       await load();
     } catch (e: any) {
       setErr(e?.response?.data?.error || 'Rotate failed');
+    } finally {
+      setRotating(false);
     }
   }
 
@@ -235,9 +275,11 @@ export default function Partners() {
                     className="p-1 text-gray-500 hover:text-gray-900"><Power size={16} /></button>
                   <button onClick={() => openEdit(p)} title="Edit"
                     className="p-1 text-gray-500 hover:text-gray-900"><Edit2 size={16} /></button>
-                  <button onClick={() => rotate(p)} title="Rotate sfpk_ key"
-                    className="p-1 text-gray-500 hover:text-orange-600"><RefreshCw size={16} /></button>
-                  <button onClick={() => del(p)} title="Delete"
+                  <button onClick={() => askRotate(p)} title="Generate new key (invalidates old one)"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded text-orange-600 hover:bg-orange-50">
+                    <RefreshCw size={12} /> Generate new key
+                  </button>
+                  <button onClick={() => askDelete(p)} title="Delete"
                     className="p-1 text-gray-500 hover:text-red-600"><Trash2 size={16} /></button>
                 </td>
               </tr>
@@ -351,6 +393,107 @@ export default function Partners() {
                   disabled={saving || !form.name || !form.validationUrl}
                   className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
                 >{saving ? 'Saving…' : editing ? 'Save' : 'Create'}</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete-partner confirmation */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-45"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 border-t-4 border-red-500"
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <AlertTriangle size={24} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h2 className="text-lg font-semibold">Delete partner {deleteConfirm.name}?</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    The <code className="bg-gray-100 px-1 rounded">sfpk_</code> key is invalidated
+                    immediately. All existing <code>sfc_</code> sessions tied to this partner will
+                    continue working until they expire, but new exchanges will be rejected. This
+                    cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <label className="block text-sm mt-4">
+                <div className="text-gray-600 mb-1">
+                  Type <b>{deleteConfirm.name}</b> to confirm:
+                </div>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  value={deleteTyped}
+                  onChange={(e) => setDeleteTyped(e.target.value)}
+                  autoFocus
+                />
+              </label>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                >Cancel</button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting || deleteTyped !== deleteConfirm.name}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded disabled:opacity-50"
+                >{deleting ? 'Deleting…' : 'Delete partner'}</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Generate-new-key confirmation */}
+      <AnimatePresence>
+        {rotateConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-45"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 border-t-4 border-orange-500"
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <AlertTriangle size={24} className="text-orange-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h2 className="text-lg font-semibold">Generate new key for {rotateConfirm.name}?</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    The current <code className="bg-gray-100 px-1 rounded">sfpk_</code> key will stop working
+                    <b> immediately</b>. {rotateConfirm.name}'s integration will fail until you send them the
+                    new key and they deploy it.
+                  </p>
+                </div>
+              </div>
+
+              <label className="block text-sm mt-4">
+                <div className="text-gray-600 mb-1">
+                  Type <b>{rotateConfirm.name}</b> to confirm:
+                </div>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  value={rotateTyped}
+                  onChange={(e) => setRotateTyped(e.target.value)}
+                  autoFocus
+                />
+              </label>
+
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setRotateConfirm(null)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                >Cancel</button>
+                <button
+                  onClick={confirmRotate}
+                  disabled={rotating || rotateTyped !== rotateConfirm.name}
+                  className="px-4 py-2 text-sm bg-orange-600 text-white rounded disabled:opacity-50"
+                >{rotating ? 'Generating…' : 'Generate new key'}</button>
               </div>
             </motion.div>
           </motion.div>

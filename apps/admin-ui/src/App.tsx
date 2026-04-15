@@ -38,6 +38,7 @@ import Templates from "./pages/Templates";
 import CertificateManager from "./pages/CertificateManager";
 import Partners from "./pages/Partners";
 import EmailTemplates from "./pages/EmailTemplates";
+import AdminActivity from "./pages/AdminActivity";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -126,6 +127,7 @@ function App() {
           <Route path="/certificates" element={<CertificateManager />} />
           <Route path="/partners" element={<Partners />} />
           <Route path="/email-templates" element={<EmailTemplates />} />
+          <Route path="/activity" element={<AdminActivity />} />
         </Routes>
       </ModernLayout>
     </Router>

@@ -20,9 +20,9 @@ import {
   X,
   ChevronRight,
   ChevronDown,
-  Terminal,
   LifeBuoy,
-  Code
+  Code,
+  Plug,
 } from "lucide-react";
 
 interface DocSection {
@@ -41,55 +41,42 @@ const docSections: DocSection[] = [
     title: "Getting Started",
     icon: Home,
     items: [
-      { title: "Introduction", href: "/docs", description: "Welcome to SpinForge" },
-      { title: "Installation", href: "/docs/installation", description: "Install CLI and prerequisites" },
-      { title: "Quick Start", href: "/docs/quick-start", description: "Deploy your first app in minutes" },
+      { title: "Introduction", href: "/docs", description: "What SpinForge is" },
+      { title: "Quick Start", href: "/docs/quick-start", description: "Deploy your first site" },
     ]
   },
   {
     title: "Core Concepts",
     icon: Book,
     items: [
-      { title: "How SpinForge Works", href: "/docs/concepts/how-it-works", description: "Understanding the deployment model" },
-      { title: "Pre-built Applications", href: "/docs/concepts/pre-built-apps", description: "Why we only run built apps" },
+      { title: "How SpinForge Works", href: "/docs/concepts/how-it-works", description: "The deployment model" },
     ]
   },
   {
     title: "Deployment Guides",
     icon: Rocket,
     items: [
-      { title: "Static Sites", href: "/docs/deployment/static-sites", description: "Deploy HTML, CSS, JS, and SPAs" },
-      { title: "Node.js Apps", href: "/docs/deployment/nodejs", description: "Deploy Node.js, Next.js, Express" },
-      { title: "Docker Compose", href: "/docs/deployment/docker-compose", description: "Multi-container deployments" },
-      { title: "Flutter Web", href: "/docs/deployment/flutter-web", description: "Deploy Flutter web builds" },
-      { title: "Custom Domains", href: "/docs/deployment/custom-domains", description: "Connect your own domain" },
+      { title: "Static Sites", href: "/docs/deployment/static-sites", description: "Upload a zip, serve files" },
+      { title: "Containers", href: "/docs/deployment/containers", description: "Run your image on our cluster" },
+      { title: "Proxy & Load Balancer", href: "/docs/deployment/proxy", description: "Route to external backends" },
+      { title: "Custom Domains", href: "/docs/deployment/custom-domains", description: "Bring your own domain" },
       { title: "Environment Variables", href: "/docs/deployment/env-vars", description: "Configure runtime environment" },
-      { title: "SSL & HTTPS", href: "/docs/deployment/ssl", description: "Automatic certificates with Let's Encrypt" },
+      { title: "SSL & HTTPS", href: "/docs/deployment/ssl", description: "Auto Let's Encrypt" },
     ]
   },
   {
-    title: "Frameworks",
-    icon: Code,
+    title: "Partner Integration",
+    icon: Plug,
     items: [
-      { title: "Next.js", href: "/docs/frameworks/nextjs", description: "Deploy Next.js applications" },
-      { title: "Remix", href: "/docs/frameworks/remix", description: "Deploy Remix applications" },
-      { title: "Express", href: "/docs/frameworks/express", description: "Deploy Express servers" },
-      { title: "Static", href: "/docs/frameworks/static", description: "Deploy static sites and SPAs" },
-    ]
-  },
-  {
-    title: "CLI Reference",
-    icon: Terminal,
-    items: [
-      { title: "CLI Overview", href: "/docs/cli/overview", description: "All CLI commands at a glance" },
-      { title: "View Logs", href: "/docs/cli/logs", description: "Stream and query logs" },
+      { title: "Overview", href: "/docs/partners", description: "Resell SpinForge to your users" },
+      { title: "Auth Exchange", href: "/docs/partners/auth", description: "POST /_partners/auth" },
     ]
   },
   {
     title: "Troubleshooting",
     icon: LifeBuoy,
     items: [
-      { title: "Common Issues", href: "/docs/troubleshooting", description: "Fixes for the most frequent problems" },
+      { title: "Common Issues", href: "/docs/troubleshooting", description: "Fixes for frequent problems" },
       { title: "FAQ", href: "/docs/troubleshooting/faq", description: "Frequently asked questions" },
     ]
   },
@@ -97,14 +84,11 @@ const docSections: DocSection[] = [
     title: "API Reference",
     icon: Shield,
     items: [
-      { title: "API Overview", href: "/docs/api", description: "REST API documentation" },
-      { title: "Authentication", href: "/docs/api/authentication", description: "Admin and customer authentication" },
-      { title: "Sites Management", href: "/docs/api/sites", description: "Create and manage sites" },
-      { title: "Containers", href: "/docs/api/containers", description: "Docker container management" },
-      { title: "SSL Certificates", href: "/docs/api/certificates", description: "Manage SSL/TLS certificates" },
-      { title: "Metrics", href: "/docs/api/metrics", description: "Access metrics and logs" },
-      { title: "Templates", href: "/docs/api/templates", description: "Deploy from templates" },
-      { title: "Admin Operations", href: "/docs/api/admin", description: "Admin-only endpoints" },
+      { title: "API Overview", href: "/docs/api", description: "REST API root" },
+      { title: "Authentication", href: "/docs/api/authentication", description: "Session + API key auth" },
+      { title: "Sites", href: "/docs/api/sites", description: "Create, update, delete sites" },
+      { title: "Containers", href: "/docs/api/containers", description: "Manage container workloads" },
+      { title: "Health", href: "/docs/api/health", description: "Liveness probe" },
     ]
   },
 ];

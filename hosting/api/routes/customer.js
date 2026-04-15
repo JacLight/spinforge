@@ -582,6 +582,9 @@ router.post('/sites', async (req, res) => {
       ...siteData,
       customerId,
       enabled: siteData.enabled !== false,
+      // SSL is always on. Callers can't opt out — every site is served
+      // over HTTPS with a Let's Encrypt cert auto-issued on first request.
+      ssl_enabled: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -601,6 +604,23 @@ router.post('/sites', async (req, res) => {
 
     await redisClient.set(`site:${site.domain}`, JSON.stringify(site));
     await sitesIndex.registerSite(site.domain, customerId);
+
+    // Aliases: every extra domain routes to the primary site's content.
+    // Each alias gets an `alias:<domain>` key pointing at the primary, and
+    // we kick off ACME for each so custom domains auto-issue certs once
+    // DNS resolves to us.
+    if (Array.isArray(site.aliases) && site.aliases.length > 0) {
+      for (const alias of site.aliases) {
+        if (typeof alias === 'string' && alias.trim()) {
+          await redisClient.set(`alias:${alias.trim()}`, site.domain);
+          if (site.ssl_enabled) {
+            require('../utils/auto-cert').maybeAutoIssueCert({
+              ...site, domain: alias.trim(),
+            });
+          }
+        }
+      }
+    }
 
     // Non-blocking ACME issuance — the renewal scheduler will retry if DNS
     // hasn't propagated yet.
@@ -651,8 +671,9 @@ router.put('/sites/:domain', async (req, res) => {
     const updated = {
       ...site,
       ...updates,
-      customerId, // lock: callers cannot change ownership
-      domain: site.domain, // lock: domain is the key, rename would be a delete+create
+      customerId,           // lock: callers cannot change ownership
+      domain: site.domain,  // lock: domain is the key, rename would be delete+create
+      ssl_enabled: true,    // lock: SSL is always on, partners can't turn it off
       updatedAt: new Date().toISOString(),
     };
 
@@ -673,6 +694,27 @@ router.put('/sites/:domain', async (req, res) => {
 
     await redisClient.set(`site:${domain}`, JSON.stringify(updated));
     await sitesIndex.registerSite(domain, customerId);
+
+    // Diff alias list and reconcile alias:* keys. Caller sends the full
+    // desired set of aliases each time (idempotent); we add new ones and
+    // remove any that were dropped.
+    if (updates.aliases !== undefined) {
+      const oldAliases = Array.isArray(site.aliases) ? site.aliases : [];
+      const newAliases = Array.isArray(updated.aliases) ? updated.aliases : [];
+      const newSet = new Set(newAliases.map((a) => String(a).trim()).filter(Boolean));
+      for (const a of oldAliases) {
+        if (!newSet.has(String(a).trim())) {
+          await redisClient.del(`alias:${String(a).trim()}`);
+        }
+      }
+      for (const a of newSet) {
+        await redisClient.set(`alias:${a}`, domain);
+        if (updated.ssl_enabled) {
+          require('../utils/auto-cert').maybeAutoIssueCert({ ...updated, domain: a });
+        }
+      }
+    }
+
     require('../utils/auto-cert').maybeAutoIssueCert(updated);
 
     res.json(updated);
@@ -699,6 +741,12 @@ router.delete('/sites/:domain', async (req, res) => {
       const folder = domain.replace(/\./g, '_');
       const staticPath = path.join(STATIC_ROOT, folder);
       try { fs.rmSync(staticPath, { recursive: true, force: true }); } catch (_) {}
+    }
+
+    if (Array.isArray(site.aliases)) {
+      for (const a of site.aliases) {
+        if (a) await redisClient.del(`alias:${String(a).trim()}`);
+      }
     }
 
     await redisClient.del(`site:${domain}`);

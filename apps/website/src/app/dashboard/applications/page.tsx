@@ -45,6 +45,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ApplicationDrawer from "@/components/ApplicationDrawerV2";
 
 function formatDate(dateStr: string | undefined): string {
   if (!dateStr) return "Unknown";

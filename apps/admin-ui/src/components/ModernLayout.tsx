@@ -26,6 +26,7 @@ import {
   UserCog,
   Briefcase,
   Mail,
+  ShieldAlert,
   HardDrive,
   User,
   LogOut,
@@ -104,6 +105,12 @@ const navItems = [
     icon: Mail,
     label: "Email Templates",
     color: "from-pink-500 to-pink-600",
+  },
+  {
+    path: "/activity",
+    icon: ShieldAlert,
+    label: "Admin Activity",
+    color: "from-slate-500 to-slate-600",
   },
   {
     path: "/admin-users",

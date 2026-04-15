@@ -5,392 +5,176 @@
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
-import { Shield, Lock, LogOut, UserPlus, User, Users } from "lucide-react";
+import { Shield, Lock, Key, UserPlus } from "lucide-react";
 
 export default function AuthenticationAPIPage() {
   return (
     <div className="prose prose-gray max-w-none">
       <div className="flex items-center mb-6">
         <Shield className="h-8 w-8 text-indigo-600 mr-3" />
-        <h1 className="text-3xl font-bold text-gray-900 mb-0">Authentication API</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-0">Authentication</h1>
       </div>
 
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Overview</h2>
-        <p className="text-gray-600 mb-4">
-          SpinForge uses JWT-based authentication with two separate authentication systems: <strong>Admin Authentication</strong> and <strong>Customer Authentication</strong>.
-        </p>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 not-prose mb-4">
-          <p className="text-sm text-yellow-900">
-            <strong>Important:</strong> Admin and customer authentication are completely separate. Use the appropriate endpoints based on your user type.
-          </p>
-        </div>
-      </section>
+      <p className="text-lg text-gray-600 mb-8">
+        SpinForge has three token types in parallel. Pick the one that matches what you are doing.
+      </p>
 
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Base URL</h2>
-        <div className="bg-gray-900 rounded-lg p-4 not-prose">
-          <pre className="text-gray-100 overflow-x-auto"><code>Production: https://api.spinforge.dev/api
-Development: http://localhost:8080/api</code></pre>
-        </div>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Authentication Headers</h2>
-        <p className="text-gray-600 mb-4">All authenticated requests must include one of the following:</p>
-        <ul className="list-disc list-inside text-gray-600 space-y-1">
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">Authorization: Bearer &lt;token&gt;</code> (preferred)</li>
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">Cookie: auth-token=&lt;token&gt;</code> (set automatically by browser)</li>
-        </ul>
-      </section>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Token types</h2>
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-8 not-prose">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr>
+              <th className="p-3 font-semibold">Prefix</th>
+              <th className="p-3 font-semibold">Header</th>
+              <th className="p-3 font-semibold">Scope</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            <tr>
+              <td className="p-3"><code>JWT</code></td>
+              <td className="p-3"><code>Authorization: Bearer &lt;jwt&gt;</code></td>
+              <td className="p-3">Admin UI session</td>
+            </tr>
+            <tr>
+              <td className="p-3"><code>sfa_</code></td>
+              <td className="p-3"><code>X-API-Key: sfa_...</code></td>
+              <td className="p-3">Admin machine access</td>
+            </tr>
+            <tr>
+              <td className="p-3"><code>sfc_</code></td>
+              <td className="p-3"><code>Authorization: Bearer sfc_...</code></td>
+              <td className="p-3">Customer site operations</td>
+            </tr>
+            <tr>
+              <td className="p-3"><code>sfpk_</code></td>
+              <td className="p-3"><code>X-Partner-Key: sfpk_...</code></td>
+              <td className="p-3">Partner auth exchange</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <hr className="my-8 border-gray-200" />
 
-      {/* ADMIN AUTHENTICATION */}
-      <section className="mb-12">
-        <div className="flex items-center mb-6">
-          <Users className="h-7 w-7 text-red-600 mr-3" />
-          <h2 className="text-3xl font-bold text-gray-900 mb-0">Admin Authentication</h2>
-        </div>
-
-        <p className="text-gray-600 mb-6">
-          Admin authentication is for platform administrators to manage customers, sites, and system settings.
-        </p>
-
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <LogOut className="h-6 w-6 text-blue-600 mr-2" />
-            <h3 className="text-2xl font-semibold text-gray-900 mb-0">Admin Login</h3>
-          </div>
-
-          <h4 className="text-xl font-semibold text-gray-900 mb-3"><code className="bg-gray-100 px-2 py-1 rounded text-sm">POST /api/_admin/login</code></h4>
-          <p className="text-gray-600 mb-4">Authenticate an administrator with email and password.</p>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Request Body</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "email": "admin@spinforge.com",
-  "password": "AdminPassword123!"
+      <h2 className="text-2xl font-bold text-gray-900 mb-4" id="admin-login">
+        <Lock className="inline h-5 w-5 mr-2" />
+        Admin login
+      </h2>
+      <p className="mb-2"><code>POST /_admin/login</code></p>
+      <p className="mb-4 text-sm text-gray-600">Exchanges username/password for a JWT.</p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-4 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`curl -X POST https://api.spinforge.dev/_admin/login \\
+  -H "Content-Type: application/json" \\
+  -d '{ "username": "admin", "password": "..." }'`}</code></pre>
+      </div>
+      <div className="bg-gray-900 rounded-lg p-6 mb-8 not-prose">
+        <span className="text-gray-400 text-sm">Response 200</span>
+        <pre className="text-gray-100 overflow-x-auto text-sm mt-2"><code>{`{
+  "token": "eyJhbGciOi...",
+  "admin": { "id": "adm_...", "username": "admin", "email": "ops@company.com" }
 }`}</code></pre>
-          </div>
+      </div>
 
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Response</h5>
-          <p className="text-gray-600 mb-2"><strong>Success (200 OK)</strong></p>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-4">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "message": "Login successful",
-  "admin": {
-    "id": "admin_abc123",
-    "email": "admin@spinforge.com",
-    "name": "Admin User",
-    "role": "admin"
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}`}</code></pre>
-          </div>
-
-          <p className="text-gray-600 mb-2"><strong>Error (401 Unauthorized)</strong></p>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "error": "Invalid credentials"
-}`}</code></pre>
-          </div>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Example - cURL</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-4">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-bash">{`curl -X POST https://api.spinforge.dev/api/_admin/login \\
+      <h2 className="text-2xl font-bold text-gray-900 mb-4" id="setup">
+        <UserPlus className="inline h-5 w-5 mr-2" />
+        First-run setup
+      </h2>
+      <p className="mb-4 text-sm text-gray-600">
+        On first boot, the API auto-generates <code>/data/admin/secret.key</code> (the JWT signing
+        key) and writes a one-time setup token to <code>/data/admin/first-run-token.txt</code>. The
+        operator uses it to create the first admin. No admin credentials live in env files.
+      </p>
+      <p className="mb-2"><code>GET /_admin/setup/status</code></p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-4 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`{ "setupRequired": true }`}</code></pre>
+      </div>
+      <p className="mb-2"><code>POST /_admin/setup</code></p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-8 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`curl -X POST https://api.spinforge.dev/_admin/setup \\
   -H "Content-Type: application/json" \\
   -d '{
-    "email": "admin@spinforge.com",
-    "password": "AdminPassword123!"
+    "setupToken": "<first-run-token.txt contents>",
+    "username": "admin",
+    "password": "a-long-password",
+    "email": "ops@company.com"
   }'`}</code></pre>
-          </div>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Example - JavaScript</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-javascript">{`const adminLogin = async () => {
-  try {
-    const response = await fetch('https://api.spinforge.dev/api/_admin/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: 'admin@spinforge.com',
-        password: 'AdminPassword123!'
-      })
-    });
-
-    const data = await response.json();
-    const { token, admin } = data;
-
-    // Store token
-    localStorage.setItem('admin-token', token);
-    console.log('Logged in as admin:', admin.email);
-  } catch (error) {
-    console.error('Admin login failed:', error);
-  }
-};`}</code></pre>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-3"><code className="bg-gray-100 px-2 py-1 rounded text-sm">POST /api/_admin/logout</code></h3>
-          <p className="text-gray-600 mb-4">Logout the current admin and invalidate the session.</p>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Headers</h5>
-          <ul className="list-disc list-inside text-gray-600 space-y-1 mb-6">
-            <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">Authorization: Bearer &lt;token&gt;</code></li>
-          </ul>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Response</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "message": "Logout successful"
-}`}</code></pre>
-          </div>
-        </div>
-      </section>
+      </div>
 
       <hr className="my-8 border-gray-200" />
 
-      {/* CUSTOMER AUTHENTICATION */}
-      <section className="mb-12">
-        <div className="flex items-center mb-6">
-          <User className="h-7 w-7 text-blue-600 mr-3" />
-          <h2 className="text-3xl font-bold text-gray-900 mb-0">Customer Authentication</h2>
-        </div>
-
-        <p className="text-gray-600 mb-6">
-          Customer authentication is for end users who deploy and manage their own sites on SpinForge.
-        </p>
-
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <UserPlus className="h-6 w-6 text-green-600 mr-2" />
-            <h3 className="text-2xl font-semibold text-gray-900 mb-0">Customer Registration</h3>
-          </div>
-
-          <h4 className="text-xl font-semibold text-gray-900 mb-3"><code className="bg-gray-100 px-2 py-1 rounded text-sm">POST /api/_auth/customer/register</code></h4>
-          <p className="text-gray-600 mb-4">Register a new customer account.</p>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Request Body</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "email": "user@example.com",
-  "password": "SecurePassword123!",
-  "name": "John Doe"
-}`}</code></pre>
-          </div>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Response</h5>
-          <p className="text-gray-600 mb-2"><strong>Success (201 Created)</strong></p>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-4">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "message": "Customer registered successfully",
-  "customer": {
-    "id": "cust_xyz789",
-    "email": "user@example.com",
-    "name": "John Doe"
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}`}</code></pre>
-          </div>
-
-          <p className="text-gray-600 mb-2"><strong>Error (400 Bad Request)</strong></p>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "error": "Email already exists"
-}`}</code></pre>
-          </div>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Example - JavaScript</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-javascript">{`const registerCustomer = async () => {
-  try {
-    const response = await fetch('https://api.spinforge.dev/api/_auth/customer/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: 'user@example.com',
-        password: 'SecurePassword123!',
-        name: 'John Doe'
-      })
-    });
-
-    const data = await response.json();
-    localStorage.setItem('auth-token', data.token);
-    console.log('Registered as:', data.customer.email);
-  } catch (error) {
-    console.error('Registration failed:', error);
-  }
-};`}</code></pre>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <LogOut className="h-6 w-6 text-blue-600 mr-2" />
-            <h3 className="text-2xl font-semibold text-gray-900 mb-0">Customer Login</h3>
-          </div>
-
-          <h4 className="text-xl font-semibold text-gray-900 mb-3"><code className="bg-gray-100 px-2 py-1 rounded text-sm">POST /api/_auth/customer/login</code></h4>
-          <p className="text-gray-600 mb-4">Authenticate a customer with email and password.</p>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Request Body</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "email": "user@example.com",
-  "password": "SecurePassword123!"
-}`}</code></pre>
-          </div>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Response</h5>
-          <p className="text-gray-600 mb-2"><strong>Success (200 OK)</strong></p>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-4">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "message": "Login successful",
-  "customer": {
-    "id": "cust_xyz789",
-    "email": "user@example.com",
-    "name": "John Doe"
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}`}</code></pre>
-          </div>
-
-          <p className="text-gray-600 mb-2"><strong>Error (401 Unauthorized)</strong></p>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "error": "Invalid credentials"
-}`}</code></pre>
-          </div>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Example - JavaScript</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-javascript">{`const customerLogin = async () => {
-  try {
-    const response = await fetch('https://api.spinforge.dev/api/_auth/customer/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: 'user@example.com',
-        password: 'SecurePassword123!'
-      })
-    });
-
-    const data = await response.json();
-    localStorage.setItem('auth-token', data.token);
-    console.log('Logged in as:', data.customer.email);
-  } catch (error) {
-    console.error('Login failed:', error);
-  }
-};`}</code></pre>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-3"><code className="bg-gray-100 px-2 py-1 rounded text-sm">POST /api/_auth/customer/logout</code></h3>
-          <p className="text-gray-600 mb-4">Logout the current customer and invalidate the session.</p>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Headers</h5>
-          <ul className="list-disc list-inside text-gray-600 space-y-1 mb-6">
-            <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">Authorization: Bearer &lt;token&gt;</code></li>
-          </ul>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Response</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "message": "Logout successful"
-}`}</code></pre>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-3"><code className="bg-gray-100 px-2 py-1 rounded text-sm">POST /api/_auth/customer/verify</code></h3>
-          <p className="text-gray-600 mb-4">Verify if the current customer token is valid.</p>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Headers</h5>
-          <ul className="list-disc list-inside text-gray-600 space-y-1 mb-6">
-            <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">Authorization: Bearer &lt;token&gt;</code></li>
-          </ul>
-
-          <h5 className="text-lg font-semibold text-gray-900 mb-3">Response</h5>
-          <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-            <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "valid": true,
-  "customer": {
-    "id": "cust_xyz789",
-    "email": "user@example.com",
-    "name": "John Doe"
-  }
-}`}</code></pre>
-          </div>
-        </div>
-      </section>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4" id="admin-api-keys">
+        <Key className="inline h-5 w-5 mr-2" />
+        Admin API keys (sfa_)
+      </h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Machine access for operators. Minted from the admin UI&apos;s Tokens tab, which calls
+        <code>POST /_admin/tokens</code>. Plaintext is returned once — store it.
+      </p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-8 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`curl https://api.spinforge.dev/_admin/audit \\
+  -H "X-API-Key: sfa_..."`}</code></pre>
+      </div>
 
       <hr className="my-8 border-gray-200" />
 
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Error Handling</h2>
-        <p className="text-gray-600 mb-4">All endpoints follow a consistent error response format:</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4" id="customer-tokens">
+        <Key className="inline h-5 w-5 mr-2" />
+        Customer tokens (sfc_)
+      </h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Required for every <code>/_api/customer/*</code> call. Created from the customer admin UI or
+        via the tokens endpoint below. Shown in plaintext only on creation.
+      </p>
 
-        <div className="bg-gray-900 rounded-lg p-4 not-prose mb-6">
-          <pre className="text-gray-100 overflow-x-auto"><code className="language-json">{`{
-  "error": "Error message",
-  "message": "Detailed error description"
+      <h3 className="text-xl font-semibold text-gray-900 mb-3">List tokens</h3>
+      <p className="mb-2"><code>GET /_api/customer/tokens</code></p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-6 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`[
+  { "id": "tok_01H...", "name": "CI", "expiresAt": "2026-07-01T00:00:00Z", "createdAt": "2026-04-01T..." }
+]`}</code></pre>
+      </div>
+
+      <h3 className="text-xl font-semibold text-gray-900 mb-3">Create token</h3>
+      <p className="mb-2"><code>POST /_api/customer/tokens</code></p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-4 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`curl -X POST https://api.spinforge.dev/_api/customer/tokens \\
+  -H "Authorization: Bearer sfc_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{ "name": "CI", "expiry": "2026-07-01T00:00:00Z" }'`}</code></pre>
+      </div>
+      <div className="bg-gray-900 rounded-lg p-6 mb-6 not-prose">
+        <span className="text-gray-400 text-sm">Response 201</span>
+        <pre className="text-gray-100 overflow-x-auto text-sm mt-2"><code>{`{
+  "id": "tok_01H...",
+  "name": "CI",
+  "token": "sfc_01HABC...shown_once",
+  "expiresAt": "2026-07-01T00:00:00Z",
+  "createdAt": "2026-04-15T12:00:00Z"
 }`}</code></pre>
-        </div>
+      </div>
 
-        <h3 className="text-xl font-semibold text-gray-900 mb-3">Common Error Codes</h3>
-        <ul className="list-disc list-inside text-gray-600 space-y-1">
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">400</code> - Bad Request (invalid input)</li>
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">401</code> - Unauthorized (invalid or missing token)</li>
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">403</code> - Forbidden (insufficient permissions)</li>
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">409</code> - Conflict (e.g., email already exists)</li>
-          <li><code className="bg-gray-100 px-2 py-1 rounded text-sm">500</code> - Internal Server Error</li>
-        </ul>
-      </section>
+      <h3 className="text-xl font-semibold text-gray-900 mb-3">Revoke token</h3>
+      <p className="mb-2"><code>DELETE /_api/customer/tokens/:id</code></p>
+      <div className="bg-gray-900 rounded-lg p-6 mb-8 not-prose">
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`curl -X DELETE https://api.spinforge.dev/_api/customer/tokens/tok_01H... \\
+  -H "Authorization: Bearer sfc_..."`}</code></pre>
+      </div>
 
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Security Best Practices</h2>
+      <hr className="my-8 border-gray-200" />
 
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">1. Token Storage</h3>
-            <p className="text-gray-600 mb-2">Store tokens securely:</p>
-            <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Browser: Use secure localStorage or httpOnly cookies</li>
-              <li>Never expose tokens in URLs or logs</li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">2. Token Expiration</h3>
-            <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Implement automatic re-authentication when tokens expire</li>
-              <li>Handle 401 responses appropriately</li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">3. HTTPS in Production</h3>
-            <p className="text-gray-600">Always use HTTPS in production environments to protect tokens in transit</p>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">4. Password Requirements</h3>
-            <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>Minimum 8 characters</li>
-              <li>Include a mix of uppercase, lowercase, numbers, and special characters</li>
-            </ul>
-          </div>
-        </div>
-      </section>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Common errors</h2>
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden not-prose mb-8">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr><th className="p-3 font-semibold">Status</th><th className="p-3 font-semibold">Meaning</th></tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            <tr><td className="p-3">401</td><td className="p-3">Missing or invalid token</td></tr>
+            <tr><td className="p-3">403</td><td className="p-3">Token is valid but not authorized for this resource</td></tr>
+            <tr><td className="p-3">404</td><td className="p-3">Token ID not found (on revoke)</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

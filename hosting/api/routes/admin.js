@@ -737,6 +737,22 @@ router.post('/email-templates/:event/test', async (req, res) => {
   }
 });
 
+// ─── Admin activity audit ─────────────────────────────────────────────
+//
+// Tails the `audit:admin` Redis stream maintained by utils/audit.js.
+// No mutation endpoints here — the audit trail is append-only and
+// operators can't edit past entries from the API.
+const audit = require('../utils/audit');
+router.get('/audit', async (req, res) => {
+  try {
+    const limit = Math.min(500, parseInt(req.query.limit, 10) || 100);
+    const entries = await audit.recent(limit);
+    res.json({ entries });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Recent send log (bounded list maintained by EmailWorker).
 router.get('/email-templates/log/recent', async (req, res) => {
   try {

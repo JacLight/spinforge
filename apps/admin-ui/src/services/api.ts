@@ -773,6 +773,25 @@ class SpinForgeAPI {
   async recentEmailLog(limit = 50): Promise<{ entries: EmailLogEntry[] }> {
     return this.request('get', `/_admin/email-templates/log/recent?limit=${limit}`);
   }
+
+  // ─── Admin audit ──────────────────────────────────────────────────
+  async auditRecent(limit = 200): Promise<{ entries: AuditEntry[] }> {
+    return this.request('get', `/_admin/audit?limit=${limit}`);
+  }
+}
+
+export interface AuditEntry {
+  id: string;
+  ts: string;
+  durMs: string;
+  status: string;
+  method: string;
+  path: string;
+  ip: string;
+  userAgent: string;
+  adminId: string;
+  adminUser: string;
+  authMethod: string;
 }
 
 export interface EmailTemplate {

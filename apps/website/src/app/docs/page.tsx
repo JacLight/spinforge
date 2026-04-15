@@ -1,139 +1,145 @@
 /**
  * SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
  * Copyright (c) 2025 Jacob Ajiboye
- * 
+ *
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
-import { Rocket, Zap, Shield, Cloud, Code, Package } from "lucide-react";
 import Link from "next/link";
+import { Rocket, Globe, Container, Shield, Plug, LifeBuoy, ArrowRight, Upload, Code } from "lucide-react";
 
-export default function DocsPage() {
+export default function DocsHomePage() {
   return (
     <div className="prose prose-gray max-w-none">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to SpinForge</h1>
-      <p className="text-xl text-gray-600 mb-8">
-        SpinForge is a modern deployment platform that runs your pre-built applications with zero configuration. 
-        Deploy and scale web applications instantly without managing infrastructure.
+      <h1 className="text-4xl font-bold text-gray-900 mb-4">SpinForge Documentation</h1>
+      <p className="text-lg text-gray-600 mb-8">
+        SpinForge hosts static sites, reverse proxies, Docker containers, and load balancers behind a
+        single HTTP API and an admin UI. There is no CLI, no build step on our side, and no opt-in for
+        HTTPS. You ship an artifact or an image, we route traffic to it.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12 not-prose">
-        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-lg border border-indigo-200">
-          <div className="flex items-center mb-3">
-            <Zap className="h-6 w-6 text-indigo-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Quick Start</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose mb-10">
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="flex items-center mb-2">
+            <Globe className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Public API</h3>
           </div>
-          <p className="text-gray-600 mb-4">Get your first app deployed in under 5 minutes</p>
-          <Link href="/docs/quick-start" className="text-indigo-600 hover:text-indigo-700 font-medium">
-            Start deploying →
-          </Link>
+          <p className="text-sm text-gray-600 mb-0">
+            <code className="bg-gray-100 px-2 py-0.5 rounded">https://api.spinforge.dev</code>
+          </p>
         </div>
-
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
-          <div className="flex items-center mb-3">
-            <Code className="h-6 w-6 text-purple-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">CLI Reference</h3>
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="flex items-center mb-2">
+            <Shield className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Admin UI</h3>
           </div>
-          <p className="text-gray-600 mb-4">Learn all the SpinForge CLI commands</p>
-          <Link href="/docs/cli/overview" className="text-purple-600 hover:text-purple-700 font-medium">
-            View commands →
-          </Link>
-        </div>
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Core Principles</h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 not-prose">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <Package className="h-8 w-8 text-indigo-600 mb-3" />
-          <h3 className="text-lg font-semibold mb-2">Pre-built Apps Only</h3>
-          <p className="text-gray-600 text-sm">
-            SpinForge runs your pre-built applications. Build locally with your own tools, 
-            deploy the output to SpinForge.
-          </p>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <Cloud className="h-8 w-8 text-indigo-600 mb-3" />
-          <h3 className="text-lg font-semibold mb-2">Instant Deployment</h3>
-          <p className="text-gray-600 text-sm">
-            Deploy in seconds, not minutes. Your app goes live instantly with automatic 
-            SSL and global CDN.
-          </p>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <Shield className="h-8 w-8 text-indigo-600 mb-3" />
-          <h3 className="text-lg font-semibold mb-2">Secure by Default</h3>
-          <p className="text-gray-600 text-sm">
-            Every deployment runs in isolation with automatic HTTPS, DDoS protection, 
-            and security headers.
+          <p className="text-sm text-gray-600 mb-0">
+            <code className="bg-gray-100 px-2 py-0.5 rounded">https://admin.spinforge.dev</code>
           </p>
         </div>
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">How It Works</h2>
-
-      <div className="bg-gray-50 rounded-lg p-8 mb-12 not-prose">
-        <ol className="space-y-4">
-          <li className="flex items-start">
-            <span className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">1</span>
-            <div className="ml-4">
-              <h4 className="font-semibold text-gray-900">Build Your Application</h4>
-              <p className="text-gray-600 mt-1">Use your existing build tools (npm, yarn, pnpm) to build your application locally</p>
-            </div>
-          </li>
-          <li className="flex items-start">
-            <span className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">2</span>
-            <div className="ml-4">
-              <h4 className="font-semibold text-gray-900">Deploy with CLI</h4>
-              <p className="text-gray-600 mt-1">Run <code className="bg-gray-200 px-2 py-1 rounded text-sm">spinforge-cli deploy</code> from your project directory</p>
-            </div>
-          </li>
-          <li className="flex items-start">
-            <span className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">3</span>
-            <div className="ml-4">
-              <h4 className="font-semibold text-gray-900">Go Live Instantly</h4>
-              <p className="text-gray-600 mt-1">Your app is deployed to our global edge network and accessible immediately</p>
-            </div>
-          </li>
-        </ol>
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Popular Frameworks</h2>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 not-prose">
-        <Link href="/docs/frameworks/nextjs" className="bg-white p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all text-center">
-          <div className="text-2xl mb-2">⚛️</div>
-          <h4 className="font-semibold text-gray-900">Next.js</h4>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Start here</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose mb-10">
+        <Link href="/docs/quick-start" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="flex items-center mb-2">
+            <Rocket className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Quick Start</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-0">Deploy a hello-world static site in under 5 minutes.</p>
         </Link>
-        <Link href="/docs/frameworks/remix" className="bg-white p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all text-center">
-          <div className="text-2xl mb-2">💿</div>
-          <h4 className="font-semibold text-gray-900">Remix</h4>
-        </Link>
-        <Link href="/docs/frameworks/express" className="bg-white p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all text-center">
-          <div className="text-2xl mb-2">🚂</div>
-          <h4 className="font-semibold text-gray-900">Express</h4>
-        </Link>
-        <Link href="/docs/frameworks/static" className="bg-white p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all text-center">
-          <div className="text-2xl mb-2">📄</div>
-          <h4 className="font-semibold text-gray-900">Static</h4>
+        <Link href="/docs/concepts/how-it-works" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="flex items-center mb-2">
+            <Code className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">How it works</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-0">OpenResty at the edge, Redis for routing, Nomad for containers.</p>
         </Link>
       </div>
 
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6 not-prose">
-        <h3 className="text-lg font-semibold text-indigo-900 mb-2">Ready to deploy?</h3>
-        <p className="text-indigo-700 mb-4">
-          Install the SpinForge CLI and deploy your first application in minutes.
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Deployment guides</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose mb-10">
+        <Link href="/docs/deployment/static-sites" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="flex items-center mb-2">
+            <Upload className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Static Sites</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-0">Upload a zip of pre-built assets.</p>
+        </Link>
+        <Link href="/docs/deployment/containers" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="flex items-center mb-2">
+            <Container className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Containers</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-0">Run a Docker image on our Nomad cluster.</p>
+        </Link>
+        <Link href="/docs/deployment/proxy" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="flex items-center mb-2">
+            <Globe className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Proxy & Load Balancer</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-0">Route to external origins or weighted backend pools.</p>
+        </Link>
+        <Link href="/docs/deployment/custom-domains" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="flex items-center mb-2">
+            <Shield className="h-5 w-5 text-indigo-600 mr-2" />
+            <h3 className="font-semibold text-gray-900 mb-0">Custom Domains & SSL</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-0">Bring your own domain. Let&apos;s Encrypt is automatic.</p>
+        </Link>
+      </div>
+
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">For platform partners</h2>
+      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6 mb-10 not-prose">
+        <div className="flex items-center mb-2">
+          <Plug className="h-5 w-5 text-indigo-600 mr-2" />
+          <h3 className="font-semibold text-indigo-900 mb-0">Resell SpinForge to your users</h3>
+        </div>
+        <p className="text-sm text-indigo-900 mb-3">
+          One exchange call turns an opaque token from your product into a SpinForge customer session,
+          and optionally upserts a site in the same request.
         </p>
-        <div className="flex gap-4">
-          <Link href="/docs/installation" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700">
-            Get Started
-          </Link>
-          <Link href="/docs/quick-start" className="inline-flex items-center px-4 py-2 bg-white text-indigo-600 font-medium rounded-md border border-indigo-300 hover:bg-indigo-50">
-            View Quick Start
-          </Link>
+        <Link href="/docs/partners" className="text-indigo-700 underline text-sm">
+          Read the partner integration guide
+        </Link>
+      </div>
+
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">API reference</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 not-prose mb-10">
+        <Link href="/docs/api" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          API Overview <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+        <Link href="/docs/api/authentication" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          Authentication <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+        <Link href="/docs/api/sites" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          Sites <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+        <Link href="/docs/api/containers" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          Containers <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+        <Link href="/docs/api/certificates" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          Certificates <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+        <Link href="/docs/api/health" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          Health <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+        <Link href="/docs/api/metrics" className="text-indigo-600 hover:text-indigo-800 flex items-center">
+          Metrics <ArrowRight className="h-3 w-3 ml-1" />
+        </Link>
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 not-prose">
+        <div className="flex items-center mb-2">
+          <LifeBuoy className="h-5 w-5 text-gray-600 mr-2" />
+          <h3 className="font-semibold text-gray-900 mb-0">Stuck?</h3>
         </div>
+        <p className="text-sm text-gray-600 mb-2">
+          Most deploy problems fall into a handful of patterns. Our troubleshooting guide covers them.
+        </p>
+        <Link href="/docs/troubleshooting" className="text-indigo-600 underline text-sm">
+          Troubleshooting
+        </Link>
       </div>
     </div>
   );

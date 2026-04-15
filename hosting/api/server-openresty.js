@@ -42,6 +42,13 @@ app.use((req, res, next) => {
 // Customer dashboard traffic uses /_api/customer/* which has its own auth.
 app.use('/api', authenticateAdminOrPublic);
 
+// Audit admin-authenticated activity. Covers writes on /api/* and
+// everything under /_admin/* (including read endpoints since those are
+// already low-volume and security-relevant).
+const { auditAdminActivity } = require('./utils/audit');
+app.use('/api', auditAdminActivity());
+app.use('/_admin', auditAdminActivity());
+
 // Mount all API routes
 app.use('/api', routes);
 
