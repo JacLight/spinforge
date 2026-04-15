@@ -1,33 +1,44 @@
 /**
- * SpinForge - Third-party partner token exchange
+ * SpinForge - Third-party partner auth
  * Copyright (c) 2025 Jacob Ajiboye
+ * Licensed under the MIT License
  *
- * This software is licensed under the MIT License.
- * See the LICENSE file in the root directory for details.
+ * Mounted at /_partners/* (public-ish — gated by X-Partner-Key which
+ * identifies the calling partner, not by admin/customer auth).
  *
- * Mounted at /_partners/* (public-ish — no admin/customer auth, gated
- * instead by X-Partner-Key which identifies the calling partner).
+ * There is exactly ONE thing this router does: exchange a partner-issued
+ * customer token for a SpinForge customer session. Everything downstream
+ * (create sites, list sites, delete sites, tail logs) goes through the
+ * normal /_api/customer/* surface using that session token.
  *
- * Exchange flow (/_partners/exchange):
- *   1. Partner's backend calls us with:
- *        X-Partner-Key: sfpk_...              (identifies the partner)
- *        body: { token: "<partner-customer-token>" }
- *   2. We look the partner up in Redis, pull their validationUrl.
- *   3. We call their validationUrl with the customer's token as a
- *      Bearer Authorization header. Partners configure this endpoint to
- *      look up the token in their own system and return the customer
- *      identity and any metadata we should know about.
- *   4. On 2xx, we ensure a SpinForge customer record exists for that
- *      identity and mint a short-lived sfc_ customer token — the same
- *      token format the normal customer dashboard uses — so the caller
- *      can manage sites via /_api/customer/*.
- *   5. We return { token, customerId, expiresAt } to the partner.
+ * Flow (/_partners/auth):
+ *
+ *   partner backend → POST /_partners/auth
+ *                      X-Partner-Key: sfpk_...
+ *                      body: { token: <customer's partner token> }
+ *                            │
+ *                            ▼
+ *   spinforge     → POST {partner.validationUrl}
+ *                    Authorization: Bearer <customer's partner token>
+ *                            │
+ *                            ▼
+ *   partner       → any 2xx response, must include a stable customer
+ *                    id. We accept a few common shapes (see below).
+ *                            │
+ *                            ▼
+ *   spinforge     → upsert customer:partner_<partnerId>_<externalId>
+ *                    mint sfc_ customer token valid for partner.tokenTtlSeconds
+ *                    return { token, customerId, expiresAt }
+ *
+ * Customers never see this route. It's called server-to-server from the
+ * partner's backend whenever they need a fresh SpinForge session for one
+ * of their users.
  */
+
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const redisClient = require('../utils/redis');
 const PartnerService = require('../services/PartnerService');
 const CustomerTokenService = require('../services/CustomerTokenService');
@@ -36,67 +47,7 @@ const logger = require('../utils/logger');
 const partnerService = new PartnerService(redisClient, { logger });
 const customerTokenService = new CustomerTokenService(redisClient);
 
-/**
- * Decode a JWT WITHOUT verifying its signature — we use the claims only
- * for identity extraction, not trust. The partner's validation endpoint is
- * the thing that actually vouches for the token. Returns the claims
- * object or null if the token isn't a JWT at all.
- */
-function decodeClaims(token) {
-  try {
-    return jwt.decode(token) || null;
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
- * Pull a stable external customer id out of: the validation response body
- * first (partners who explicitly return one), then the JWT claims (which
- * is how appmint-style endpoints work — the response is a dev_environment
- * record, not a user record, so identity has to come from the bearer JWT).
- *
- * Returns {externalCustomerId, email, name} or {externalCustomerId: null}.
- */
-function extractIdentity(responseBody, claims) {
-  const r = responseBody && typeof responseBody === 'object' ? responseBody : {};
-  const c = claims && typeof claims === 'object' ? claims : {};
-  const cdata = c.data && typeof c.data === 'object' ? c.data : {};
-
-  // Priority order:
-  //   1. Explicit response-body fields (partner chose to tell us)
-  //   2. JWT top-level id / sub / email
-  //   3. JWT nested data.email / data.username (appmint shape)
-  const externalCustomerId =
-    r.customerId ||
-    r.customer_id ||
-    r.externalCustomerId ||
-    r.id ||
-    r.sub ||
-    r.user_id ||
-    c._id ||
-    c.id ||
-    c.sub ||
-    c.user_id ||
-    cdata.email ||
-    cdata.username ||
-    null;
-
-  const email = r.email || cdata.email || c.email || null;
-  const name =
-    r.name ||
-    r.fullName ||
-    cdata.name ||
-    cdata.fullName ||
-    cdata.username ||
-    email ||
-    null;
-
-  return { externalCustomerId, email, name };
-}
-
 // ─── Partner key gate ─────────────────────────────────────────────────
-// Every /_partners/* call must present a valid X-Partner-Key.
 router.use(async (req, res, next) => {
   const key = req.headers['x-partner-key'];
   if (!key) {
@@ -105,7 +56,6 @@ router.use(async (req, res, next) => {
       hint: 'Send the sfpk_ key issued when the partner was registered.',
     });
   }
-
   try {
     const partner = await partnerService.validateApiKey(key);
     if (!partner) {
@@ -119,22 +69,19 @@ router.use(async (req, res, next) => {
   }
 });
 
-// ─── Small helper to ensure a SpinForge customer exists ──────────────
-// Partners usually provide their own stable customer id. We namespace it
-// by partner id so two different partners can use the same id without
-// colliding. First time we see a partner-customer, we create the record;
-// subsequent calls reuse it.
+// ─── Customer provisioning helper ────────────────────────────────────
+// Partner-owned customers are namespaced so two partners can use the
+// same external id without collision. First call creates the record,
+// subsequent calls reuse it and touch updatedAt.
 async function ensureSpinForgeCustomer({ partnerId, externalCustomerId, email, name, metadata }) {
   if (!externalCustomerId) {
-    throw new Error('Validation response did not include a customerId');
+    throw new Error('Partner did not return a customer id');
   }
-
   const customerId = `partner_${partnerId}_${externalCustomerId}`;
   const key = `customer:${customerId}`;
 
   const existing = await redisClient.get(key);
   if (existing) {
-    // Touch updatedAt so admins can see recent partner activity.
     try {
       const cust = JSON.parse(existing);
       cust.updatedAt = new Date().toISOString();
@@ -151,15 +98,9 @@ async function ensureSpinForgeCustomer({ partnerId, externalCustomerId, email, n
     createdAt: now,
     updatedAt: now,
     isActive: true,
-    metadata: {
-      source: 'partner',
-      partnerId,
-      externalCustomerId,
-      ...(metadata || {}),
-    },
+    metadata: { source: 'partner', partnerId, externalCustomerId, ...(metadata || {}) },
     limits: {},
   };
-
   await Promise.all([
     redisClient.set(key, JSON.stringify(customer)),
     redisClient.sAdd('customers', customerId),
@@ -167,326 +108,62 @@ async function ensureSpinForgeCustomer({ partnerId, externalCustomerId, email, n
   return customerId;
 }
 
-// Extract the org id from a JWT's `pk` field, which in appmint-style JWTs
-// has the shape "<orgid>|<datatype>" (e.g. "localhost|user"). Falls back
-// to null if the token isn't shaped that way.
-function extractOrgId(claims) {
-  const pk = claims && (claims.pk || claims.data?.pk);
-  if (typeof pk === 'string' && pk.includes('|')) return pk.split('|')[0];
-  return null;
-}
+// Pull identity out of the partner's validation response. Accepts a few
+// common shapes so new partners don't have to reshape their existing
+// endpoints:
+//   { customerId, email, name }                               ← preferred
+//   { id, email, name }
+//   { user, firstName, lastName }                             ← appengine shape
+//   { data: { email, name } } / nested variations
+function extractIdentity(body) {
+  const b = body && typeof body === 'object' ? body : {};
+  const d = b.data && typeof b.data === 'object' ? b.data : {};
 
-// Slug-safe version of a string for domain generation.
-function slugify(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-/**
- * Given a partner's validation response, find the dev_environment record
- * with the requested project name. Supports both the flat shape
- *   { data: [{name: "..."}] }
- * and the nested shape where the name lives under .data.name:
- *   { data: [{name: "x", data: {name: "x"}}] }
- * Returns the matching record or null.
- */
-function findProject(responseBody, projectName) {
-  // Appengine shape: { devEnvs: [{name, config: {orgId, ...}, ...}], user, firstName, lastName }
-  // Legacy shape:    { data: [{name | data.name}] }
-  // Raw list:        [{...}]
-  const list = Array.isArray(responseBody?.devEnvs)
-    ? responseBody.devEnvs
-    : Array.isArray(responseBody?.data)
-    ? responseBody.data
-    : Array.isArray(responseBody)
-    ? responseBody
-    : [];
-  if (!projectName) return null;
-  const target = String(projectName).toLowerCase();
-  return (
-    list.find(
-      (r) =>
-        r?.name?.toLowerCase() === target ||
-        r?.data?.name?.toLowerCase() === target ||
-        r?.config?.name?.toLowerCase() === target
-    ) || null
-  );
-}
-
-/**
- * Decide which hostname to use for the site. Rules:
- *   1. If the caller passed a `domain` AND it matches one of the env's
- *      configured hostnames (productionUrl, devUrl, previewUrl, or any
- *      entry in domains[]), honor it.
- *   2. Otherwise fall back to the default pattern
- *      `{orgid}-{envName}.spinforge.dev`, which is stable and owned by us.
- */
-function resolveHost({ requestedDomain, env, orgId }) {
-  // The appengine shape is flat (productionUrl/devUrl/previewUrl/domains
-  // all top-level on the devEnv record). Older partners nested them under
-  // .data, so we check both.
-  const envData = env?.data || env || {};
-  const envName = envData.name || env?.name || env?.config?.name || '';
-  const candidates = new Set(
-    [
-      envData.productionUrl,
-      envData.devUrl,
-      envData.previewUrl,
-      ...(Array.isArray(envData.domains) ? envData.domains : []),
-    ]
-      .filter(Boolean)
-      .map((d) => String(d).toLowerCase())
-  );
-
-  const defaultHost =
-    orgId && envName
-      ? `${slugify(orgId)}-${slugify(envName)}.spinforge.dev`
-      : null;
-
-  if (requestedDomain) {
-    const rd = String(requestedDomain).toLowerCase();
-    if (candidates.has(rd)) {
-      return { host: rd, usedDefault: false };
-    }
-  }
-
-  return { host: defaultHost, usedDefault: true };
-}
-
-// ─── POST /_partners/exchange ────────────────────────────────────────
-//
-// Request body:
-//   {
-//     "token":       "<customer's bearer token from the partner>",   // required
-//     "projectName": "event-map",                                    // required
-//     "domain":      "custom.example.com"                            // optional
-//   }
-//
-// Flow:
-//   1. Decode (not verify) the JWT claims for identity + orgid.
-//   2. Call partner.validationUrl with Authorization: Bearer <token>
-//      plus any extra headers configured on the partner record
-//      (e.g. orgid for appmint). Partner returns a list of dev_env records.
-//   3. Find the requested project in the list — 403 if not found.
-//   4. Resolve the final hostname: honour caller's `domain` when it
-//      matches a configured hostname, otherwise fall back to
-//      `{orgid}-{projectName}.spinforge.dev`.
-//   5. Provision a SpinForge customer (namespaced by partner+orgid+user)
-//      and issue a short-lived sfc_ token that works against the
-//      existing /_api/customer/* endpoints.
-router.post('/exchange', async (req, res) => {
-  const partner = req.partner;
-  const { token: customerToken, projectName, domain: requestedDomain, payload } = req.body || {};
-
-  if (!customerToken || typeof customerToken !== 'string') {
-    return res.status(400).json({ error: 'Request body must include a "token" string' });
-  }
-  if (!projectName || typeof projectName !== 'string') {
-    return res.status(400).json({
-      error: 'Request body must include a "projectName" — the env/site the customer wants to host',
-    });
-  }
-
-  // Decode JWT claims for identity + orgid. Signature is NOT verified —
-  // the partner's validationUrl is the source of trust.
-  const claims = decodeClaims(customerToken) || {};
-  const orgIdFromJwt = extractOrgId(claims);
-
-  // Call the partner's validation endpoint using the customer's token.
-  let partnerResponse;
-  try {
-    const method = (partner.validationMethod || 'POST').toUpperCase();
-    const extraHeaders = partner.validationHeaders || {};
-    const axiosConfig = {
-      method,
-      url: partner.validationUrl,
-      timeout: 10_000,
-      headers: {
-        Authorization: `Bearer ${customerToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'SpinForge-Partner-Exchange/1.0',
-        ...extraHeaders,
-      },
-      ...(method === 'POST' || method === 'PUT' || method === 'PATCH'
-        ? { data: payload || {} }
-        : {}),
-      // Accept any 2xx/3xx; we handle 4xx/5xx explicitly below.
-      validateStatus: (s) => s < 500,
-    };
-    partnerResponse = await axios(axiosConfig);
-  } catch (err) {
-    logger.warn(`[partners/exchange] partner ${partner.id} validation call failed: ${err.message}`);
-    return res.status(502).json({
-      error: 'Could not reach partner validation endpoint',
-      details: err.message,
-    });
-  }
-
-  if (partnerResponse.status < 200 || partnerResponse.status >= 300) {
-    logger.info(
-      `[partners/exchange] partner ${partner.id} rejected token with ${partnerResponse.status}`
-    );
-    return res.status(401).json({
-      error: 'Partner rejected the supplied token',
-      status: partnerResponse.status,
-      details:
-        typeof partnerResponse.data === 'string'
-          ? partnerResponse.data.slice(0, 500)
-          : partnerResponse.data,
-    });
-  }
-
-  const responseBody = partnerResponse.data || {};
-
-  // Verify the customer actually owns the requested project.
-  const env = findProject(responseBody, projectName);
-  if (!env) {
-    const source = Array.isArray(responseBody.devEnvs)
-      ? responseBody.devEnvs
-      : Array.isArray(responseBody.data)
-      ? responseBody.data
-      : [];
-    const availableNames = source
-      .map((r) => r?.name || r?.data?.name || r?.config?.name)
-      .filter(Boolean);
-    return res.status(403).json({
-      error: `Project "${projectName}" not found in the customer's environments`,
-      available: availableNames,
-    });
-  }
-
-  // Identity: prefer response-level user/firstName/lastName (appengine
-  // shape), fall back to JWT claims for older partners.
-  const cdata = claims.data && typeof claims.data === 'object' ? claims.data : {};
-  const email = responseBody.user || cdata.email || claims.email || null;
-  const firstName = responseBody.firstName || cdata.firstName || '';
-  const lastName = responseBody.lastName || cdata.lastName || '';
+  const email = b.user || b.email || d.email || null;
+  const firstName = b.firstName || d.firstName || '';
+  const lastName = b.lastName || d.lastName || '';
   const name =
-    (firstName || lastName) ? `${firstName} ${lastName}`.trim()
-      : cdata.name || cdata.fullName || cdata.username || email || null;
+    (firstName || lastName)
+      ? `${firstName} ${lastName}`.trim()
+      : b.name || b.fullName || d.name || d.fullName || email || null;
+
   const externalCustomerId =
-    email || claims._id || claims.id || cdata.username || null;
+    b.customerId || b.customer_id || b.externalCustomerId ||
+    b.id || b.sub || b.user_id ||
+    email ||
+    d.id || d.sub || d.username || null;
 
-  if (!externalCustomerId) {
-    return res.status(502).json({
-      error: 'Could not derive a stable customer id from the token',
-      hint: 'Validation response must return user/email, or JWT must carry _id/email.',
-    });
-  }
-
-  // OrgId sources in priority order:
-  //   1. env.config.orgId (appengine shape — the dev env's owning org)
-  //   2. env.pk "<org>|..." (legacy shape)
-  //   3. JWT pk "<org>|user"
-  const envPk = env?.pk || '';
-  const orgIdFromEnv =
-    env?.config?.orgId ||
-    (typeof envPk === 'string' && envPk.includes('|') ? envPk.split('|')[0] : null);
-  const orgId = orgIdFromEnv || orgIdFromJwt || 'default';
-
-  // Resolve the final hostname
-  const { host, usedDefault } = resolveHost({
-    requestedDomain,
-    env,
-    orgId,
-  });
-  if (!host) {
-    return res.status(500).json({
-      error: 'Could not resolve a hostname for this project',
-      hint: 'Project is missing a name; default host template needs {orgid}-{name}.spinforge.dev',
-    });
-  }
-
-  // Create or reuse the SpinForge customer record
-  let spinforgeCustomerId;
-  try {
-    spinforgeCustomerId = await ensureSpinForgeCustomer({
-      partnerId: partner.id,
-      externalCustomerId: `${orgId}:${externalCustomerId}`,
-      email,
-      name,
-      metadata: { orgId, projectName, env: env._id || null },
-    });
-  } catch (err) {
-    logger.error('[partners/exchange] failed to provision customer:', err);
-    return res.status(500).json({ error: err.message });
-  }
-
-  // Mint a short-lived customer API token
-  let issued;
-  try {
-    const ttlSeconds = Number(partner.tokenTtlSeconds || 3600);
-    const expiryIso = new Date(Date.now() + ttlSeconds * 1000).toISOString();
-    issued = await customerTokenService.createToken({
-      customerId: spinforgeCustomerId,
-      userEmail: email || `partner-${partner.id}`,
-      name: `partner:${partner.name}:${projectName}:${crypto.randomBytes(3).toString('hex')}`,
-      expiry: expiryIso,
-    });
-  } catch (err) {
-    logger.error('[partners/exchange] failed to issue customer token:', err);
-    return res.status(500).json({ error: err.message });
-  }
-
-  logger.info(
-    `[partners/exchange] partner=${partner.id} orgid=${orgId} project=${projectName} host=${host} customer=${spinforgeCustomerId}`
-  );
-
-  res.json({
-    success: true,
-    token: issued.token,
-    customerId: spinforgeCustomerId,
-    expiresAt: issued.expiresAt,
-    host,
-    projectName,
-    orgId,
-    usedDefaultHost: usedDefault,
-    partner: { id: partner.id, name: partner.name },
-    env: {
-      id: env._id || null,
-      name: env?.data?.name || env?.name,
-      productionUrl: env?.data?.productionUrl || null,
-      devUrl: env?.data?.devUrl || null,
-      previewUrl: env?.data?.previewUrl || null,
-      domains: env?.data?.domains || [],
-    },
-  });
-});
+  return { externalCustomerId: externalCustomerId ? String(externalCustomerId) : null, email, name };
+}
 
 // ─── POST /_partners/auth ────────────────────────────────────────────
-//
-// Generic, non-opinionated version of /exchange. For partners whose
-// validation endpoint answers the simple question "is this customer good
-// to deploy?" rather than returning a dev_environment record.
-//
-// Request body:
-//   {
-//     "token":   "<opaque customer token from the partner>",  // required
-//     "payload": { ... }                                      // optional passthrough
-//   }
-//
-// Flow:
-//   1. POST partner.validationUrl with Authorization: Bearer <token>
-//      and the payload as JSON body. Partner decides allow/deny.
-//   2. Expected response shape:
-//        { allow: true|false, customerId, email?, name?, reason? }
-//   3. If allow=true, ensure a customer record exists (namespaced by
-//      partner id) and mint a 1h sfc_ customer token.
-//   4. If allow=false or the partner returned non-2xx, 403.
-//
-// Unlike /exchange, this endpoint makes no assumptions about JWT claims,
-// project names, or hostname resolution. The customer decides what to
-// host later using the returned token against /_api/customer/sites.
 router.post('/auth', async (req, res) => {
   const partner = req.partner;
-  const { token: customerToken, payload } = req.body || {};
+  const { token: customerToken, payload, headers: requestHeaders } = req.body || {};
 
   if (!customerToken || typeof customerToken !== 'string') {
     return res.status(400).json({ error: 'Request body must include a "token" string' });
   }
+
+  // Merge rules for headers going OUT to the partner's validation URL:
+  //   1. SpinForge-controlled headers (Auth, Accept, Content-Type, UA) —
+  //      never overridable, avoids partners smuggling in a different auth.
+  //   2. partner.validationHeaders — static, set at partner registration
+  //      (e.g. a service-to-service secret the partner requires every time).
+  //   3. req.body.headers — per-request dynamic headers from the partner's
+  //      backend (e.g. `orgid: demo` which differs by customer).
+  //
+  // Per-request wins over static (partner's backend is closer to the user's
+  // context than the registration-time config). SpinForge-controlled always
+  // wins last.
+  const outboundHeaders = {
+    ...(partner.validationHeaders || {}),
+    ...(requestHeaders && typeof requestHeaders === 'object' ? requestHeaders : {}),
+    Authorization: `Bearer ${customerToken}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'User-Agent': 'SpinForge-Partner-Auth/1.0',
+  };
 
   let partnerResponse;
   try {
@@ -494,21 +171,15 @@ router.post('/auth', async (req, res) => {
     partnerResponse = await axios({
       method,
       url: partner.validationUrl,
-      timeout: Number(partner.verifyTimeoutMs) || 3000,
-      headers: {
-        Authorization: `Bearer ${customerToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'SpinForge-Partner-Auth/1.0',
-        ...(partner.validationHeaders || {}),
-      },
+      timeout: Number(partner.verifyTimeoutMs) || 5000,
+      headers: outboundHeaders,
       ...(method === 'POST' || method === 'PUT' || method === 'PATCH'
         ? { data: payload || {} }
         : {}),
       validateStatus: (s) => s < 500,
     });
   } catch (err) {
-    logger.warn(`[partners/auth] partner ${partner.id} verify call failed: ${err.message}`);
+    logger.warn(`[partners/auth] partner=${partner.id} verify call failed: ${err.message}`);
     return res.status(502).json({
       error: 'Could not reach partner validation endpoint',
       details: err.message,
@@ -516,10 +187,8 @@ router.post('/auth', async (req, res) => {
   }
 
   const body = partnerResponse.data || {};
-  const allow =
-    partnerResponse.status >= 200 &&
-    partnerResponse.status < 300 &&
-    body.allow !== false;
+  const ok = partnerResponse.status >= 200 && partnerResponse.status < 300;
+  const allow = ok && body.allow !== false;
 
   if (!allow) {
     return res.status(403).json({
@@ -529,11 +198,11 @@ router.post('/auth', async (req, res) => {
     });
   }
 
-  const externalCustomerId = body.customerId || body.id || body.externalCustomerId;
+  const { externalCustomerId, email, name } = extractIdentity(body);
   if (!externalCustomerId) {
     return res.status(502).json({
-      error: 'Partner allowed the customer but did not return a customerId',
-      hint: 'Validation response must include { allow: true, customerId: "<stable-id>" }',
+      error: 'Partner allowed the customer but returned no usable identity',
+      hint: 'Response must include customerId / id / email / user.',
     });
   }
 
@@ -541,10 +210,9 @@ router.post('/auth', async (req, res) => {
   try {
     spinforgeCustomerId = await ensureSpinForgeCustomer({
       partnerId: partner.id,
-      externalCustomerId: String(externalCustomerId),
-      email: body.email || null,
-      name: body.name || body.fullName || null,
-      metadata: body.metadata || {},
+      externalCustomerId,
+      email,
+      name,
     });
   } catch (err) {
     logger.error('[partners/auth] failed to provision customer:', err);
@@ -557,7 +225,7 @@ router.post('/auth', async (req, res) => {
     const expiryIso = new Date(Date.now() + ttlSeconds * 1000).toISOString();
     issued = await customerTokenService.createToken({
       customerId: spinforgeCustomerId,
-      userEmail: body.email || `partner-${partner.id}`,
+      userEmail: email || `partner-${partner.id}`,
       name: `partner:${partner.name}:${crypto.randomBytes(3).toString('hex')}`,
       expiry: expiryIso,
     });
@@ -579,7 +247,7 @@ router.post('/auth', async (req, res) => {
   });
 });
 
-// Simple health check so partners can ping us without consuming a token
+// Partner ping — useful for setup / health monitoring on the partner side.
 router.get('/health', (req, res) => {
   res.json({ ok: true, partner: { id: req.partner.id, name: req.partner.name } });
 });

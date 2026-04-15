@@ -7,12 +7,41 @@
  */
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const AdmZip = require('adm-zip');
 const redisClient = require('../utils/redis');
 const sitesIndex = require('../utils/sites-index');
 const { checkStaticFiles } = require('../utils/site-helpers');
+const { STATIC_ROOT, UPLOADS_ROOT } = require('../utils/constants');
 const CustomerTokenService = require('../services/CustomerTokenService');
+const NomadService = require('../services/NomadService');
 
 const customerTokenService = new CustomerTokenService(redisClient);
+const nomad = new NomadService();
+
+// Uploads: same temp dir + 500 MB cap the admin route uses.
+if (!fs.existsSync(UPLOADS_ROOT)) fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
+const upload = multer({ dest: UPLOADS_ROOT, limits: { fileSize: 500 * 1024 * 1024 } });
+
+// Load a site and assert the caller owns it. Returns the parsed site or
+// null; on null the response has already been sent (404).
+async function loadOwnedSite(req, res) {
+  const { customerId } = req;
+  const { domain } = req.params;
+  const data = await redisClient.get(`site:${domain}`);
+  if (!data) {
+    res.status(404).json({ error: 'Site not found' });
+    return null;
+  }
+  const site = JSON.parse(data);
+  if (site.customerId !== customerId) {
+    res.status(404).json({ error: 'Site not found' });
+    return null;
+  }
+  return site;
+}
 
 // Customer authentication middleware. Accepts (in order):
 //   1. apitoken:<token>          → legacy short-lived API token from /_auth/customer/login
@@ -296,23 +325,18 @@ router.get('/usage', async (req, res) => {
   }
 });
 
-// Deploy new application (simplified for now)
+// Legacy /deploy entry. Mirrors POST /sites so older clients keep working.
 router.post('/deploy', async (req, res) => {
   try {
     const { customerId } = req;
     const { domain, type, config } = req.body;
-    
+
     if (!domain || !type) {
       return res.status(400).json({ error: 'Domain and type are required' });
     }
-    
-    // Check if domain already exists
     const exists = await redisClient.exists(`site:${domain}`);
-    if (exists) {
-      return res.status(409).json({ error: 'Domain already exists' });
-    }
-    
-    // Create the site
+    if (exists) return res.status(409).json({ error: 'Domain already exists' });
+
     const site = {
       domain,
       type,
@@ -320,20 +344,33 @@ router.post('/deploy', async (req, res) => {
       enabled: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      ...config
+      ...config,
     };
-    
+
+    if (type === 'container' || type === 'node') {
+      try {
+        site.orchestrator = 'nomad';
+        const deployed = await nomad.deploySite(site);
+        site.nomadJobId = deployed.jobId;
+        site.nomadEvalId = deployed.evalId;
+      } catch (error) {
+        return res.status(500).json({ error: 'Nomad deployment failed', details: error.message });
+      }
+    }
+
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
-    
+    await sitesIndex.registerSite(domain, customerId);
+    require('../utils/auto-cert').maybeAutoIssueCert(site);
+
     res.status(201).json({
       message: 'Deployment created',
       deployment: {
         id: domain,
         domain,
         type,
-        status: 'pending',
-        createdAt: site.createdAt
-      }
+        status: site.nomadJobId ? 'scheduled' : 'created',
+        createdAt: site.createdAt,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -377,31 +414,47 @@ router.get('/deployments/:id', async (req, res) => {
   }
 });
 
-// Update deployment
+// Legacy update-by-deployment-id — mirrors PUT /sites/:domain.
 router.put('/deployments/:id', async (req, res) => {
   try {
     const { customerId } = req;
     const { id } = req.params;
     const updates = req.body;
-    
+
     const data = await redisClient.get(`site:${id}`);
-    if (!data) {
-      return res.status(404).json({ error: 'Deployment not found' });
-    }
-    
+    if (!data) return res.status(404).json({ error: 'Deployment not found' });
     const site = JSON.parse(data);
     if (site.customerId !== customerId) {
       return res.status(404).json({ error: 'Deployment not found' });
     }
-    
-    // Apply updates
+
+    const oldConfig = site.containerConfig;
     const updatedSite = {
       ...site,
       ...updates,
-      updatedAt: new Date().toISOString()
+      customerId,
+      domain: site.domain,
+      updatedAt: new Date().toISOString(),
     };
-    
+
+    const containerChanged =
+      (updatedSite.type === 'container' || updatedSite.type === 'node') &&
+      JSON.stringify(oldConfig) !== JSON.stringify(updatedSite.containerConfig);
+
+    if (containerChanged) {
+      try {
+        updatedSite.orchestrator = 'nomad';
+        const deployed = await nomad.deploySite(updatedSite);
+        updatedSite.nomadJobId = deployed.jobId;
+        updatedSite.nomadEvalId = deployed.evalId;
+      } catch (error) {
+        return res.status(500).json({ error: 'Nomad redeploy failed', details: error.message });
+      }
+    }
+
     await redisClient.set(`site:${id}`, JSON.stringify(updatedSite));
+    await sitesIndex.registerSite(id, customerId);
+    require('../utils/auto-cert').maybeAutoIssueCert(updatedSite);
     
     res.json({
       message: 'Deployment updated',
@@ -516,33 +569,41 @@ router.post('/sites', async (req, res) => {
   try {
     const { customerId } = req;
     const siteData = req.body;
-    
-    // Ensure customer ID is set from token
-    siteData.customerId = customerId;
-    
+
     if (!siteData.domain || !siteData.type) {
       return res.status(400).json({ error: 'Domain and type are required' });
     }
-    
-    // Check if domain already exists
     const exists = await redisClient.exists(`site:${siteData.domain}`);
     if (exists) {
       return res.status(409).json({ error: 'Domain already exists' });
     }
-    
-    // Create the site
+
     const site = {
       ...siteData,
-      customerId, // Ensure customer ID from token
+      customerId,
       enabled: siteData.enabled !== false,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
-    
-    await redisClient.set(`site:${siteData.domain}`, JSON.stringify(site));
 
-    // Caddy-style automatic SSL: fire a background ACME issuance if the
-    // customer enabled SSL on this site. Doesn't block the response.
+    // Schedule container/node workloads on Nomad before we write Redis so a
+    // deploy failure doesn't leave a dangling site record.
+    if (site.type === 'container' || site.type === 'node') {
+      try {
+        site.orchestrator = 'nomad';
+        const deployed = await nomad.deploySite(site);
+        site.nomadJobId = deployed.jobId;
+        site.nomadEvalId = deployed.evalId;
+      } catch (error) {
+        return res.status(500).json({ error: 'Nomad deployment failed', details: error.message });
+      }
+    }
+
+    await redisClient.set(`site:${site.domain}`, JSON.stringify(site));
+    await sitesIndex.registerSite(site.domain, customerId);
+
+    // Non-blocking ACME issuance — the renewal scheduler will retry if DNS
+    // hasn't propagated yet.
     require('../utils/auto-cert').maybeAutoIssueCert(site);
 
     res.status(201).json(site);
@@ -551,107 +612,233 @@ router.post('/sites', async (req, res) => {
   }
 });
 
-// Update site
+// Update site. Accepts partial updates; containerConfig changes trigger a
+// Nomad redeploy (new job submission on the existing jobId, rolling update).
 router.put('/sites/:domain', async (req, res) => {
   try {
     const { customerId } = req;
     const { domain } = req.params;
     const updates = req.body;
-    
-    const data = await redisClient.get(`site:${domain}`);
-    if (!data) {
-      return res.status(404).json({ error: 'Site not found' });
-    }
-    
-    const site = JSON.parse(data);
-    if (site.customerId !== customerId) {
-      return res.status(404).json({ error: 'Site not found' });
-    }
-    
-    // Apply updates (but never change customerId)
-    const updatedSite = {
+
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+
+    const oldConfig = site.containerConfig;
+    const updated = {
       ...site,
       ...updates,
-      customerId, // Always keep customer ID from token
-      updatedAt: new Date().toISOString()
+      customerId, // lock: callers cannot change ownership
+      domain: site.domain, // lock: domain is the key, rename would be a delete+create
+      updatedAt: new Date().toISOString(),
     };
-    
-    await redisClient.set(`site:${domain}`, JSON.stringify(updatedSite));
-    
-    res.json(updatedSite);
+
+    const containerChanged =
+      (updated.type === 'container' || updated.type === 'node') &&
+      JSON.stringify(oldConfig) !== JSON.stringify(updated.containerConfig);
+
+    if (containerChanged) {
+      try {
+        updated.orchestrator = 'nomad';
+        const deployed = await nomad.deploySite(updated);
+        updated.nomadJobId = deployed.jobId;
+        updated.nomadEvalId = deployed.evalId;
+      } catch (error) {
+        return res.status(500).json({ error: 'Nomad redeploy failed', details: error.message });
+      }
+    }
+
+    await redisClient.set(`site:${domain}`, JSON.stringify(updated));
+    await sitesIndex.registerSite(domain, customerId);
+    require('../utils/auto-cert').maybeAutoIssueCert(updated);
+
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Delete site
+// Delete site — tears down Nomad job, clears Redis index, removes static
+// files if any. Container workloads and static files both cleaned up.
 router.delete('/sites/:domain', async (req, res) => {
   try {
     const { customerId } = req;
     const { domain } = req.params;
-    
-    const data = await redisClient.get(`site:${domain}`);
-    if (!data) {
-      return res.status(404).json({ error: 'Site not found' });
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+
+    if (site.type === 'container' || site.type === 'node') {
+      try { await nomad.stopSite(domain, { purge: true }); }
+      catch (e) { console.error('nomad teardown failed:', e.message); }
     }
-    
-    const site = JSON.parse(data);
-    if (site.customerId !== customerId) {
-      return res.status(404).json({ error: 'Site not found' });
+
+    if (site.type === 'static') {
+      const folder = domain.replace(/\./g, '_');
+      const staticPath = path.join(STATIC_ROOT, folder);
+      try { fs.rmSync(staticPath, { recursive: true, force: true }); } catch (_) {}
     }
-    
+
     await redisClient.del(`site:${domain}`);
-    
+    await sitesIndex.unregisterSite(domain, customerId);
     res.json({ message: 'Site deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Upload static site ZIP
-router.post('/sites/:domain/upload', async (req, res) => {
-  // TODO: Implement file upload
-  res.status(501).json({ error: 'Not implemented yet' });
+// Upload static site ZIP. Expects multipart/form-data with field "zipfile".
+// Extracts into /data/static/<folder> where folder = domain with dots → _.
+router.post('/sites/:domain/upload', upload.single('zipfile'), async (req, res) => {
+  try {
+    const { domain } = req.params;
+    const site = await loadOwnedSite(req, res);
+    if (!site) {
+      if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+      return;
+    }
+    if (site.type !== 'static') {
+      if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+      return res.status(400).json({ error: 'Site is not a static type' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded (field name: zipfile)' });
+    }
+
+    const folder = domain.replace(/\./g, '_');
+    const staticPath = path.join(STATIC_ROOT, folder);
+    try { fs.rmSync(staticPath, { recursive: true, force: true }); } catch (_) {}
+    fs.mkdirSync(staticPath, { recursive: true });
+
+    try {
+      const zip = new AdmZip(req.file.path);
+      zip.extractAllTo(staticPath, true);
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid zip file', details: error.message });
+    } finally {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+
+    site.static_path = staticPath;
+    site.lastUploadAt = new Date().toISOString();
+    await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    res.json({ message: 'Upload complete', path: staticPath });
+  } catch (error) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// Get container stats
+// Container readiness — how many allocations are running + healthy.
+router.get('/sites/:domain/readiness', async (req, res) => {
+  try {
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+    if (site.type !== 'container' && site.type !== 'node') {
+      return res.json({ ready: true, type: site.type, status: 'n/a' });
+    }
+    const status = await nomad.getSiteStatus(site.domain);
+    if (!status) return res.json({ ready: false, status: 'not_deployed' });
+    const allocs = status.allocations || [];
+    const running = allocs.filter((a) => a.status === 'running').length;
+    const healthy = allocs.filter((a) => a.healthy).length;
+    res.json({
+      ready: running > 0 && healthy === running,
+      status: running > 0 ? (healthy === running ? 'ready' : 'starting') : 'not_running',
+      allocations: allocs,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Container health (alias surface used by admin UI).
 router.get('/sites/:domain/containers', async (req, res) => {
-  // TODO: Implement container stats
-  res.json({ containers: [] });
+  try {
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+    if (site.type !== 'container' && site.type !== 'node') return res.json({ containers: [] });
+    const status = await nomad.getSiteStatus(site.domain);
+    res.json({
+      jobId: status?.jobId || null,
+      status: status?.status || 'not_deployed',
+      allocations: status?.allocations || [],
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// Container actions
+// Container actions: start / stop / restart / rebuild.
 router.post('/sites/:domain/container/:action', async (req, res) => {
-  // TODO: Implement container actions
-  res.status(501).json({ error: 'Not implemented yet' });
+  try {
+    const { action } = req.params;
+    if (!['start', 'stop', 'restart', 'rebuild'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+    if (site.type !== 'container' && site.type !== 'node') {
+      return res.status(400).json({ error: 'Not a container site' });
+    }
+
+    if (action === 'stop') {
+      await nomad.stopSite(site.domain, { purge: false });
+      return res.json({ message: 'Workload stopped' });
+    }
+    // start / restart / rebuild all go through a (re)deploy.
+    if (action === 'restart') {
+      await nomad.stopSite(site.domain, { purge: false }).catch(() => {});
+    }
+    const deployed = await nomad.deploySite(site);
+    site.nomadJobId = deployed.jobId;
+    site.nomadEvalId = deployed.evalId;
+    site.updatedAt = new Date().toISOString();
+    await redisClient.set(`site:${site.domain}`, JSON.stringify(site));
+    res.json({ message: `Workload ${action}ed`, jobId: deployed.jobId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// Get container logs
+// Tail the first-running allocation's stdout/stderr.
 router.get('/sites/:domain/logs', async (req, res) => {
-  // TODO: Implement container logs
-  res.json({ logs: [] });
+  try {
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+    if (site.type !== 'container' && site.type !== 'node') return res.json({ logs: '' });
+    const lines = parseInt(req.query.lines, 10) || 200;
+    const type = req.query.stream === 'stderr' ? 'stderr' : 'stdout';
+    const result = await nomad.getSiteLogs(site.domain, { lines, type });
+    if (!result) return res.json({ logs: '' });
+    res.json({ logs: result.body || '', alloc: result.alloc, node: result.node });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// Delete deployment
+// Legacy delete-by-deployment-id — id is the domain in this system. Same
+// teardown as DELETE /sites/:domain.
 router.delete('/deployments/:id', async (req, res) => {
   try {
     const { customerId } = req;
     const { id } = req.params;
-    
     const data = await redisClient.get(`site:${id}`);
-    if (!data) {
-      return res.status(404).json({ error: 'Deployment not found' });
-    }
-    
+    if (!data) return res.status(404).json({ error: 'Deployment not found' });
     const site = JSON.parse(data);
     if (site.customerId !== customerId) {
       return res.status(404).json({ error: 'Deployment not found' });
     }
-    
-    // TODO: Clean up containers, files, etc.
-    
+
+    if (site.type === 'container' || site.type === 'node') {
+      try { await nomad.stopSite(id, { purge: true }); }
+      catch (e) { console.error('nomad teardown failed:', e.message); }
+    }
+    if (site.type === 'static') {
+      const folder = id.replace(/\./g, '_');
+      try { fs.rmSync(path.join(STATIC_ROOT, folder), { recursive: true, force: true }); } catch (_) {}
+    }
+
     await redisClient.del(`site:${id}`);
-    
+    await sitesIndex.unregisterSite(id, customerId);
     res.json({ message: 'Deployment deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
