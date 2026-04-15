@@ -193,7 +193,12 @@ function slugify(s) {
  * Returns the matching record or null.
  */
 function findProject(responseBody, projectName) {
-  const list = Array.isArray(responseBody?.data)
+  // Appengine shape: { devEnvs: [{name, config: {orgId, ...}, ...}], user, firstName, lastName }
+  // Legacy shape:    { data: [{name | data.name}] }
+  // Raw list:        [{...}]
+  const list = Array.isArray(responseBody?.devEnvs)
+    ? responseBody.devEnvs
+    : Array.isArray(responseBody?.data)
     ? responseBody.data
     : Array.isArray(responseBody)
     ? responseBody
@@ -204,7 +209,8 @@ function findProject(responseBody, projectName) {
     list.find(
       (r) =>
         r?.name?.toLowerCase() === target ||
-        r?.data?.name?.toLowerCase() === target
+        r?.data?.name?.toLowerCase() === target ||
+        r?.config?.name?.toLowerCase() === target
     ) || null
   );
 }
@@ -218,8 +224,11 @@ function findProject(responseBody, projectName) {
  *      `{orgid}-{envName}.spinforge.dev`, which is stable and owned by us.
  */
 function resolveHost({ requestedDomain, env, orgId }) {
-  const envData = env?.data || {};
-  const envName = envData.name || env?.name || '';
+  // The appengine shape is flat (productionUrl/devUrl/previewUrl/domains
+  // all top-level on the devEnv record). Older partners nested them under
+  // .data, so we check both.
+  const envData = env?.data || env || {};
+  const envName = envData.name || env?.name || env?.config?.name || '';
   const candidates = new Set(
     [
       envData.productionUrl,
@@ -335,8 +344,13 @@ router.post('/exchange', async (req, res) => {
   // Verify the customer actually owns the requested project.
   const env = findProject(responseBody, projectName);
   if (!env) {
-    const availableNames = (Array.isArray(responseBody.data) ? responseBody.data : [])
-      .map((r) => r?.name || r?.data?.name)
+    const source = Array.isArray(responseBody.devEnvs)
+      ? responseBody.devEnvs
+      : Array.isArray(responseBody.data)
+      ? responseBody.data
+      : [];
+    const availableNames = source
+      .map((r) => r?.name || r?.data?.name || r?.config?.name)
       .filter(Boolean);
     return res.status(403).json({
       error: `Project "${projectName}" not found in the customer's environments`,
@@ -344,24 +358,33 @@ router.post('/exchange', async (req, res) => {
     });
   }
 
-  // Pull identity out of JWT claims and/or env record.
+  // Identity: prefer response-level user/firstName/lastName (appengine
+  // shape), fall back to JWT claims for older partners.
   const cdata = claims.data && typeof claims.data === 'object' ? claims.data : {};
+  const email = responseBody.user || cdata.email || claims.email || null;
+  const firstName = responseBody.firstName || cdata.firstName || '';
+  const lastName = responseBody.lastName || cdata.lastName || '';
+  const name =
+    (firstName || lastName) ? `${firstName} ${lastName}`.trim()
+      : cdata.name || cdata.fullName || cdata.username || email || null;
   const externalCustomerId =
-    claims._id || claims.id || cdata.email || cdata.username || null;
-  const email = cdata.email || claims.email || null;
-  const name = cdata.name || cdata.fullName || cdata.username || email || null;
+    email || claims._id || claims.id || cdata.username || null;
 
   if (!externalCustomerId) {
     return res.status(502).json({
       error: 'Could not derive a stable customer id from the token',
-      hint: 'Token must carry _id, id, data.email, or data.username in its claims.',
+      hint: 'Validation response must return user/email, or JWT must carry _id/email.',
     });
   }
 
-  // Honour orgid from the env record's `pk` first (most authoritative),
-  // then fall back to the JWT's pk.
+  // OrgId sources in priority order:
+  //   1. env.config.orgId (appengine shape — the dev env's owning org)
+  //   2. env.pk "<org>|..." (legacy shape)
+  //   3. JWT pk "<org>|user"
   const envPk = env?.pk || '';
-  const orgIdFromEnv = typeof envPk === 'string' && envPk.includes('|') ? envPk.split('|')[0] : null;
+  const orgIdFromEnv =
+    env?.config?.orgId ||
+    (typeof envPk === 'string' && envPk.includes('|') ? envPk.split('|')[0] : null);
   const orgId = orgIdFromEnv || orgIdFromJwt || 'default';
 
   // Resolve the final hostname
@@ -430,6 +453,129 @@ router.post('/exchange', async (req, res) => {
       previewUrl: env?.data?.previewUrl || null,
       domains: env?.data?.domains || [],
     },
+  });
+});
+
+// ─── POST /_partners/auth ────────────────────────────────────────────
+//
+// Generic, non-opinionated version of /exchange. For partners whose
+// validation endpoint answers the simple question "is this customer good
+// to deploy?" rather than returning a dev_environment record.
+//
+// Request body:
+//   {
+//     "token":   "<opaque customer token from the partner>",  // required
+//     "payload": { ... }                                      // optional passthrough
+//   }
+//
+// Flow:
+//   1. POST partner.validationUrl with Authorization: Bearer <token>
+//      and the payload as JSON body. Partner decides allow/deny.
+//   2. Expected response shape:
+//        { allow: true|false, customerId, email?, name?, reason? }
+//   3. If allow=true, ensure a customer record exists (namespaced by
+//      partner id) and mint a 1h sfc_ customer token.
+//   4. If allow=false or the partner returned non-2xx, 403.
+//
+// Unlike /exchange, this endpoint makes no assumptions about JWT claims,
+// project names, or hostname resolution. The customer decides what to
+// host later using the returned token against /_api/customer/sites.
+router.post('/auth', async (req, res) => {
+  const partner = req.partner;
+  const { token: customerToken, payload } = req.body || {};
+
+  if (!customerToken || typeof customerToken !== 'string') {
+    return res.status(400).json({ error: 'Request body must include a "token" string' });
+  }
+
+  let partnerResponse;
+  try {
+    const method = (partner.validationMethod || 'POST').toUpperCase();
+    partnerResponse = await axios({
+      method,
+      url: partner.validationUrl,
+      timeout: Number(partner.verifyTimeoutMs) || 3000,
+      headers: {
+        Authorization: `Bearer ${customerToken}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'SpinForge-Partner-Auth/1.0',
+        ...(partner.validationHeaders || {}),
+      },
+      ...(method === 'POST' || method === 'PUT' || method === 'PATCH'
+        ? { data: payload || {} }
+        : {}),
+      validateStatus: (s) => s < 500,
+    });
+  } catch (err) {
+    logger.warn(`[partners/auth] partner ${partner.id} verify call failed: ${err.message}`);
+    return res.status(502).json({
+      error: 'Could not reach partner validation endpoint',
+      details: err.message,
+    });
+  }
+
+  const body = partnerResponse.data || {};
+  const allow =
+    partnerResponse.status >= 200 &&
+    partnerResponse.status < 300 &&
+    body.allow !== false;
+
+  if (!allow) {
+    return res.status(403).json({
+      error: 'Partner did not allow this customer',
+      reason: body.reason || body.error || null,
+      partnerStatus: partnerResponse.status,
+    });
+  }
+
+  const externalCustomerId = body.customerId || body.id || body.externalCustomerId;
+  if (!externalCustomerId) {
+    return res.status(502).json({
+      error: 'Partner allowed the customer but did not return a customerId',
+      hint: 'Validation response must include { allow: true, customerId: "<stable-id>" }',
+    });
+  }
+
+  let spinforgeCustomerId;
+  try {
+    spinforgeCustomerId = await ensureSpinForgeCustomer({
+      partnerId: partner.id,
+      externalCustomerId: String(externalCustomerId),
+      email: body.email || null,
+      name: body.name || body.fullName || null,
+      metadata: body.metadata || {},
+    });
+  } catch (err) {
+    logger.error('[partners/auth] failed to provision customer:', err);
+    return res.status(500).json({ error: err.message });
+  }
+
+  let issued;
+  try {
+    const ttlSeconds = Number(partner.tokenTtlSeconds || 3600);
+    const expiryIso = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+    issued = await customerTokenService.createToken({
+      customerId: spinforgeCustomerId,
+      userEmail: body.email || `partner-${partner.id}`,
+      name: `partner:${partner.name}:${crypto.randomBytes(3).toString('hex')}`,
+      expiry: expiryIso,
+    });
+  } catch (err) {
+    logger.error('[partners/auth] failed to issue customer token:', err);
+    return res.status(500).json({ error: err.message });
+  }
+
+  logger.info(
+    `[partners/auth] partner=${partner.id} customer=${spinforgeCustomerId} allowed`
+  );
+
+  res.json({
+    success: true,
+    token: issued.token,
+    customerId: spinforgeCustomerId,
+    expiresAt: issued.expiresAt,
+    partner: { id: partner.id, name: partner.name },
   });
 });
 

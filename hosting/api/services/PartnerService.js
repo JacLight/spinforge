@@ -152,13 +152,30 @@ class PartnerService {
       await this.redis.set(`partner:${id}`, JSON.stringify(metadata));
     } catch (_) {}
 
+    // Apply the same env override getPartner() uses.
+    const overrideKey = `PARTNER_VERIFY_URL_${id.toUpperCase().replace(/-/g, '_')}`;
+    if (process.env[overrideKey]) {
+      metadata.validationUrl = process.env[overrideKey];
+      metadata.validationUrlOverridden = true;
+    }
     return metadata;
   }
 
   async getPartner(id) {
     const raw = await this.redis.get(`partner:${id}`);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const record = JSON.parse(raw);
+
+    // Env override for the validation URL. Useful for dev ("point my local
+    // appmint at a ngrok tunnel without touching Redis") and as an escape
+    // hatch if a bad URL was saved and the admin UI is offline. Shape:
+    //   PARTNER_VERIFY_URL_<uppercased id with '-' → '_'> = https://…
+    const overrideKey = `PARTNER_VERIFY_URL_${id.toUpperCase().replace(/-/g, '_')}`;
+    if (process.env[overrideKey]) {
+      record.validationUrl = process.env[overrideKey];
+      record.validationUrlOverridden = true;
+    }
+    return record;
   }
 
   async listPartners() {
