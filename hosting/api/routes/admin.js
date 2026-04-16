@@ -84,9 +84,14 @@ router.post('/login', rateLimit({ name: 'admin-login', max: 5, windowSec: 60 }),
 
     const result = await adminService.login(username, password);
     if (!result) {
+      require('../utils/events').publish('admin.login.failed', username, {
+        ip: req.ip, userAgent: (req.headers['user-agent'] || '').slice(0, 160),
+      }, 'warn');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
+    require('../utils/events').publish('admin.login.ok', username, {
+      ip: req.ip, adminId: result.admin?.id,
+    });
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });

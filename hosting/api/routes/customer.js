@@ -13,6 +13,7 @@ const multer = require('multer');
 const AdmZip = require('adm-zip');
 const redisClient = require('../utils/redis');
 const sitesIndex = require('../utils/sites-index');
+const { publish: publishEvent } = require('../utils/events');
 const { checkStaticFiles } = require('../utils/site-helpers');
 const { STATIC_ROOT, UPLOADS_ROOT } = require('../utils/constants');
 const CustomerTokenService = require('../services/CustomerTokenService');
@@ -650,6 +651,10 @@ router.post('/sites', async (req, res) => {
       }
     } catch (_) { /* never let notify break the deploy */ }
 
+    publishEvent('site.created', site.domain, {
+      customerId, type: site.type, aliases: site.aliases || [],
+    });
+
     res.status(201).json(site);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -717,6 +722,12 @@ router.put('/sites/:domain', async (req, res) => {
 
     require('../utils/auto-cert').maybeAutoIssueCert(updated);
 
+    publishEvent('site.updated', domain, {
+      customerId, type: updated.type,
+      aliases: Array.isArray(updated.aliases) ? updated.aliases : [],
+      containerChanged,
+    });
+
     res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -751,6 +762,9 @@ router.delete('/sites/:domain', async (req, res) => {
 
     await redisClient.del(`site:${domain}`);
     await sitesIndex.unregisterSite(domain, customerId);
+
+    publishEvent('site.deleted', domain, { customerId, type: site.type }, 'warn');
+
     res.json({ message: 'Site deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -792,6 +806,9 @@ router.post('/sites/:domain/upload', upload.single('zipfile'), async (req, res) 
     site.static_path = staticPath;
     site.lastUploadAt = new Date().toISOString();
     await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    publishEvent('site.uploaded', domain, {
+      customerId: site.customerId, bytes: req.file?.size || 0,
+    });
     res.json({ message: 'Upload complete', path: staticPath });
   } catch (error) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }

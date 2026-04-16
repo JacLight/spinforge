@@ -269,6 +269,10 @@ router.post('/auth', async (req, res) => {
     logger.warn(
       `[partners/auth] partner=${partner.id} REJECTED status=${partnerResponse.status} body=${bodyPreview}`
     );
+    require('../utils/events').publish('partner.auth.denied', partner.id, {
+      status: partnerResponse.status,
+      reason: body.reason || body.error || body.message || null,
+    }, 'warn');
     return res.status(403).json({
       error: 'Partner did not allow this customer',
       reason: body.reason || body.error || body.message || null,
@@ -357,6 +361,9 @@ router.post('/auth', async (req, res) => {
   logger.info(
     `[partners/auth] partner=${partner.id} customer=${spinforgeCustomerId} orgId=${orgId} url=${resolvedUrl} status=${partnerResponse.status}`
   );
+  require('../utils/events').publish('partner.auth.allowed', partner.id, {
+    customerId: spinforgeCustomerId, orgId,
+  });
 
   res.json({
     success: true,
