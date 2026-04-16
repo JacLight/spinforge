@@ -246,6 +246,13 @@ server.listen(PORT, async () => {
     const heartbeat = new NodeHeartbeat(redisClient, { logger, eventStream: events });
     await heartbeat.start();
 
+    // Container crash watchdog — single cluster-wide loop (cluster
+    // lock inside) that scans agent heartbeats and fires alerts +
+    // emails when any customer container falls out of 'running'.
+    const ContainerWatchdog = require('./services/ContainerWatchdog');
+    const watchdog = new ContainerWatchdog(redisClient, { logger });
+    watchdog.start();
+
     mountPlatformWebSocket({
       httpServer: server,
       redis: redisClient,
@@ -253,7 +260,7 @@ server.listen(PORT, async () => {
       logger,
     });
 
-    app.locals.platform = { heartbeat, events };
+    app.locals.platform = { heartbeat, events, watchdog };
   } catch (error) {
     logger.error('Failed to initialize platform subsystem:', error);
   }
@@ -261,6 +268,7 @@ server.listen(PORT, async () => {
   process.on('SIGTERM', async () => {
     try { app.locals.acme?.renewalScheduler?.stop(); } catch (_) {}
     try { await app.locals.platform?.heartbeat?.stop(); } catch (_) {}
+    try { app.locals.platform?.watchdog?.stop(); } catch (_) {}
     process.exit(0);
   });
 });

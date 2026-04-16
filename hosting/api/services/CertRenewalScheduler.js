@@ -23,6 +23,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const { preflight: dnsPreflight } = require('../utils/dns-preflight');
 const { withClusterLock } = require('../utils/cluster-lock');
 const sitesIndex = require('../utils/sites-index');
+const { publish: publishEvent } = require('../utils/events');
 
 // How long one scheduler tick is allowed to hold the cluster lock before
 // it's considered dead. Must be longer than a realistic slow tick; the
@@ -157,6 +158,8 @@ class CertRenewalScheduler {
         } catch (err) {
           this.logger.error?.(`CertRenewalScheduler: renew failed for ${domain}: ${err.message}`);
           result.errored.push({ domain, error: err.message });
+          publishEvent('cert.renewal.failed', domain, { error: err.message }, 'error');
+          await this._notifyCertFailure(domain, err.message, desc?.notAfter).catch(() => {});
         }
       }
 
@@ -198,6 +201,7 @@ class CertRenewalScheduler {
           this.logger.warn?.(`CertRenewalScheduler: issue failed for ${domain}: ${err.message}`);
           await this.recordBackoff(domain);
           result.errored.push({ domain, error: err.message });
+          publishEvent('cert.issuance.failed', domain, { error: err.message }, 'warn');
         }
       }
     } finally {
@@ -264,6 +268,42 @@ class CertRenewalScheduler {
       nextAttemptAt: nextAt,
     });
     await this.redis.setEx(`cert:backoff:${domain}`, minutes * 60, nextAt);
+  }
+
+  /**
+   * Email the owning customer when a renewal fails. Best-effort — if
+   * any lookup returns null or the notifications subsystem isn't up
+   * yet we silently skip. The corresponding email template is
+   * `cert_renewal_failed` (see services/email-templates.default.js).
+   */
+  async _notifyCertFailure(domain, reason, expiresAt) {
+    try {
+      const raw = await this.redis.get(`site:${domain}`);
+      if (!raw) return;
+      const site = JSON.parse(raw);
+      if (!site.customerId) return;
+      const custRaw = await this.redis.get(`customer:${site.customerId}`);
+      if (!custRaw) return;
+      const customer = JSON.parse(custRaw);
+      if (!customer.email) return;
+
+      // Notifications live on app.locals and are created at boot. We
+      // can't import that here cleanly — just re-instantiate a thin
+      // singleton using the same redis handle.
+      const NotificationService = require('./NotificationService');
+      const notify = new NotificationService(this.redis, { logger: this.logger });
+      await notify.notify('cert_renewal_failed', {
+        to: customer.email,
+        context: {
+          name: customer.name || customer.email,
+          domain,
+          reason: String(reason || '').slice(0, 500),
+          expiresAt: expiresAt || 'unknown',
+        },
+      });
+    } catch (err) {
+      this.logger.warn?.(`[cert-notify] failed for ${domain}: ${err.message}`);
+    }
   }
 }
 
