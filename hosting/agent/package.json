@@ -1,0 +1,13 @@
+{
+  "name": "spinforge-agent",
+  "version": "1.0.0",
+  "description": "SpinForge node agent — heartbeat and command execution per node",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "dockerode": "^4.0.2",
+    "redis": "^4.7.0"
+  }
+}

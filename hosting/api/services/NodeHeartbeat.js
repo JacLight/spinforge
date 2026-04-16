@@ -44,7 +44,14 @@ class NodeHeartbeat {
     this.redis = redis;
     this.logger = logger || console;
     this.eventStream = eventStream || null;
-    this.hostname = os.hostname();
+    // Inside the api container, os.hostname() is the container id
+    // which is useless for correlating back to the Proxmox VM. Prefer
+    // the node hostname injected by setup-node.sh (SERVER_NAME) or
+    // NODE_HOSTNAME, and only fall back to os.hostname() if neither is
+    // set (local dev).
+    this.hostname = process.env.SERVER_NAME
+      || process.env.NODE_HOSTNAME
+      || os.hostname();
     this.key = KEY_PREFIX + this.hostname;
     this.startedAt = new Date().toISOString();
     this.version = this._readVersion();
