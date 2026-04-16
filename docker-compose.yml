@@ -11,9 +11,15 @@ services:
     restart: unless-stopped
     volumes:
       - keydb-data:/data
+      - ./hosting/keydb/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
     environment:
+      - KEYDB_PORT=16378
       - KEYDB_PASSWORD=${REDIS_PASSWORD:-}
-    command: keydb-server --appendonly yes --protected-mode no --port 16378
+      # Multi-master: comma-separated host:port of OTHER nodes' KeyDB.
+      # Empty = single-node (standalone). Set this when adding more nodes:
+      #   KEYDB_PEERS=192.168.88.171:16378,192.168.88.172:16378
+      - KEYDB_PEERS=${KEYDB_PEERS:-}
+    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
     networks:
       spinforge:
         ipv4_address: 172.18.0.10
