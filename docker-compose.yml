@@ -76,6 +76,12 @@ services:
       - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certs:/etc/letsencrypt
       - ${SPINFORGE_DATA_ROOT:-./hosting/data}/certbot-webroot:/var/www/certbot
       - openresty-logs:/var/log/nginx
+    # Nginx wants enough open FDs to cover worker_connections × workers.
+    # Default container nofile is 1024 — our nginx.conf asks for 2048.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     networks:
       spinforge:
         ipv4_address: 172.18.0.11
