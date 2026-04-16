@@ -7,7 +7,8 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, X, RefreshCw, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { AlertTriangle, RefreshCw, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import apiClient from '../services/axios-config';
 
 interface HealthCheck {
   status: 'healthy' | 'unhealthy' | 'degraded' | 'unknown';
@@ -29,12 +30,16 @@ export default function SystemHealthAlert() {
 
   const { data: health, isLoading, error } = useQuery<SystemHealth>({
     queryKey: ['system-health'],
+    // Use the shared axios client so the request is same-origin (the
+    // admin-ui's nginx proxies /api/* to the api container) and carries
+    // the admin JWT. Hitting VITE_API_BASE_URL directly was a hardcoded
+    // per-build IP that doesn't work once the UI is reached via the
+    // admin.spinforge.dev edge.
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/health/system`);
-      if (!response.ok) throw new Error('Health check failed');
-      return response.json();
+      const { data } = await apiClient.get<SystemHealth>('/api/health/system');
+      return data;
     },
-    refetchInterval: 30000, // Check every 30 seconds
+    refetchInterval: 30000,
     retry: 1,
   });
 
@@ -65,9 +70,10 @@ export default function SystemHealthAlert() {
 
   return (
     <>
-      {/* Compact Alert Bar */}
-      <div 
-        className={`fixed top-0 left-0 right-0 ${getAlertColor()} border-b shadow-sm z-50 cursor-pointer transition-all`}
+      {/* Compact Alert Bar — flows in-document (not fixed) so page
+          content isn't covered. Expanded details still float. */}
+      <div
+        className={`${getAlertColor()} border-b shadow-sm cursor-pointer transition-all`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="max-w-7xl mx-auto px-4 py-2">
@@ -110,7 +116,7 @@ export default function SystemHealthAlert() {
 
       {/* Expanded Details */}
       {expanded && (
-        <div className={`fixed top-8 left-0 right-0 ${getAlertColor()} border-b shadow-lg z-40`}>
+        <div className={`${getAlertColor()} border-b shadow-lg`}>
           <div className="max-w-7xl mx-auto px-4 py-6">
             <h3 className="text-lg font-semibold mb-4">System Health Details</h3>
             
