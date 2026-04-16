@@ -39,6 +39,7 @@ import CertificateManager from "./pages/CertificateManager";
 import Partners from "./pages/Partners";
 import EmailTemplates from "./pages/EmailTemplates";
 import AdminActivity from "./pages/AdminActivity";
+import { ConfirmProvider } from "./components/ConfirmModal";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -89,6 +90,7 @@ function App() {
     return <AdminLogin onLogin={handleLogin} />;
   }
   return (
+    <ConfirmProvider>
     <Router>
       <Toaster
         position="top-right"
@@ -131,6 +133,7 @@ function App() {
         </Routes>
       </ModernLayout>
     </Router>
+    </ConfirmProvider>
   );
 }
 

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useConfirm } from '../components/ConfirmModal';
 
 interface PreflightInfo {
   ok: boolean;
@@ -68,6 +69,7 @@ interface CertificateDrawerProps {
 }
 
 function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: CertificateDrawerProps) {
+  const confirm = useConfirm();
   const [isRegistering, setIsRegistering] = useState(false);
   const [validationStep, setValidationStep] = useState<'form' | 'validation'>('form');
   const [dnsValidationData, setDnsValidationData] = useState<any>(null);
@@ -216,7 +218,14 @@ function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: Certific
   };
 
   const handleDelete = async () => {
-    if (!certificate || !window.confirm(`Delete certificate for ${certificate.domain}?`)) return;
+    if (!certificate) return;
+    const ok = await confirm({
+      title: `Delete certificate for ${certificate.domain}?`,
+      description: 'The site will fall back to the default self-signed cert until a new one is issued.',
+      severity: 'danger',
+      confirmLabel: 'Delete certificate',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/ssl/certificates/${encodeURIComponent(certificate.domain)}`, {
@@ -665,10 +674,14 @@ function CertificateDrawer({ certificate, isOpen, onClose, onRefresh }: Certific
                   {/* Force renew bypasses the DNS preflight — useful when the
                       admin knows DNS is correct but the check is wrong. */}
                   <button
-                    onClick={() => {
-                      if (window.confirm('Force renew bypasses the DNS preflight check. Only use this if you know DNS is correct. Continue?')) {
-                        handleRenew(true);
-                      }
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Force renew, skipping DNS preflight?',
+                        description: 'Only use this if you know DNS is correct. A bad DNS setup will burn a Let\'s Encrypt rate-limit slot.',
+                        severity: 'warning',
+                        confirmLabel: 'Force renew',
+                      });
+                      if (ok) handleRenew(true);
                     }}
                     className="w-full flex items-center justify-center px-4 py-2 border border-amber-300 text-amber-800 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors text-sm"
                   >

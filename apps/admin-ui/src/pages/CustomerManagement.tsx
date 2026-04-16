@@ -11,6 +11,7 @@ import { Customer } from '../services/api';
 import { Plus, Edit2, Trash2, Search, Users, CheckCircle, XCircle, Grid3X3, Package, Upload, LayoutDashboard, Globe, X, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useConfirm } from '../components/ConfirmModal';
 
 interface CustomerWithStats extends Customer {
   stats?: {
@@ -23,6 +24,7 @@ interface CustomerWithStats extends Customer {
 }
 
 export default function CustomerManagement() {
+  const confirm = useConfirm();
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -86,9 +88,13 @@ export default function CustomerManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this customer?')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Delete customer?',
+      description: 'Their sites, tokens, and session data will all be removed. This cannot be undone.',
+      severity: 'danger',
+      confirmLabel: 'Delete customer',
+    });
+    if (!ok) return;
 
     try {
       await api.deleteCustomer(id);

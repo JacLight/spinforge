@@ -11,6 +11,7 @@ import {
   Rocket
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ConfirmModal';
 
 interface TemplateVariable {
   name: string;
@@ -55,6 +56,7 @@ const categoryGradients = {
 };
 
 function Templates() {
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
@@ -114,7 +116,13 @@ function Templates() {
   };
 
   const handleDeleteTemplate = async (templateId: string) => {
-    if (!window.confirm('Are you sure you want to delete this template?')) return;
+    const ok = await confirm({
+      title: 'Delete template?',
+      description: 'This removes the template. Existing sites created from it are unaffected.',
+      severity: 'danger',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     
     try {
       const response = await fetch(`/api/templates/${templateId}`, {

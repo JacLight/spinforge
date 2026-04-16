@@ -11,6 +11,7 @@ import { Plus, Edit2, Trash2, Shield, User, Key, Grid3X3, Package, Upload, Layou
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ConfirmModal';
 
 interface AdminUser {
   id: string;
@@ -23,6 +24,7 @@ interface AdminUser {
 }
 
 export default function AdminUserManagement() {
+  const confirm = useConfirm();
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -107,7 +109,13 @@ export default function AdminUserManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this admin user?')) {
+    const ok = await confirm({
+      title: 'Delete admin user?',
+      description: 'They lose access to /_admin/* immediately. Their session and API tokens are revoked.',
+      severity: 'danger',
+      confirmLabel: 'Delete admin',
+    });
+    if (!ok) {
       return;
     }
 
