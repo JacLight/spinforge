@@ -5,7 +5,7 @@
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,6 +19,7 @@ import {
   Home,
   Monitor,
   ChevronRight,
+  ChevronDown,
   Shield,
   Activity,
   Archive,
@@ -42,121 +43,125 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const navItems = [
+interface NavItem {
+  path: string;
+  icon: any;
+  label: string;
+  color: string;
+}
+
+interface NavGroup {
+  title?: string;
+  items: NavItem[];
+}
+
+const topNav: NavItem[] = [
+  { path: "/home", icon: Home, label: "Cluster", color: "from-indigo-500 to-indigo-600" },
+];
+
+const groupedNav: NavGroup[] = [
   {
-    path: "/home",
-    icon: Home,
-    label: "Cluster",
-    color: "from-indigo-500 to-indigo-600",
+    title: "Platform",
+    items: [
+      { path: "/platform/nodes",     icon: Server,      label: "Nodes",     color: "from-emerald-500 to-emerald-600" },
+      { path: "/platform/workloads", icon: PackageIcon, label: "Workloads", color: "from-cyan-500 to-cyan-600" },
+      { path: "/platform/events",    icon: ActivityIcon,label: "Events",    color: "from-violet-500 to-violet-600" },
+    ],
   },
   {
-    path: "/admin",
-    icon: Shield,
-    label: "Admin Console",
-    color: "from-red-500 to-red-600",
+    title: "Hosting",
+    items: [
+      { path: "/applications", icon: Package,     label: "Applications", color: "from-green-500 to-green-600" },
+      { path: "/deploy",       icon: Upload,      label: "Deploy",       color: "from-orange-500 to-orange-600" },
+      { path: "/customers",    icon: Users,       label: "Customers",    color: "from-teal-500 to-teal-600" },
+      { path: "/partners",     icon: Briefcase,   label: "Partners",     color: "from-amber-500 to-amber-600" },
+      { path: "/templates",    icon: FileCode,    label: "Templates",    color: "from-lime-500 to-lime-600" },
+    ],
   },
   {
-    path: "/welcome",
-    icon: Home,
-    label: "Overview",
-    color: "from-blue-500 to-blue-600",
+    title: "Operations",
+    items: [
+      { path: "/certificates",    icon: Shield,      label: "Certificates",   color: "from-green-500 to-green-600" },
+      { path: "/email-templates", icon: Mail,        label: "Email Templates",color: "from-pink-500 to-pink-600" },
+      { path: "/activity",        icon: ShieldAlert, label: "Admin Activity", color: "from-slate-500 to-slate-600" },
+    ],
   },
   {
-    path: "/dashboard",
-    icon: Monitor,
-    label: "Dashboard",
-    color: "from-purple-500 to-purple-600",
-  },
-  {
-    path: "/applications",
-    icon: Package,
-    label: "Applications",
-    color: "from-green-500 to-green-600",
-  },
-  {
-    path: "/active-spinlets",
-    icon: Archive,
-    label: "Active Spinlets",
-    color: "from-cyan-500 to-cyan-600",
-  },
-  {
-    path: "/deploy",
-    icon: Upload,
-    label: "Deploy",
-    color: "from-orange-500 to-orange-600",
-  },
-  {
-    path: "/templates",
-    icon: FileCode,
-    label: "Templates",
-    color: "from-indigo-500 to-indigo-600",
-  },
-  {
-    path: "/platform/nodes",
-    icon: Server,
-    label: "Nodes",
-    color: "from-emerald-500 to-emerald-600",
-  },
-  {
-    path: "/platform/workloads",
-    icon: PackageIcon,
-    label: "Workloads",
-    color: "from-cyan-500 to-cyan-600",
-  },
-  {
-    path: "/platform/events",
-    icon: ActivityIcon,
-    label: "Events",
-    color: "from-violet-500 to-violet-600",
-  },
-  {
-    path: "/certificates",
-    icon: Shield,
-    label: "Certificates",
-    color: "from-green-500 to-green-600",
-  },
-  {
-    path: "/customers",
-    icon: Users,
-    label: "Customers",
-    color: "from-teal-500 to-teal-600",
-  },
-  {
-    path: "/partners",
-    icon: Briefcase,
-    label: "Partners",
-    color: "from-amber-500 to-amber-600",
-  },
-  {
-    path: "/email-templates",
-    icon: Mail,
-    label: "Email Templates",
-    color: "from-pink-500 to-pink-600",
-  },
-  {
-    path: "/activity",
-    icon: ShieldAlert,
-    label: "Admin Activity",
-    color: "from-slate-500 to-slate-600",
-  },
-  {
-    path: "/admin-users",
-    icon: UserCog,
-    label: "Admin Users",
-    color: "from-rose-500 to-rose-600",
-  },
-  {
-    path: "/settings",
-    icon: Settings,
-    label: "Settings",
-    color: "from-gray-500 to-gray-600",
+    title: "System",
+    items: [
+      { path: "/admin-users", icon: UserCog,         label: "Admin Users",    color: "from-rose-500 to-rose-600" },
+      { path: "/settings",    icon: Settings,        label: "Settings",       color: "from-gray-500 to-gray-600" },
+      { path: "/admin",       icon: Shield,          label: "Admin Console",  color: "from-red-500 to-red-600" },
+      { path: "/dashboard",   icon: Monitor,         label: "Dashboard",      color: "from-purple-500 to-purple-600" },
+      { path: "/welcome",     icon: Home,            label: "Overview",       color: "from-blue-500 to-blue-600" },
+    ],
   },
 ];
+
+
+function renderNavItem(item: NavItem, isActive: boolean) {
+  const Icon = item.icon;
+  return (
+    <Link
+      key={item.path}
+      to={item.path}
+      className={classNames(
+        "group flex items-center rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200",
+        isActive
+          ? `bg-gradient-to-r ${item.color} text-white shadow-lg`
+          : "text-gray-700 hover:bg-gray-100"
+      )}
+    >
+      <div
+        className={classNames(
+          "mr-3 p-1.5 rounded-lg",
+          isActive
+            ? "bg-white/20"
+            : `bg-gradient-to-r ${item.color} text-white opacity-80 group-hover:opacity-100`
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <span className="flex-1">{item.label}</span>
+      {isActive && <ChevronRight className="h-4 w-4 opacity-60" />}
+    </Link>
+  );
+}
 
 export default function ModernLayout({ children }: LayoutProps) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Track which groups are collapsed. Persist across reloads so
+  // operators don't re-expand everything every time. Defaults: all
+  // groups open.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('nav.collapsedGroups');
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch { return new Set(); }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('nav.collapsedGroups', JSON.stringify(Array.from(collapsed))); } catch {}
+  }, [collapsed]);
+  const toggleGroup = (title: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title); else next.add(title);
+      return next;
+    });
+  };
+
+  // If the user navigates to an item inside a collapsed group, auto-
+  // expand it so the active item is visible.
+  useEffect(() => {
+    const activeGroup = groupedNav.find((g) => g.items.some((it) => it.path === location.pathname));
+    if (activeGroup && activeGroup.title && collapsed.has(activeGroup.title)) {
+      toggleGroup(activeGroup.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -190,35 +195,34 @@ export default function ModernLayout({ children }: LayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 px-3 py-4">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+          <nav className="flex-1 space-y-3 px-3 py-4 overflow-y-auto">
+            {/* Top-level items (Cluster home) */}
+            <div className="space-y-1">
+              {topNav.map((item) => renderNavItem(item, location.pathname === item.path))}
+            </div>
 
+            {/* Grouped sections */}
+            {groupedNav.map((group) => {
+              const isCollapsed = group.title ? collapsed.has(group.title) : false;
               return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={classNames(
-                    "group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? `bg-gradient-to-r ${item.color} text-white shadow-lg`
-                      : "text-gray-700 hover:bg-gray-100"
+                <div key={group.title}>
+                  {group.title && (
+                    <button
+                      onClick={() => group.title && toggleGroup(group.title)}
+                      className="flex items-center justify-between w-full px-3 py-1 text-[11px] uppercase tracking-wider font-semibold text-gray-500 hover:text-gray-700"
+                    >
+                      <span>{group.title}</span>
+                      {isCollapsed
+                        ? <ChevronRight className="h-3 w-3" />
+                        : <ChevronDown  className="h-3 w-3" />}
+                    </button>
                   )}
-                >
-                  <div
-                    className={classNames(
-                      "mr-3 p-2 rounded-lg",
-                      isActive
-                        ? "bg-white/20"
-                        : `bg-gradient-to-r ${item.color} text-white opacity-80 group-hover:opacity-100`
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <span className="flex-1">{item.label}</span>
-                  {isActive && <ChevronRight className="h-4 w-4 opacity-60" />}
-                </Link>
+                  {!isCollapsed && (
+                    <div className="space-y-1 mt-1">
+                      {group.items.map((item) => renderNavItem(item, location.pathname === item.path))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
