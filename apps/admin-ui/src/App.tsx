@@ -39,6 +39,7 @@ import CertificateManager from "./pages/CertificateManager";
 import Partners from "./pages/Partners";
 import EmailTemplates from "./pages/EmailTemplates";
 import AdminActivity from "./pages/AdminActivity";
+import PlatformHome from "./pages/platform/Home";
 import PlatformNodes from "./pages/platform/Nodes";
 import PlatformEvents from "./pages/platform/Events";
 import PlatformWorkloads from "./pages/platform/Workloads";
@@ -112,7 +113,8 @@ function App() {
       <SystemHealthAlert />
       <ModernLayout>
         <Routes>
-          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<PlatformHome />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/applications" element={<Applications />} />
@@ -133,6 +135,7 @@ function App() {
           <Route path="/partners" element={<Partners />} />
           <Route path="/email-templates" element={<EmailTemplates />} />
           <Route path="/activity" element={<AdminActivity />} />
+          <Route path="/platform" element={<Navigate to="/home" replace />} />
           <Route path="/platform/nodes" element={<PlatformNodes />} />
           <Route path="/platform/events" element={<PlatformEvents />} />
           <Route path="/platform/workloads" element={<PlatformWorkloads />} />

@@ -44,6 +44,12 @@ interface LayoutProps {
 
 const navItems = [
   {
+    path: "/home",
+    icon: Home,
+    label: "Cluster",
+    color: "from-indigo-500 to-indigo-600",
+  },
+  {
     path: "/admin",
     icon: Shield,
     label: "Admin Console",
