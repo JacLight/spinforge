@@ -77,6 +77,19 @@ prompt CONSUL_PEERS  "Other Consul server IPs (comma-separated, empty = single s
 prompt NOMAD_PEERS   "Other Nomad server IPs (comma-separated, empty = single server)"   ""
 prompt MOUNT_CEPH    "Mount CephFS? [y/N]" "N"
 
+# Where Consul + Nomad + SpinForge store their data. If Ceph isn't in
+# play, stay on local disk — path must exist or docker-compose will
+# bind-mount a fresh empty dir which is fine for a single-node setup.
+if [ "${MOUNT_CEPH,,}" = "y" ] || [ "${MOUNT_CEPH,,}" = "yes" ]; then
+  DATA_PARENT="$CEPH_MOUNT"
+else
+  DATA_PARENT="/var/lib/spinforge"
+  mkdir -p "$DATA_PARENT"
+fi
+SPINFORGE_DATA_ROOT="${DATA_PARENT}/hosting/data"
+CONSUL_DATA="${DATA_PARENT}/consul/data-${NODE_HOSTNAME}"
+NOMAD_DATA="${DATA_PARENT}/nomad/data-${NODE_HOSTNAME}"
+
 log "Node config:"
 log "  hostname:          $NODE_HOSTNAME"
 log "  ip:                $NODE_IP"
@@ -85,6 +98,7 @@ log "  consul peers:      ${CONSUL_PEERS:-<none>}"
 log "  nomad peers:       ${NOMAD_PEERS:-<none>}"
 log "  bootstrap_expect:  $BOOTSTRAP_EXPECT"
 log "  mount cephfs:      $MOUNT_CEPH"
+log "  data parent:       $DATA_PARENT"
 
 # ─── Hostname ─────────────────────────────────────────────────────────
 if [ "$(hostname)" != "$NODE_HOSTNAME" ]; then
@@ -207,8 +221,8 @@ REDIS_DB=1
 # Multi-master KeyDB — empty means this node runs standalone
 KEYDB_PEERS=$KEYDB_PEERS
 
-# Data dirs
-SPINFORGE_DATA_ROOT=$CEPH_MOUNT/hosting/data
+# Data dirs — on Ceph if mounted, else local /var/lib/spinforge
+SPINFORGE_DATA_ROOT=$SPINFORGE_DATA_ROOT
 DATA_ROOT=/data
 STATIC_ROOT=/data/static
 
@@ -240,7 +254,6 @@ else
 fi
 
 # ─── Consul config ────────────────────────────────────────────────────
-CONSUL_DATA="${CEPH_MOUNT}/consul/data-${NODE_HOSTNAME}"
 CONSUL_CFG="/etc/consul.d"
 mkdir -p "$CONSUL_CFG" "$CONSUL_DATA"
 chown -R consul:consul "$CONSUL_DATA" 2>/dev/null || true
@@ -276,7 +289,6 @@ EOF
 done_ "Consul config"
 
 # ─── Nomad config ─────────────────────────────────────────────────────
-NOMAD_DATA="${CEPH_MOUNT}/nomad/data-${NODE_HOSTNAME}"
 NOMAD_CFG="/etc/nomad.d"
 mkdir -p "$NOMAD_CFG" "$NOMAD_DATA"
 
@@ -311,7 +323,7 @@ server {
 client {
   enabled = true
   host_volume "spinforge-data" {
-    path      = "${CEPH_MOUNT}/hosting/data"
+    path      = "${SPINFORGE_DATA_ROOT}"
     read_only = false
   }
 }
@@ -380,8 +392,11 @@ cd "$SPINFORGE_DIR"
 sudo -u "$SPINFORGE_USER" docker compose up -d
 
 # ─── Verify ───────────────────────────────────────────────────────────
-log "waiting 10s for services to come up..."
-sleep 10
+# 25s is enough for: KeyDB ready, api boot + sites-index rebuild,
+# OpenResty cert bootstrap, Nomad leader election (single-server is
+# instant but Consul quorum can take ~10s).
+log "waiting 25s for services to come up..."
+sleep 25
 
 fail=0
 if curl -fsS -m 3 "http://127.0.0.1:8080/api/health" >/dev/null 2>&1; then
@@ -419,11 +434,17 @@ if [ "$fail" -eq 0 ]; then
   done_ "Node setup complete"
   echo
   echo "Next steps:"
-  echo "  1. Check admin UI at http://$NODE_IP:8083"
-  echo "  2. First-run setup token: docker exec spinforge-api cat /data/admin/first-run-token.txt"
-  echo "  3. Add this node to HAProxy as 192.168.88.X:8480 (and :8443)"
-  [ -z "$KEYDB_PEERS" ] && echo "  4. If adding more nodes later, set KEYDB_PEERS in .env + restart keydb"
+  echo "  1. Open a NEW shell as '$SPINFORGE_USER' (the existing one doesn't know"
+  echo "     about the docker group membership yet). Or run: newgrp docker"
+  echo "  2. Check admin UI at http://$NODE_IP:8083"
+  echo "  3. First-run setup token: sudo docker exec spinforge-api cat /data/admin/first-run-token.txt"
+  echo "  4. Add this node to HAProxy as $NODE_IP:8480 (and :8443)"
+  [ -z "$KEYDB_PEERS" ] && echo "  5. If adding more nodes later, set KEYDB_PEERS in .env + restart keydb"
 else
   warn "Setup finished with $fail failing checks. Review logs above + docker compose logs."
+  echo "Most common causes on a fresh clone:"
+  echo "  * openresty: default SSL cert missing — entrypoint should handle, check docker logs spinforge-openresty"
+  echo "  * nomad: leader not yet elected; wait 30s and re-check nomad server members"
+  echo "  * api: waits on keydb, give it another 15s then curl http://127.0.0.1:8080/api/health"
   exit 1
 fi
