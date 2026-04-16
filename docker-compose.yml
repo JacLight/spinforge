@@ -19,6 +19,11 @@ services:
       # Empty = single-node (standalone). Set this when adding more nodes:
       #   KEYDB_PEERS=192.168.88.171:16378,192.168.88.172:16378
       - KEYDB_PEERS=${KEYDB_PEERS:-}
+    # Expose KeyDB on the host so other nodes can replicate to/from us
+    # over the LAN. Bind to all interfaces for simplicity; firewall this
+    # port to the LAN in production.
+    ports:
+      - "16378:16378"
     entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
     networks:
       spinforge:
