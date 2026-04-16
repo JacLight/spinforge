@@ -152,9 +152,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start the server
+// Start the server. We wrap app in an explicit HTTP server so the
+// platform WebSocket can share the same port (attached via 'upgrade').
+const http = require('http');
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, async () => {
+const server = http.createServer(app);
+server.listen(PORT, async () => {
   logger.info(`SpinForge API (OpenResty version) listening on port ${PORT}`);
 
   try {
@@ -227,8 +230,37 @@ app.listen(PORT, async () => {
     logger.error('Failed to initialize SSL/ACME services:', error);
   }
 
-  process.on('SIGTERM', () => {
+  // ─── Platform: heartbeat + events + WebSocket bridge ───────────────
+  // Together these give the Platform Management UI a live view of
+  // every node in the cluster without polling. Heartbeat writes this
+  // node's state every 30s. EventStream is the shared "what just
+  // happened" feed. WebSocket fans both out to connected admins.
+  try {
+    const redisClient = require('./utils/redis');
+    const NodeHeartbeat = require('./services/NodeHeartbeat');
+    const EventStream = require('./services/EventStream');
+    const { mountPlatformWebSocket } = require('./services/PlatformWebSocket');
+    const { identify } = require('./utils/admin-auth');
+
+    const events = new EventStream(redisClient, { logger });
+    const heartbeat = new NodeHeartbeat(redisClient, { logger, eventStream: events });
+    await heartbeat.start();
+
+    mountPlatformWebSocket({
+      httpServer: server,
+      redis: redisClient,
+      authenticator: identify,
+      logger,
+    });
+
+    app.locals.platform = { heartbeat, events };
+  } catch (error) {
+    logger.error('Failed to initialize platform subsystem:', error);
+  }
+
+  process.on('SIGTERM', async () => {
     try { app.locals.acme?.renewalScheduler?.stop(); } catch (_) {}
+    try { await app.locals.platform?.heartbeat?.stop(); } catch (_) {}
     process.exit(0);
   });
 });

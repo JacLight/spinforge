@@ -99,6 +99,10 @@ router.use(authenticateAdmin);
 // Mount certificate routes
 router.use('/certificates', certificatesRouter);
 
+// Platform (cluster-management) endpoints — /_admin/platform/*
+const platformRouter = require('./platform');
+router.use('/platform', platformRouter);
+
 // Admin logout
 router.post('/logout', async (req, res) => {
   try {

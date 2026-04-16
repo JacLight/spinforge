@@ -143,5 +143,6 @@ module.exports = {
   adminTokenService,
   authenticateAdmin,
   authenticateAdminOrPublic,
+  identify,
   PUBLIC_API_PATHS,
 };
