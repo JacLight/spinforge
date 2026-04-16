@@ -26,7 +26,7 @@
 set -euo pipefail
 
 # ─── Config (env vars or prompts) ─────────────────────────────────────
-SPINFORGE_REPO="${SPINFORGE_REPO:-https://github.com/appmint/spinforge.git}"
+SPINFORGE_REPO="${SPINFORGE_REPO:-https://github.com/JacLight/spinforge.git}"
 SPINFORGE_BRANCH="${SPINFORGE_BRANCH:-server-edit}"
 SPINFORGE_DIR="${SPINFORGE_DIR:-/home/imzee/spinforge}"
 SPINFORGE_USER="${SPINFORGE_USER:-imzee}"

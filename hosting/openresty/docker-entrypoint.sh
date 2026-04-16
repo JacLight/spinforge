@@ -45,5 +45,22 @@ TRUSTED="${HAPROXY_TRUSTED_IP:-$DEFAULT_TRUSTED}"
 
 echo "[docker-entrypoint] wrote $CONF_FILE with trust list: $TRUSTED"
 
+# Default SSL cert bootstrap. The image's Dockerfile generates a
+# self-signed default cert at build time, but docker-compose mounts
+# ${SPINFORGE_DATA_ROOT}/certs onto /etc/letsencrypt, which SHADOWS
+# whatever the image shipped. On a fresh node with an empty data
+# volume this means openresty can't load its default_server cert
+# and crashloops. Regenerate if missing.
+DEFAULT_CERT_DIR=/etc/letsencrypt/live/default
+if [ ! -f "$DEFAULT_CERT_DIR/fullchain.pem" ] || [ ! -f "$DEFAULT_CERT_DIR/privkey.pem" ]; then
+  echo "[docker-entrypoint] default SSL cert missing, generating self-signed"
+  mkdir -p "$DEFAULT_CERT_DIR"
+  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout "$DEFAULT_CERT_DIR/privkey.pem" \
+    -out   "$DEFAULT_CERT_DIR/fullchain.pem" \
+    -subj "/C=US/ST=State/L=City/O=SpinForge/CN=localhost" 2>/dev/null
+  echo "[docker-entrypoint] generated default cert at $DEFAULT_CERT_DIR"
+fi
+
 # Hand off to the original CMD (or whatever the operator passed).
 exec "$@"
