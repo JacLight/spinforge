@@ -189,6 +189,9 @@ NODE_IP=$NODE_IP
 PUBLIC_IP=$NODE_IP
 SERVER_NAME=$NODE_HOSTNAME
 
+# Port the api process binds to (inside the container)
+API_PORT=8080
+
 # Service IPs inside the spinforge_spinforge docker network
 KEYDB_IP=172.18.0.10
 API_IP=172.18.0.12
@@ -217,6 +220,7 @@ API_URL=http://$NODE_IP:8080
 INTERNAL_API_URL=http://spinforge-api:8080
 NEXT_PUBLIC_API_URL=http://$NODE_IP:8080
 SPINHUB_API_URL=http://spinforge-api:8080
+VITE_API_BASE_URL=http://$NODE_IP:8080
 
 # AWS SES — fill in real keys before emails will send
 AWS_REGION=us-east-1
