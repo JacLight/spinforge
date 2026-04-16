@@ -44,6 +44,7 @@ import PlatformNodes from "./pages/platform/Nodes";
 import PlatformEvents from "./pages/platform/Events";
 import PlatformWorkloads from "./pages/platform/Workloads";
 import { ConfirmProvider } from "./components/ConfirmModal";
+import CommandPalette from "./components/CommandPalette";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -111,6 +112,7 @@ function App() {
       />
       <DialogManager />
       <SystemHealthAlert />
+      <CommandPalette />
       <ModernLayout>
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
