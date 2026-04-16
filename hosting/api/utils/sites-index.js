@@ -92,20 +92,28 @@ async function rebuildIndex() {
 
 /**
  * Called at boot. If the index is populated, do nothing. If it's empty
- * *and* there's at least one site: record, rebuild. Avoids wiping the
- * index on a fresh install (which wouldn't matter anyway).
+ * *and* there's at least one site: record, rebuild. Wrapped in a cluster
+ * lock so only one node in a multi-replica deployment does the work.
  */
 async function ensureIndexOnBoot() {
   const count = await redisClient.sCard(ALL_SET);
   if (count > 0) return { skipped: true, reason: 'already populated' };
 
-  // Quick peek: any site:* key at all?
-  for await (const key of redisClient.scanIterator({ MATCH: 'site:*', COUNT: 1 })) {
-    if (key) {
-      return rebuildIndex();
+  const { withClusterLock } = require('./cluster-lock');
+  return withClusterLock('boot:sites-index-rebuild', 120, async () => {
+    // Re-check inside the lock — another node may have rebuilt while we
+    // waited for the lock.
+    const recheck = await redisClient.sCard(ALL_SET);
+    if (recheck > 0) return { skipped: true, reason: 'rebuilt by another node' };
+
+    // Quick peek: any site:* key at all?
+    for await (const key of redisClient.scanIterator({ MATCH: 'site:*', COUNT: 1 })) {
+      if (key) {
+        return rebuildIndex();
+      }
     }
-  }
-  return { skipped: true, reason: 'no sites exist yet' };
+    return { skipped: true, reason: 'no sites exist yet' };
+  });
 }
 
 module.exports = {

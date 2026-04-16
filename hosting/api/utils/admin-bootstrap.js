@@ -45,7 +45,16 @@ function readSecretFromDisk() {
 
 function writeSecretToDisk(value) {
   ensureDir();
-  fs.writeFileSync(SECRET_PATH, value + '\n', { mode: 0o600 });
+  // O_EXCL: fail if file already exists. In multi-node boot the first
+  // node to write wins; others read the winner's secret instead of
+  // stomping it with a different random value.
+  try {
+    fs.writeFileSync(SECRET_PATH, value + '\n', { mode: 0o600, flag: 'wx' });
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') return false;
+    throw err;
+  }
 }
 
 /**
@@ -60,9 +69,16 @@ function loadOrCreateJwtSecret() {
 
   let secret = readSecretFromDisk();
   if (!secret) {
-    secret = 'sf_jwt_' + crypto.randomBytes(32).toString('hex');
-    writeSecretToDisk(secret);
-    console.log('[admin-bootstrap] generated new JWT signing key at', SECRET_PATH);
+    const candidate = 'sf_jwt_' + crypto.randomBytes(32).toString('hex');
+    const won = writeSecretToDisk(candidate);
+    if (won) {
+      secret = candidate;
+      console.log('[admin-bootstrap] generated new JWT signing key at', SECRET_PATH);
+    } else {
+      // Another node beat us — read what they wrote.
+      secret = readSecretFromDisk();
+      console.log('[admin-bootstrap] loaded JWT signing key written by another node');
+    }
   }
   process.env.ADMIN_TOKEN_SECRET = secret;
   return secret;
@@ -78,7 +94,14 @@ function readSetupToken() {
 
 function writeSetupToken(token) {
   ensureDir();
-  fs.writeFileSync(SETUP_TOKEN_PATH, token + '\n', { mode: 0o600 });
+  // Same O_EXCL guard as the secret key — first node wins.
+  try {
+    fs.writeFileSync(SETUP_TOKEN_PATH, token + '\n', { mode: 0o600, flag: 'wx' });
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') return false;
+    throw err;
+  }
 }
 
 function clearSetupToken() {
@@ -100,8 +123,9 @@ async function ensureSetupTokenIfNeeded(adminService) {
 
   let token = readSetupToken();
   if (!token) {
-    token = 'sfs_' + crypto.randomBytes(24).toString('hex');
-    writeSetupToken(token);
+    const candidate = 'sfs_' + crypto.randomBytes(24).toString('hex');
+    const won = writeSetupToken(candidate);
+    token = won ? candidate : readSetupToken();
   }
 
   console.log('');
