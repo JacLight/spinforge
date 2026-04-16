@@ -778,6 +778,53 @@ class SpinForgeAPI {
   async auditRecent(limit = 200): Promise<{ entries: AuditEntry[] }> {
     return this.request('get', `/_admin/audit?limit=${limit}`);
   }
+
+  // ─── Platform ──────────────────────────────────────────────────────
+  async platformNodes(): Promise<{ nodes: PlatformNodeSnapshot[]; heartbeatTtlSec: number; heartbeatIntervalMs: number }> {
+    return this.request('get', '/_admin/platform/nodes');
+  }
+
+  async platformEvents(limit = 200): Promise<{ events: PlatformEventRow[] }> {
+    return this.request('get', `/_admin/platform/events?limit=${limit}`);
+  }
+
+  async platformWorkloads(): Promise<{ workloads: PlatformWorkload[]; total: number }> {
+    return this.request('get', '/_admin/platform/workloads');
+  }
+}
+
+export interface PlatformNodeSnapshot {
+  hostname: string;
+  ip: string | null;
+  role?: string;
+  spinforgeVersion?: string;
+  startedAt?: string;
+  updatedAt: string;
+  nodeUptimeSec?: number;
+  loadAvg?: [number, number, number];
+  memBytes?: { total: number; free: number };
+  cpus?: number;
+}
+
+export interface PlatformEventRow {
+  id: string;
+  type: string;
+  subject: string;
+  severity: string;
+  source: string;
+  ts: string;
+  context: string;
+}
+
+export interface PlatformWorkload {
+  domain: string;
+  type: string;
+  customerId: string;
+  enabled: boolean;
+  sslEnabled: boolean;
+  orchestrator: string | null;
+  nomadJobId: string | null;
+  updatedAt: string;
 }
 
 export interface AuditEntry {

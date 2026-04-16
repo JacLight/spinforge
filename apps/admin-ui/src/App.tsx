@@ -39,6 +39,9 @@ import CertificateManager from "./pages/CertificateManager";
 import Partners from "./pages/Partners";
 import EmailTemplates from "./pages/EmailTemplates";
 import AdminActivity from "./pages/AdminActivity";
+import PlatformNodes from "./pages/platform/Nodes";
+import PlatformEvents from "./pages/platform/Events";
+import PlatformWorkloads from "./pages/platform/Workloads";
 import { ConfirmProvider } from "./components/ConfirmModal";
 
 function App() {
@@ -130,6 +133,9 @@ function App() {
           <Route path="/partners" element={<Partners />} />
           <Route path="/email-templates" element={<EmailTemplates />} />
           <Route path="/activity" element={<AdminActivity />} />
+          <Route path="/platform/nodes" element={<PlatformNodes />} />
+          <Route path="/platform/events" element={<PlatformEvents />} />
+          <Route path="/platform/workloads" element={<PlatformWorkloads />} />
         </Routes>
       </ModernLayout>
     </Router>

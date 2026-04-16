@@ -53,6 +53,17 @@ function mountPlatformWebSocket({ httpServer, redis, authenticator, logger }) {
       return;
     }
     try {
+      // Browsers can't set Authorization on a WebSocket upgrade; allow
+      // the JWT via ?token=. Synthesize an Authorization header on the
+      // request so the existing identify() logic just works.
+      if (!req.headers['authorization']) {
+        try {
+          const u = new URL(req.url, 'http://x');
+          const tok = u.searchParams.get('token');
+          if (tok) req.headers['authorization'] = `Bearer ${tok}`;
+        } catch { /* ignore */ }
+      }
+
       const admin = await authenticator(req);
       if (!admin) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
