@@ -24,7 +24,6 @@ import Settings from "./pages/Settings";
 import DynamicUIDemo from "./components/DynamicUIDemo";
 import { DialogManager } from "./components/view-manager/dialog-manager";
 import AdminDashboard from "./pages/AdminDashboard";
-import ControlCenter from "./pages/ControlCenter";
 import ActiveSpinlets from "./pages/ActiveSpinlets";
 import CustomerManagement from "./pages/CustomerManagement";
 import AdminUserManagement from "./pages/AdminUserManagement";
@@ -126,7 +125,7 @@ function App() {
           <Route path="/deploy" element={<Deploy />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/dynamic-ui" element={<DynamicUIDemo />} />
-          <Route path="/control-center" element={<ControlCenter />} />
+          <Route path="/control-center" element={<Navigate to="/home" replace />} />
           <Route path="/active-spinlets" element={<ActiveSpinlets />} />
           <Route path="/customers" element={<CustomerManagement />} />
           <Route path="/admin-users" element={<AdminUserManagement />} />

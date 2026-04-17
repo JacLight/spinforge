@@ -236,13 +236,6 @@ export default function ModernLayout({ children }: LayoutProps) {
               <User className="mr-2 h-4 w-4" />
               My Profile
             </Link>
-            <a
-              href="/control-center"
-              className="flex items-center justify-center rounded-xl bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 text-sm font-medium text-white shadow-lg transition-all hover:shadow-xl"
-            >
-              <Monitor className="mr-2 h-4 w-4" />
-              Control Center
-            </a>
             <button
               onClick={() => {
                 localStorage.removeItem('adminToken');

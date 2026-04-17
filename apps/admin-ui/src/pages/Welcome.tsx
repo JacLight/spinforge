@@ -502,17 +502,17 @@ export default function Welcome() {
                   <Terminal className="h-8 w-8 text-white" />
                 </div>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">Advanced Control Center</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">Cluster Console</h3>
               <p className="text-gray-300 mb-6 max-w-lg mx-auto leading-relaxed">
-                Access the windowed view manager for multi-tasking, advanced system controls, 
-                and real-time monitoring capabilities.
+                Live view of every node, workload, and event across the cluster —
+                the single pane for operators.
               </p>
               <a
-                href="/control-center"
+                href="/home"
                 className="inline-flex items-center px-8 py-4 bg-white text-gray-900 font-medium rounded-xl hover:bg-gray-100 transition-all duration-200 shadow-lg hover:shadow-xl group"
               >
                 <Play className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
-                Launch Control Center
+                Open Cluster
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </a>
             </div>
