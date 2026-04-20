@@ -199,34 +199,6 @@ services:
       retries: 2
       start_period: 60s
 
-  # Per-node agent. Runs on every SpinForge node, reports host + docker
-  # state to Redis, listens for targeted commands on a pubsub channel.
-  # Needs docker.sock to manage its sibling containers. See
-  # hosting/agent/agent.js for the command vocabulary and the security
-  # caveats that apply before this is exposed beyond a trusted LAN.
-  agent:
-    build:
-      context: ./hosting/agent
-      dockerfile: Dockerfile
-    container_name: spinforge-agent
-    restart: unless-stopped
-    environment:
-      - REDIS_HOST=${REDIS_HOST:-172.18.0.10}
-      - REDIS_PORT=16378
-      - REDIS_DB=1
-      - AGENT_INTERVAL_MS=15000
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    # Pin hostname from the host so the heartbeat key matches node id.
-    # Docker container default hostname is the container id — useless
-    # for correlating back to the Proxmox VM.
-    hostname: ${SERVER_NAME:-spinforge-node}
-    networks:
-      - spinforge
-    depends_on:
-      keydb:
-        condition: service_healthy
-
   mcp-server:
     build:
       context: ./mcp-server

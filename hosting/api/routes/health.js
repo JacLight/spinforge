@@ -54,7 +54,7 @@ router.get('/system', async (req, res) => {
 
   // Check nginx/openresty health endpoint
   try {
-    const response = await axios.get('http://openresty:8081/health', { timeout: 2000 });
+    const response = await axios.get(`${process.env.OPENRESTY_INTERNAL_URL || 'http://openresty:8081'}/health`, { timeout: 2000 });
     if (response.status === 200) {
       health.checks.nginx = { status: 'healthy', message: 'Nginx is responding' };
     } else {
@@ -96,7 +96,7 @@ async function getServiceHealth() {
   try {
     const http = require('http');
     await new Promise((resolve, reject) => {
-      const req = http.get('http://openresty:8081/api/health', { timeout: 1500 }, (r) => {
+      const req = http.get(`${process.env.OPENRESTY_INTERNAL_URL || 'http://openresty:8081'}/api/health`, { timeout: 1500 }, (r) => {
         r.resume();
         r.statusCode === 200 ? resolve() : reject(new Error(`status ${r.statusCode}`));
       });
@@ -166,7 +166,7 @@ router.post('/check', async (req, res) => {
     // If it's localhost or a .localhost domain, check via internal network
     if (urlObj.hostname === 'localhost' || urlObj.hostname.endsWith('.localhost')) {
       // Replace with internal docker network URL using OpenResty
-      checkUrl = `http://openresty:8081${urlObj.pathname}${urlObj.search}`;
+      checkUrl = `${process.env.OPENRESTY_INTERNAL_URL || 'http://openresty:8081'}${urlObj.pathname}${urlObj.search}`;
       // Set host header for proper routing
       const hostHeader = urlObj.hostname;
       

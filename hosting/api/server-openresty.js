@@ -232,26 +232,20 @@ server.listen(PORT, async () => {
 
   // ─── Platform: heartbeat + events + WebSocket bridge ───────────────
   // Together these give the Platform Management UI a live view of
-  // every node in the cluster without polling. Heartbeat writes this
-  // node's state every 30s. EventStream is the shared "what just
-  // happened" feed. WebSocket fans both out to connected admins.
+  // WebSocket bridge for live platform events — fanned out to admins.
+  //
+  // NodeHeartbeat / ContainerWatchdog were removed on 2026-04-17:
+  // Nomad + Consul provide node health and container restart/reschedule
+  // natively, so the hand-rolled versions would double-report. The
+  // Nodes/Workloads pages now read /v1/nodes and /v1/allocations from
+  // Nomad via routes/platform.js.
   try {
     const redisClient = require('./utils/redis');
-    const NodeHeartbeat = require('./services/NodeHeartbeat');
     const EventStream = require('./services/EventStream');
     const { mountPlatformWebSocket } = require('./services/PlatformWebSocket');
     const { identify } = require('./utils/admin-auth');
 
     const events = new EventStream(redisClient, { logger });
-    const heartbeat = new NodeHeartbeat(redisClient, { logger, eventStream: events });
-    await heartbeat.start();
-
-    // Container crash watchdog — single cluster-wide loop (cluster
-    // lock inside) that scans agent heartbeats and fires alerts +
-    // emails when any customer container falls out of 'running'.
-    const ContainerWatchdog = require('./services/ContainerWatchdog');
-    const watchdog = new ContainerWatchdog(redisClient, { logger });
-    watchdog.start();
 
     mountPlatformWebSocket({
       httpServer: server,
@@ -260,7 +254,7 @@ server.listen(PORT, async () => {
       logger,
     });
 
-    app.locals.platform = { heartbeat, events, watchdog };
+    app.locals.platform = { events };
   } catch (error) {
     logger.error('Failed to initialize platform subsystem:', error);
   }

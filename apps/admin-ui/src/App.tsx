@@ -42,6 +42,10 @@ import PlatformHome from "./pages/platform/Home";
 import PlatformNodes from "./pages/platform/Nodes";
 import PlatformEvents from "./pages/platform/Events";
 import PlatformWorkloads from "./pages/platform/Workloads";
+import PlatformNomad from "./pages/platform/Nomad";
+import PlatformHAProxy from "./pages/platform/HAProxy";
+import PlatformStorage from "./pages/platform/Storage";
+import PlatformTopology from "./pages/platform/Topology";
 import { ConfirmProvider } from "./components/ConfirmModal";
 import CommandPalette from "./components/CommandPalette";
 
@@ -140,6 +144,10 @@ function App() {
           <Route path="/platform/nodes" element={<PlatformNodes />} />
           <Route path="/platform/events" element={<PlatformEvents />} />
           <Route path="/platform/workloads" element={<PlatformWorkloads />} />
+          <Route path="/platform/nomad" element={<PlatformNomad />} />
+          <Route path="/platform/haproxy" element={<PlatformHAProxy />} />
+          <Route path="/platform/storage" element={<PlatformStorage />} />
+          <Route path="/platform/topology" element={<PlatformTopology />} />
         </Routes>
       </ModernLayout>
     </Router>

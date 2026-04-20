@@ -1,28 +1,18 @@
 /**
  * SpinForge - Platform → Nodes
  *
- * Live per-node health. Each card pulses green on a fresh heartbeat,
- * fades amber if the heartbeat is stale, and disappears if the TTL
- * expires in Redis. Cheap on the server — we read the registry once
- * on mount and then swap to the WebSocket for deltas.
+ * The three actual cluster VMs (one per Nomad client). Source of truth
+ * is Nomad's /v1/nodes — the old hand-rolled heartbeat was deleted on
+ * 2026-04-17 because Nomad already exposes everything with Serf-grade
+ * liveness detection. For container-level detail see the Workloads
+ * page, which merges KeyDB site records with Nomad allocations.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, PlatformNodeSnapshot } from '../../services/api';
-import { usePlatformSocket, usePlatformSocketAutoConnect, PlatformNode } from '../../hooks/usePlatformSocket';
-import { Cpu, MemoryStick, Clock, Server, Activity, RefreshCw } from 'lucide-react';
+import { Cpu, MemoryStick, Clock, Server, RefreshCw, Container, Terminal } from 'lucide-react';
 
-function formatUptime(sec?: number): string {
-  if (!sec) return '—';
-  const d = Math.floor(sec / 86400);
-  const h = Math.floor((sec % 86400) / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
-function formatBytes(n?: number): string {
+function formatBytes(n?: number | null): string {
   if (!n) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0; let v = n;
@@ -30,31 +20,20 @@ function formatBytes(n?: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-function secondsSince(iso?: string): number {
+function secondsSince(iso?: string | null): number {
   if (!iso) return Infinity;
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
 }
 
 export default function PlatformNodes() {
-  usePlatformSocketAutoConnect();
-  const { state, nodeMap, subscribe } = usePlatformSocket();
-  const [initial, setInitial] = useState<PlatformNodeSnapshot[] | null>(null);
+  const [nodes, setNodes] = useState<PlatformNodeSnapshot[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  // Merge live socket data on top of the REST snapshot. Once the
-  // socket has a hostname the REST copy is shadowed.
-  const nodes = useMemo<PlatformNode[]>(() => {
-    const byHost = new Map<string, PlatformNode>();
-    for (const n of initial || []) byHost.set(n.hostname, n as PlatformNode);
-    for (const [h, n] of nodeMap.entries()) byHost.set(h, n);
-    return Array.from(byHost.values()).sort((a, b) => a.hostname.localeCompare(b.hostname));
-  }, [initial, nodeMap, tick]);
-
-  async function loadInitial() {
+  async function load() {
     try {
       const { nodes } = await api.platformNodes();
-      setInitial(nodes);
+      setNodes(nodes);
       setErr(null);
     } catch (e: any) {
       setErr(e?.response?.data?.error || e?.message || 'Failed to load');
@@ -62,89 +41,72 @@ export default function PlatformNodes() {
   }
 
   useEffect(() => {
-    loadInitial();
-    // Subscribe to per-node updates for every node we see.
-    // (The events stream would announce new nodes via node.up — we
-    // could dynamically subscribe to those too; v1 just polls the
-    // registry on a slow timer to catch new nodes.)
-    const unsubs: Array<() => void> = [];
-    return () => { unsubs.forEach((fn) => fn()); };
+    load();
+    const t = setInterval(load, 10000);  // 10s poll — Nomad API is cheap
+    return () => clearInterval(t);
   }, []);
 
-  // Subscribe to each node's dedicated channel once we know it exists.
-  useEffect(() => {
-    const unsubs: Array<() => void> = [];
-    const seen = new Set<string>();
-    for (const n of nodes) {
-      if (seen.has(n.hostname)) continue;
-      seen.add(n.hostname);
-      unsubs.push(subscribe(`node:${n.hostname}`));
-    }
-    return () => { unsubs.forEach((fn) => fn()); };
-  }, [nodes.map((n) => n.hostname).join(','), subscribe]);
-
-  // Force a re-render every 5s so "last seen" labels stay fresh.
+  // Refresh "last seen" labels every 5s.
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [tick]);
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Server size={22} /> Nodes</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Server size={22} /> Cluster nodes</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Every SpinForge node, live. Heartbeats land every 30s; nodes that miss 3 in a row drop off the registry automatically.
+            Every SpinForge VM, as Nomad sees it. Data is live from <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">GET /v1/nodes</code>.
           </p>
         </div>
-        <div className="flex items-center gap-3 text-xs text-gray-500">
-          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full ${
-            state === 'open' ? 'bg-green-100 text-green-700' :
-            state === 'connecting' ? 'bg-amber-100 text-amber-800' :
-            'bg-gray-100 text-gray-500'
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${state === 'open' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-            {state}
-          </span>
-          <button onClick={loadInitial} className="inline-flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-50">
-            <RefreshCw size={12} /> Reload
-          </button>
-        </div>
+        <button onClick={load} className="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50">
+          <RefreshCw size={12} /> Reload
+        </button>
       </div>
 
       {err && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{err}</div>}
 
-      {nodes.length === 0 ? (
+      {!nodes ? (
+        <div className="bg-white border rounded-lg p-12 text-center text-gray-400">Loading nodes…</div>
+      ) : nodes.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-gray-400">
-          {initial === null ? 'Loading nodes…' : 'No nodes heartbeating. Is the api running?'}
+          Nomad reports zero nodes — is the api container able to reach 127.0.0.1:4646?
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {nodes.map((n) => <NodeCard key={n.hostname} node={n} />)}
+          {nodes.map((n) => <NodeCard key={n.nodeId} node={n} />)}
         </div>
       )}
     </div>
   );
 }
 
-function NodeCard({ node }: { node: PlatformNode }) {
-  const age = secondsSince(node.updatedAt);
-  const stale = age > 60;
-  const dead = age > 120;
-  const totalMem = node.memBytes?.total || 0;
-  const usedMem = totalMem - (node.memBytes?.free || 0);
-  const memPct = totalMem ? Math.round((usedMem / totalMem) * 100) : 0;
+function NodeCard({ node }: { node: PlatformNodeSnapshot }) {
+  const age = secondsSince(node.lastHeartbeat);
+  const ready = node.status === 'ready';
+  const drain = node.drain;
+  const ineligible = node.eligibility !== 'eligible';
+  const down = !ready;
 
   const statusColor =
-    dead  ? 'border-red-300 bg-red-50' :
-    stale ? 'border-amber-300 bg-amber-50' :
-            'border-green-300 bg-white';
+    down       ? 'border-red-400 bg-red-50' :
+    drain      ? 'border-amber-400 bg-amber-50' :
+    ineligible ? 'border-amber-300 bg-amber-50' :
+                 'border-green-400 bg-white';
 
   const dotColor =
-    dead  ? 'bg-red-500' :
-    stale ? 'bg-amber-400' :
-            'bg-green-500 animate-pulse';
+    down       ? 'bg-red-500' :
+    drain      ? 'bg-amber-500' :
+    ineligible ? 'bg-amber-400' :
+                 'bg-green-500 animate-pulse';
+
+  const statusLabel =
+    down       ? node.status :
+    drain      ? 'draining' :
+    ineligible ? 'ineligible' :
+                 'ready';
 
   return (
     <div className={`border-l-4 ${statusColor} rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow`}>
@@ -156,35 +118,28 @@ function NodeCard({ node }: { node: PlatformNode }) {
             <div className="text-xs text-gray-500">{node.ip || '—'}</div>
           </div>
         </div>
-        {node.role && node.role !== 'node' && (
-          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{node.role}</span>
-        )}
+        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
+          down ? 'bg-red-100 text-red-700' :
+          drain || ineligible ? 'bg-amber-100 text-amber-800' :
+          'bg-green-100 text-green-700'
+        }`}>
+          {statusLabel}
+        </span>
       </div>
 
       <div className="space-y-2 text-xs">
-        <Row icon={<Clock size={12} />} label="Node uptime" value={formatUptime(node.nodeUptimeSec)} />
-        <Row icon={<Activity size={12} />} label="Load avg" value={
-          node.loadAvg ? node.loadAvg.map((x) => x.toFixed(2)).join(' · ') : '—'
-        } />
-        <Row icon={<Cpu size={12} />} label="CPUs" value={node.cpus ? String(node.cpus) : '—'} />
-        <Row icon={<MemoryStick size={12} />} label="Memory" value={
-          totalMem ? `${formatBytes(usedMem)} / ${formatBytes(totalMem)} (${memPct}%)` : '—'
-        } />
-        {totalMem > 0 && (
-          <div className="h-1.5 bg-gray-200 rounded overflow-hidden">
-            <div
-              className={memPct > 85 ? 'h-full bg-red-500' : memPct > 70 ? 'h-full bg-amber-500' : 'h-full bg-green-500'}
-              style={{ width: `${memPct}%` }}
-            />
-          </div>
-        )}
+        <Row icon={<Cpu size={12} />}           label="CPU cores"  value={node.cpuCores ? `${node.cpuCores} @ ${node.cpuMHz ? (node.cpuMHz/1000).toFixed(1)+' GHz' : '—'}` : '—'} />
+        <Row icon={<MemoryStick size={12} />}   label="Memory"     value={formatBytes(node.memoryBytes)} />
+        <Row icon={<Terminal size={12} />}      label="OS"         value={node.os || '—'} />
+        <Row icon={<Container size={12} />}     label="Docker"     value={node.dockerVersion || '—'} />
+        <Row icon={<Clock size={12} />}         label="DC / class" value={`${node.datacenter || '—'}${node.nodeClass ? ` / ${node.nodeClass}` : ''}`} />
       </div>
 
       <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 flex items-center justify-between">
-        <span>
-          {node.spinforgeVersion && <code className="bg-gray-100 px-1 py-0.5 rounded mr-1">{node.spinforgeVersion}</code>}
+        <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px]">{node.nodeId.slice(0, 8)}</code>
+        <span title={node.lastHeartbeat || undefined}>
+          {age === Infinity ? '—' : age < 5 ? 'just now' : age < 60 ? `${age}s ago` : `${Math.floor(age/60)}m ago`}
         </span>
-        <span title={node.updatedAt}>{age < 5 ? 'just now' : `${age}s ago`}</span>
       </div>
     </div>
   );

@@ -126,6 +126,7 @@ export default function PlatformWorkloads() {
                 <th className="px-3 py-2 text-left font-semibold w-48">Customer</th>
                 <th className="px-3 py-2 text-left font-semibold w-24">SSL</th>
                 <th className="px-3 py-2 text-left font-semibold w-28">Status</th>
+                <th className="px-3 py-2 text-left font-semibold w-56">Running on</th>
                 <th className="px-3 py-2 text-left font-semibold w-36">Updated</th>
               </tr>
             </thead>
@@ -151,6 +152,28 @@ export default function PlatformWorkloads() {
                       </span>
                     ) : (
                       <span className="text-gray-500 bg-gray-100 px-2 py-0.5 rounded">disabled</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    {w.type === 'static' ? (
+                      <span className="text-gray-400">ceph · every node</span>
+                    ) : w.allocations && w.allocations.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {w.allocations.map((a) => (
+                          <span
+                            key={a.shortId}
+                            title={`${a.taskGroup} · alloc ${a.shortId}`}
+                            className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-mono text-[10px]"
+                          >
+                            {a.nodeName}
+                            <code className="opacity-60">{a.shortId.slice(0, 4)}</code>
+                          </span>
+                        ))}
+                      </div>
+                    ) : w.type === 'container' || w.type === 'node' ? (
+                      <span className="text-amber-600 text-[10px]">no running alloc</span>
+                    ) : (
+                      <span className="text-gray-400 text-[10px]">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-500" title={w.updatedAt}>

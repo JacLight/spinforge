@@ -31,12 +31,37 @@
  */
 
 const { WebSocketServer } = require('ws');
+const http = require('http');
 const EventStream = require('./EventStream');
-const { KEY_PREFIX: NODE_KEY_PREFIX } = require('./NodeHeartbeat');
 
-const NODE_POLL_MS = 5000;        // how often we re-read a node's key
+const NODE_POLL_MS = 5000;        // how often we re-read a node's state from Nomad
 const EVENT_BLOCK_MS = 5000;       // XREAD block window
 const PING_INTERVAL_MS = 30_000;   // keep NAT/proxies from killing idle sockets
+
+const NOMAD_ADDR = process.env.NOMAD_ADDR || 'http://127.0.0.1:4646';
+
+// Small Nomad HTTP GET — duplicated from routes/platform.js so the ws
+// module has no back-dependency on routes. Move to utils/ if we need it
+// in a third place.
+function nomadGet(path) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, NOMAD_ADDR);
+    const req = http.get(url, { timeout: 4000 }, (r) => {
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c));
+      r.on('end', () => {
+        if (r.statusCode >= 200 && r.statusCode < 300) {
+          try { resolve(JSON.parse(Buffer.concat(chunks).toString())); }
+          catch (e) { reject(new Error('bad json from nomad: ' + e.message)); }
+        } else {
+          reject(new Error(`nomad ${r.statusCode} on ${path}`));
+        }
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('nomad timeout')); });
+    req.on('error', reject);
+  });
+}
 
 /**
  * Mount the WS server on an existing HTTP server. Call once at api
@@ -214,27 +239,58 @@ function tailEvents(ws, redis, log) {
 }
 
 /**
- * Polls a node's heartbeat key every NODE_POLL_MS and pushes the
- * state to the client when it changes. Cheap on Redis — just a GET.
+ * Polls a node's state from Nomad every NODE_POLL_MS and pushes
+ * changes to the client. `hostname` here is either a Nomad node name
+ * (spinforge-01) or a Nomad node ID — we list nodes once to resolve
+ * either form to an ID and then hit /v1/node/:id.
  */
 function pollNode(ws, redis, hostname) {
   let stopped = false;
   let lastSerialized = null;
-  const key = NODE_KEY_PREFIX + hostname;
 
   const loop = async () => {
+    // Resolve hostname → nodeId once (cheap; list is 3 entries).
+    let nodeId = null;
+    try {
+      const list = await nomadGet('/v1/nodes');
+      const match = list.find((n) => n.Name === hostname || n.ID === hostname);
+      nodeId = match?.ID || null;
+    } catch (_) { /* nomad unreachable — we'll retry in the loop */ }
+
     while (!stopped && ws.readyState === ws.OPEN) {
       try {
-        const raw = await redis.get(key);
-        if (raw !== lastSerialized) {
-          lastSerialized = raw;
-          if (raw) {
-            try { ws.send(JSON.stringify({ topic: `node:${hostname}`, node: JSON.parse(raw) })); } catch (_) {}
-          } else {
-            try { ws.send(JSON.stringify({ topic: `node:${hostname}`, node: null, gone: true })); } catch (_) {}
-          }
+        if (!nodeId) {
+          const list = await nomadGet('/v1/nodes');
+          const match = list.find((n) => n.Name === hostname || n.ID === hostname);
+          nodeId = match?.ID || null;
         }
-      } catch (_) {}
+        const n = nodeId ? await nomadGet(`/v1/node/${nodeId}`) : null;
+        const compact = n
+          ? {
+              hostname: n.Name,
+              nodeId:   n.ID,
+              ip:       n.Attributes?.['unique.network.ip-address'] || null,
+              status:   n.Status,
+              eligibility: n.SchedulingEligibility,
+              drain:    !!n.Drain,
+              cpuCores: parseInt(n.Attributes?.['cpu.numcores'] || '0', 10) || null,
+              memoryBytes: parseInt(n.Attributes?.['memory.totalbytes'] || '0', 10) || null,
+              lastHeartbeat: n.StatusUpdatedAt
+                ? new Date(n.StatusUpdatedAt * 1000).toISOString() : null,
+            }
+          : null;
+        const serialized = JSON.stringify(compact);
+        if (serialized !== lastSerialized) {
+          lastSerialized = serialized;
+          try {
+            ws.send(JSON.stringify({
+              topic: `node:${hostname}`,
+              node: compact,
+              gone: !compact,
+            }));
+          } catch (_) {}
+        }
+      } catch (_) { /* nomad blip — try again next tick */ }
       await sleep(NODE_POLL_MS);
     }
   };

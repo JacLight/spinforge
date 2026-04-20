@@ -416,7 +416,7 @@ async function getServiceHealth() {
   try {
     const http = require('http');
     await new Promise((resolve, reject) => {
-      const req = http.get('http://openresty:8081/api/health', { timeout: 1500 }, (r) => {
+      const req = http.get(`${process.env.OPENRESTY_INTERNAL_URL || 'http://openresty:8081'}/api/health`, { timeout: 1500 }, (r) => {
         r.resume();
         r.statusCode === 200 ? resolve() : reject(new Error(`status ${r.statusCode}`));
       });

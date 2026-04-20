@@ -780,8 +780,24 @@ class SpinForgeAPI {
   }
 
   // ─── Platform ──────────────────────────────────────────────────────
-  async platformNodes(): Promise<{ nodes: PlatformNodeSnapshot[]; heartbeatTtlSec: number; heartbeatIntervalMs: number }> {
+  async platformNodes(): Promise<{ nodes: PlatformNodeSnapshot[]; source?: string }> {
     return this.request('get', '/_admin/platform/nodes');
+  }
+
+  async platformAllocations(): Promise<{ allocations: PlatformAllocation[]; total: number }> {
+    return this.request('get', '/_admin/platform/allocations');
+  }
+
+  async platformJobs(): Promise<{ jobs: PlatformJob[]; total: number }> {
+    return this.request('get', '/_admin/platform/jobs');
+  }
+
+  async platformHAProxy(): Promise<HAProxyStats> {
+    return this.request('get', '/_admin/platform/haproxy');
+  }
+
+  async platformStorage(): Promise<PlatformStorage> {
+    return this.request('get', '/_admin/platform/storage');
   }
 
   async platformEvents(limit = 200): Promise<{ events: PlatformEventRow[] }> {
@@ -793,17 +809,104 @@ class SpinForgeAPI {
   }
 }
 
+/** Shape returned by /_admin/platform/nodes — sourced from Nomad /v1/nodes. */
 export interface PlatformNodeSnapshot {
   hostname: string;
+  nodeId: string;
   ip: string | null;
-  role?: string;
-  spinforgeVersion?: string;
-  startedAt?: string;
-  updatedAt: string;
-  nodeUptimeSec?: number;
-  loadAvg?: [number, number, number];
-  memBytes?: { total: number; free: number };
-  cpus?: number;
+  datacenter?: string;
+  nodeClass?: string | null;
+  status: string;              // "ready" | "down" | "disconnected"
+  eligibility: string;         // "eligible" | "ineligible"
+  drain: boolean;
+  cpuCores?: number | null;
+  cpuMHz?: number | null;
+  memoryBytes?: number | null;
+  kernel?: string | null;
+  os?: string | null;
+  dockerVersion?: string | null;
+  lastHeartbeat?: string | null;
+}
+
+export interface PlatformAllocation {
+  id: string;
+  shortId: string;
+  jobId: string;
+  taskGroup: string;
+  nodeId: string;
+  nodeName: string;
+  clientStatus: string;
+  desiredStatus: string;
+  createTime?: string | null;
+  modifyTime?: string | null;
+  version?: number;
+}
+
+export interface PlatformJob {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  priority: number;
+  datacenters: string[];
+  running: number;
+  desired: number;
+  submittedAt?: string | null;
+}
+
+export interface HAProxyRow {
+  pxname: string;
+  svname: string;          // FRONTEND, BACKEND, or a specific server
+  status: string;          // OPEN / UP / DOWN / NOLB / …
+  scur: number;            // current sessions
+  smax: number;            // max sessions ever
+  slim: number;            // session limit
+  stot: number;            // total sessions
+  bin: number;             // bytes in
+  bout: number;            // bytes out
+  rate: number;            // sessions/sec current
+  rate_max: number;
+  weight: string;
+  check_status: string;
+  lastchg: number;         // seconds since last status change
+  econ: number;            // connection errors
+  eresp: number;           // response errors
+  hrsp_2xx: number;
+  hrsp_5xx: number;
+}
+
+export interface HAProxyStats {
+  scrapedAt: string;
+  frontends: HAProxyRow[];
+  backends: HAProxyRow[];
+  servers: HAProxyRow[];
+  lbUrl: string;
+}
+
+export interface PlatformStorage {
+  scrapedAt: string;
+  nodes: Array<{
+    hostname: string;
+    nodeId: string;
+    ip: string | null;
+    diskTotalBytes: number | null;
+    diskFreeBytes: number | null;
+    diskVolume: string | null;
+    cpuCores: number | null;
+    memoryBytes: number | null;
+  }>;
+  ceph: {
+    mount: string;
+    filesystem: string;
+    total: number;
+    used: number;
+    avail: number;
+  } | null;
+  breakdown: {
+    staticBytes: number | null;
+    uploadsBytes: number | null;
+    keydbBytes: number | null;
+  };
 }
 
 export interface PlatformEventRow {
@@ -825,6 +928,13 @@ export interface PlatformWorkload {
   orchestrator: string | null;
   nomadJobId: string | null;
   updatedAt: string;
+  /** Non-empty for container/node type sites — the Nomad allocations
+   *  currently serving this domain, grouped by host. */
+  allocations?: Array<{
+    shortId: string;
+    nodeName: string;
+    taskGroup: string;
+  }>;
 }
 
 export interface AuditEntry {

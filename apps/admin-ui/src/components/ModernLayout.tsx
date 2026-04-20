@@ -29,6 +29,7 @@ import {
   Mail,
   ShieldAlert,
   Server,
+  Share2 as Share,
   Activity as ActivityIcon,
   Package as PackageIcon,
   HardDrive,
@@ -65,7 +66,15 @@ const groupedNav: NavGroup[] = [
     items: [
       { path: "/platform/nodes",     icon: Server,      label: "Nodes",     color: "from-emerald-500 to-emerald-600" },
       { path: "/platform/workloads", icon: PackageIcon, label: "Workloads", color: "from-cyan-500 to-cyan-600" },
+      { path: "/platform/topology",  icon: Share,       label: "Topology",  color: "from-indigo-500 to-indigo-600" },
+      { path: "/platform/storage",   icon: HardDrive,   label: "Storage",   color: "from-teal-500 to-teal-600" },
       { path: "/platform/events",    icon: ActivityIcon,label: "Events",    color: "from-violet-500 to-violet-600" },
+      // In-admin dashboards for orchestration + LB tiers. Data comes
+      // through the spinforge-api proxy so we don't leak private IPs
+      // outside the datacenter — operators at home see them over the
+      // same admin.spinforge.dev session.
+      { path: "/platform/nomad",     icon: Layers,      label: "Nomad",     color: "from-fuchsia-500 to-fuchsia-600" },
+      { path: "/platform/haproxy",   icon: Activity,    label: "HAProxy",   color: "from-sky-500 to-sky-600" },
     ],
   },
   {

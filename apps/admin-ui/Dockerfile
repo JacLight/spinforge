@@ -23,11 +23,20 @@ FROM nginx:alpine
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx:alpine runs envsubst on every *.template file in
+# /etc/nginx/templates/ at container start, writing the rendered result
+# to /etc/nginx/conf.d/ before launching nginx. This lets us inject the
+# upstream hostname + listen port from env vars, so the same image runs
+# under both docker-compose (names via bridge DNS) and Nomad (names via
+# Consul DNS).
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
-# Expose port
+# Sensible defaults so the image also works on docker-compose without
+# any env overrides.
+ENV NGINX_LISTEN_PORT=80 \
+    API_UPSTREAM=api:8080 \
+    NGINX_RESOLVER=127.0.0.11
+
 EXPOSE 80
 
-# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
