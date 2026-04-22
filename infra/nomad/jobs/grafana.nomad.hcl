@@ -70,9 +70,18 @@ job "grafana" {
         destination = "local/dashboards/consul.json"
         mode        = "file"
       }
+      # Dashboard 12708 was designed for the `nginx-prometheus-exporter`
+      # tool (different metric names). Our openresty uses
+      # `nginx-lua-prometheus` which emits `spinforge_*` series; the
+      # SpinForge — HTTP Requests dashboard below covers the same
+      # ground against our actual metric names.
+      #
+      # "Node Exporter Full" — the canonical community dashboard for
+      # prom/node-exporter, 95k+ installs. Covers CPU, memory, disk,
+      # network, filesystem, load average with drill-downs per host.
       artifact {
-        source      = "https://grafana.com/api/dashboards/12708/revisions/latest/download"
-        destination = "local/dashboards/nginx.json"
+        source      = "https://grafana.com/api/dashboards/1860/revisions/latest/download"
+        destination = "local/dashboards/node-exporter.json"
         mode        = "file"
       }
 
@@ -132,6 +141,14 @@ datasources:
     access: proxy
     url: http://{{ range service "site-prometheus-spinforge-dev" }}{{ .Address }}:{{ .Port }}{{ end }}
     isDefault: true
+    editable: false
+  # Loki — container stdout/stderr shipped by Promtail. One instance
+  # (monolithic mode), Consul resolves to whichever node hosts it.
+  - name: loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://{{ range service "site-logs-spinforge-dev" }}{{ .Address }}:{{ .Port }}{{ end }}
     editable: false
 EOT
         destination = "local/provisioning/datasources/prometheus.yml"
@@ -257,6 +274,258 @@ EOT
 }
 EOT
         destination = "local/dashboards/spinforge-http.json"
+      }
+
+      # SpinBuild — Jobs dashboard. Queries `spinbuild_*` metrics from
+      # building-api's /metrics endpoint (scraped by prometheus as the
+      # 'building-api' job). Same delimiter override as above so Grafana
+      # legend `{{label}}` tokens aren't eaten by Consul Template.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "spinbuild-jobs",
+  "title": "SpinBuild — Jobs",
+  "tags": ["spinforge", "spinbuild"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Jobs/min",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(spinbuild_jobs_total[1m])) * 60", "refId": "A"}]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Active jobs",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(spinbuild_active_jobs)", "refId": "A"}]
+    },
+    {
+      "id": 3, "type": "stat", "title": "p95 job duration",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.95, sum by (le) (rate(spinbuild_job_duration_seconds_bucket[5m])))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 1}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Policy rejects/min",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(spinbuild_policy_rejections_total[1m])) * 60", "refId": "A"}]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Jobs by platform",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (platform) (rate(spinbuild_jobs_total[1m]))", "legendFormat": "{{platform}}", "refId": "A"}]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Status breakdown",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (status) (rate(spinbuild_jobs_total[1m]))", "legendFormat": "{{status}}", "refId": "A"}]
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Job duration p50/p95/p99",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.5, sum by (le) (rate(spinbuild_job_duration_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.95, sum by (le) (rate(spinbuild_job_duration_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.99, sum by (le) (rate(spinbuild_job_duration_seconds_bucket[5m])))", "legendFormat": "p99", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Queue wait p95 by platform",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.95, sum by (platform, le) (rate(spinbuild_job_queue_wait_seconds_bucket[5m])))", "legendFormat": "{{platform}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "Policy rejections by reason",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (error) (rate(spinbuild_policy_rejections_total[1m]))", "legendFormat": "{{error}}", "refId": "A"}]
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards/spinbuild-jobs.json"
+      }
+
+      # SpinForge — Logs dashboard. Single Loki "logs" panel showing a
+      # live tail of every container with a non-empty `container` label
+      # (so docker-compose keydb/openresty appear alongside Nomad tasks).
+      # Grafana labels use {{ }} — same Consul Template delimiter trick
+      # as the dashboards above.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "spinforge-logs",
+  "title": "SpinForge — Logs",
+  "tags": ["spinforge", "logs"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "logs", "title": "All containers",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 20, "w": 24, "x": 0, "y": 0},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "{container!=\"\"}", "refId": "A"}],
+      "options": {"showLabels": true, "showTime": true, "wrapLogMessage": false, "sortOrder": "Descending"}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards/spinforge-logs.json"
+      }
+
+      # Alert rules — provisioned via /etc/grafana/provisioning/alerting.
+      # GF_PATHS_PROVISIONING is set to /local/provisioning, so Grafana
+      # auto-loads everything under local/provisioning/alerting/ on boot.
+      # 4 practical alerts covering the metrics we already emit:
+      #   - node down (node-exporter `up` series)
+      #   - edge 5xx rate (openresty `spinforge_http_requests_total`)
+      #   - disk near full (node-exporter filesystem series)
+      #   - policy rejection spike (building-api `spinbuild_policy_rejections_total`)
+      # Grafana legend/annotation tokens use {{ }}; override delimiters so
+      # Consul Template leaves them intact.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: spinforge-core
+    folder: SpinForge
+    interval: 1m
+    rules:
+      - uid: spinforge-node-down
+        title: Node down
+        condition: A
+        # Grafana requires a non-zero relativeTimeRange per query or
+        # provisioning rejects the rule ("invalid relative time range
+        # [From: 0s, To: 0s]"). 5m lookback is plenty for instant queries.
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'up{job="node"} == 0'
+              refId: A
+              instant: true
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: "Node {{ $labels.instance }} is down"
+
+      - uid: spinforge-edge-5xx
+        title: Edge 5xx > 1/s
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'sum(rate(spinforge_http_requests_total{status=~"5.."}[1m])) > 1'
+              refId: A
+              instant: true
+        noDataState: OK
+        for: 5m
+        annotations:
+          summary: "Edge returning 5xx at {{ $value }}/s"
+
+      - uid: spinforge-disk-full
+        title: Disk >90%
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: '(1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.9'
+              refId: A
+              instant: true
+        noDataState: OK
+        for: 10m
+        annotations:
+          summary: "{{ $labels.instance }} root disk at {{ $value | humanizePercentage }}"
+
+      - uid: spinforge-policy-rejects
+        title: Policy rejections elevated
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'sum(rate(spinbuild_policy_rejections_total[5m])) > 0.1'
+              refId: A
+              instant: true
+        noDataState: OK
+        for: 5m
+        annotations:
+          summary: "Policy rejects at {{ $value }}/s — partner quota issue?"
+EOT
+        destination = "local/provisioning/alerting/rules.yaml"
+      }
+
+      # Contact points. No-op webhook placeholder — user will swap for
+      # Slack / PagerDuty / email once they decide how they want paging.
+      # Grafana still requires *some* receiver to exist or the default
+      # routing policy fails validation.
+      template {
+        data = <<EOT
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: default-no-op
+    receivers:
+      - uid: noop
+        type: webhook
+        settings:
+          url: http://localhost:1/noop
+          httpMethod: POST
+EOT
+        destination = "local/provisioning/alerting/contactpoints.yaml"
+      }
+
+      # Default notification policy — sends everything to default-no-op.
+      # Grouped by alertname so repeat firings on the same rule collapse.
+      template {
+        data = <<EOT
+apiVersion: 1
+policies:
+  - orgId: 1
+    receiver: default-no-op
+    group_by: ['alertname']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+EOT
+        destination = "local/provisioning/alerting/policies.yaml"
       }
 
       resources {

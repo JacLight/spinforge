@@ -51,7 +51,7 @@ job "mcp" {
       driver = "docker"
 
       config {
-        image = "192.168.88.171:5000/spinforge/mcp:5ee1b97-20260417173621"
+        image = "192.168.88.170:5000/spinforge/mcp:5ee1b97-20260417173621"
         ports = ["http"]
       }
 

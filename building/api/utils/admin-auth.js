@@ -1,0 +1,151 @@
+// Copied from hosting/api/utils/admin-auth.js on 2026-04-20 — keep in sync until extracted to @spinforge/admin-auth (see SPINBUILD_PLAN.md M8).
+/**
+ * SpinForge - Admin authentication middleware
+ * Copyright (c) 2025 Jacob Ajiboye
+ *
+ * This software is licensed under the MIT License.
+ * See the LICENSE file in the root directory for details.
+ *
+ * Two-path admin auth model. There is no overlap between the paths — a
+ * request must use exactly one of these and the wrong header is rejected:
+ *
+ *   ┌──────────────────────────────────────────────────────────────────────┐
+ *   │ Identity                 Header                  Token format        │
+ *   ├──────────────────────────────────────────────────────────────────────┤
+ *   │ Logged-in admin user     Authorization: Bearer   JWT from /_admin/  │
+ *   │                                                  login              │
+ *   │ Machine API integration  X-API-Key               sfa_… (created via │
+ *   │                                                  /_admin/tokens)    │
+ *   └──────────────────────────────────────────────────────────────────────┘
+ *
+ * In building-api this gates every /api/* and /_internal/* mount.
+ * /health stays public (no auth) for Nomad/Consul checks.
+ *
+ * Validation is performed against the shared KeyDB instance that hosting/api
+ * writes to — same database, same keys. As long as ADMIN_TOKEN_SECRET matches
+ * on both services, a session or sfa_ token issued by hosting is accepted
+ * here without any additional enrollment step.
+ */
+const AdminService = require('../services/AdminService');
+const AdminTokenService = require('../services/AdminTokenService');
+const redisClient = require('./redis');
+
+const adminService = new AdminService(redisClient);
+const adminTokenService = new AdminTokenService(redisClient);
+
+const { ROLE_LEVELS } = AdminTokenService;
+
+// Compute the minimum role required to satisfy this request.
+//   - Write methods (POST/PUT/PATCH/DELETE) require 'write'.
+//   - GET/HEAD requires 'read'.
+// building-api has no /_admin/* tree, so we do not require the full 'admin'
+// role on any route here.
+function requiredRoleForRequest(req) {
+  const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+  if (writeMethods.has(req.method)) return 'write';
+  return 'read';
+}
+
+// Paths that MUST remain publicly reachable even when mounted behind this
+// middleware. Matched against req.path (relative to the mount point).
+const PUBLIC_API_PATHS = [
+  '/health',
+  '/_health',
+];
+
+function isPublicPath(reqPath) {
+  return PUBLIC_API_PATHS.some((p) => reqPath === p || reqPath.startsWith(p + '/'));
+}
+
+// Pull "Bearer <token>" out of the Authorization header. Returns null if the
+// header is missing or doesn't match the Bearer scheme.
+function extractBearerToken(req) {
+  const header = req.headers['authorization'];
+  if (!header) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Try to identify the caller. Returns either an admin object (with `role`
+ * and `authMethod` set) or null. Does NOT touch the response.
+ */
+async function identify(req) {
+  // ─── Path 1: Bearer JWT (logged-in admin user) ───────────────────────
+  const bearer = extractBearerToken(req);
+  if (bearer) {
+    const admin = await adminService.validateSessionToken(bearer);
+    if (admin) {
+      return {
+        ...admin,
+        role: 'admin', // logged-in users always have full admin role
+        authMethod: 'session',
+      };
+    }
+    // Bearer was provided but invalid → fall through with null so the
+    // caller can return a precise 401.
+    return null;
+  }
+
+  // ─── Path 2: X-API-Key (machine API key) ─────────────────────────────
+  // Database-backed sfa_ tokens with explicit roles. There is no env-bypass
+  // — all machine credentials live in Redis and can be revoked individually.
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey) {
+    const apiAdmin = await adminTokenService.validatePlaintext(apiKey);
+    if (apiAdmin) {
+      return { ...apiAdmin, authMethod: 'apikey' };
+    }
+    return null;
+  }
+
+  // No credentials at all
+  return null;
+}
+
+const authenticateAdmin = async (req, res, next) => {
+  const hasBearer = !!extractBearerToken(req);
+  const hasApiKey = !!req.headers['x-api-key'];
+
+  if (!hasBearer && !hasApiKey) {
+    return res.status(401).json({
+      error: 'Admin authentication required',
+      hint: 'Send Authorization: Bearer <login-jwt> or X-API-Key: <sfa_token>',
+    });
+  }
+
+  const admin = await identify(req);
+  if (!admin) {
+    return res.status(401).json({ error: 'Invalid or expired admin credentials' });
+  }
+
+  // Role enforcement
+  const required = requiredRoleForRequest(req);
+  const tokenRole = admin.role || 'admin';
+  if ((ROLE_LEVELS[tokenRole] || 0) < (ROLE_LEVELS[required] || 0)) {
+    return res.status(403).json({
+      error: `This credential has '${tokenRole}' role; '${required}' required for ${req.method} ${req.originalUrl || req.url}.`,
+      tokenRole,
+      requiredRole: required,
+    });
+  }
+
+  req.admin = admin;
+  next();
+};
+
+// Variant that lets PUBLIC_API_PATHS through without credentials. Used when
+// mounting broad trees like /api/*.
+const authenticateAdminOrPublic = async (req, res, next) => {
+  if (isPublicPath(req.path)) return next();
+  return authenticateAdmin(req, res, next);
+};
+
+module.exports = {
+  adminService,
+  adminTokenService,
+  authenticateAdmin,
+  authenticateAdminOrPublic,
+  identify,
+  PUBLIC_API_PATHS,
+};

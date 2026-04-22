@@ -1,0 +1,160 @@
+# SpinBuild shared Fastfile.
+#
+# Loaded by the Mac runner (for iOS / macOS) and optionally by the
+# Android runner. All signing material has already been imported into
+# an ephemeral keychain / written to a keystore file — this Fastfile
+# consumes env vars set by the runner's signing setup, never talks to
+# Vault itself.
+#
+# Env contract (set by the runner before invoking fastlane):
+#
+#   ── iOS / macOS ──
+#   SPINFORGE_KEYCHAIN_PATH        ephemeral keychain used for signing
+#   SPINFORGE_KEYCHAIN_PASSWORD
+#   SPINFORGE_PROFILE_PATH         installed .mobileprovision
+#   SPINFORGE_TEAM_ID              Apple Developer team id
+#   SPINFORGE_BUNDLE_ID            app bundle id
+#   XCODE_SCHEME                   Xcode scheme (default: derived)
+#   ARTIFACT_DIR                   where gym writes .ipa / .dSYMs
+#   EXPORT_METHOD                  app-store | ad-hoc | development | enterprise
+#   APP_STORE_CONNECT_API_KEY_PATH .p8 key (optional, for pilot/deliver)
+#   APP_STORE_CONNECT_API_KEY_ID
+#   APP_STORE_CONNECT_ISSUER_ID
+#   ARTIFACT_IPA_PATH              for the upload lanes
+#
+#   ── Android ──
+#   SPINFORGE_KEYSTORE_PATH
+#   SPINFORGE_KEYSTORE_PASSWORD
+#   SPINFORGE_KEY_ALIAS
+#   SPINFORGE_KEY_PASSWORD
+#   PLAY_SERVICE_ACCOUNT_JSON_PATH .json key for play store uploads
+#   ARTIFACT_AAB_PATH              for the upload lanes
+
+default_platform(:ios)
+
+# ─── iOS ──────────────────────────────────────────────────────────────
+platform :ios do
+  desc "Archive + export .ipa using the runner-prepared keychain."
+  lane :archive do
+    require_env!(%w[SPINFORGE_KEYCHAIN_PATH SPINFORGE_KEYCHAIN_PASSWORD])
+
+    gym(
+      scheme: ENV.fetch("XCODE_SCHEME", detect_scheme),
+      clean: true,
+      output_directory: ENV.fetch("ARTIFACT_DIR", "./build"),
+      export_method: ENV.fetch("EXPORT_METHOD", "app-store"),
+      export_options: {
+        teamID: ENV["SPINFORGE_TEAM_ID"],
+        provisioningProfiles: {
+          ENV["SPINFORGE_BUNDLE_ID"] => ENV["SPINFORGE_PROFILE_UUID"]
+        }.compact,
+      }.compact,
+      keychain_path: ENV["SPINFORGE_KEYCHAIN_PATH"],
+      keychain_password: ENV["SPINFORGE_KEYCHAIN_PASSWORD"],
+      skip_profile_detection: false,
+    )
+  end
+
+  desc "Upload .ipa to TestFlight."
+  lane :testflight_upload do
+    ipa = require_env!(%w[ARTIFACT_IPA_PATH])[0]
+    pilot(
+      ipa: ipa,
+      api_key: app_store_connect_api_key_config!,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+    )
+  end
+
+  desc "Upload .ipa to the App Store (production)."
+  lane :app_store_upload do
+    ipa = require_env!(%w[ARTIFACT_IPA_PATH])[0]
+    deliver(
+      ipa: ipa,
+      api_key: app_store_connect_api_key_config!,
+      submit_for_review: false,
+      skip_screenshots: true,
+      skip_metadata: true,
+      force: true,
+    )
+  end
+
+  def app_store_connect_api_key_config!
+    require_env!(%w[
+      APP_STORE_CONNECT_API_KEY_PATH
+      APP_STORE_CONNECT_API_KEY_ID
+      APP_STORE_CONNECT_ISSUER_ID
+    ])
+    {
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_filepath: ENV["APP_STORE_CONNECT_API_KEY_PATH"],
+      in_house: false,
+    }
+  end
+
+  def detect_scheme
+    # If the project has exactly one shared scheme, use it. Otherwise
+    # fail loudly — the manifest should always specify.
+    schemes = Dir["*.xcodeproj/xcshareddata/xcschemes/*.xcscheme"] +
+              Dir["*.xcworkspace/xcshareddata/xcschemes/*.xcscheme"]
+    if schemes.size == 1
+      File.basename(schemes.first, ".xcscheme")
+    else
+      UI.user_error!("Could not auto-detect xcodeScheme; set XCODE_SCHEME or manifest.xcodeScheme")
+    end
+  end
+end
+
+# ─── Android ──────────────────────────────────────────────────────────
+platform :android do
+  desc "Build + sign AAB with runner-provided keystore."
+  lane :release_aab do
+    require_env!(%w[
+      SPINFORGE_KEYSTORE_PATH
+      SPINFORGE_KEYSTORE_PASSWORD
+      SPINFORGE_KEY_ALIAS
+      SPINFORGE_KEY_PASSWORD
+    ])
+    gradle(
+      task: "bundleRelease",
+      properties: {
+        "android.injected.signing.store.file" => ENV["SPINFORGE_KEYSTORE_PATH"],
+        "android.injected.signing.store.password" => ENV["SPINFORGE_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["SPINFORGE_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["SPINFORGE_KEY_PASSWORD"],
+      },
+    )
+  end
+
+  desc "Upload AAB to Play Internal Testing."
+  lane :play_internal do
+    upload_play(track: "internal")
+  end
+
+  desc "Upload AAB to Play Production."
+  lane :play_production do
+    upload_play(track: "production")
+  end
+
+  def upload_play(track:)
+    aab = require_env!(%w[ARTIFACT_AAB_PATH PLAY_SERVICE_ACCOUNT_JSON_PATH])[0]
+    upload_to_play_store(
+      aab: aab,
+      track: track,
+      json_key: ENV["PLAY_SERVICE_ACCOUNT_JSON_PATH"],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+end
+
+# ─── shared ──────────────────────────────────────────────────────────
+def require_env!(keys)
+  missing = keys.select { |k| ENV[k].nil? || ENV[k].empty? }
+  unless missing.empty?
+    UI.user_error!("Missing required env: #{missing.join(', ')}")
+  end
+  keys.map { |k| ENV[k] }
+end

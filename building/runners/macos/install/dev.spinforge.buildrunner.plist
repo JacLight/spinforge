@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.spinforge.buildrunner</string>
+
+    <!-- Replace /opt/spinforge-runner with the actual install path before loading. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/node</string>
+        <string>/opt/spinforge-runner/agent.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/spinforge-runner</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/spinforge-runner.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/spinforge-runner.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>SPINFORGE_RUNNER_CONFIG</key>
+        <string>/Users/runner/.spinforge-runner/config.json</string>
+        <key>SPINFORGE_FASTLANE_DIR</key>
+        <string>/opt/spinforge-runner/fastlane</string>
+    </dict>
+
+    <!-- Restart with at least 10s between attempts so we don't hot-loop. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

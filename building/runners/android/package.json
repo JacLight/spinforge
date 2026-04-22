@@ -1,0 +1,12 @@
+{
+  "name": "spinforge-builder-android",
+  "version": "0.1.0",
+  "description": "SpinBuild Android runner agent",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "redis": "^4.6.5"
+  }
+}

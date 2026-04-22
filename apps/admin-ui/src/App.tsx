@@ -46,6 +46,17 @@ import PlatformNomad from "./pages/platform/Nomad";
 import PlatformHAProxy from "./pages/platform/HAProxy";
 import PlatformStorage from "./pages/platform/Storage";
 import PlatformTopology from "./pages/platform/Topology";
+import PlatformSecrets from "./pages/platform/Secrets";
+import BuildJobs from "./pages/build/Jobs";
+import BuildJobDetail from "./pages/build/JobDetail";
+import BuildCustomers from "./pages/build/Customers";
+import BuildSigning from "./pages/build/Signing";
+import BuildSessions from "./pages/build/Sessions";
+import BuildRunners from "./pages/build/Runners";
+import BuildSubmitJob from "./pages/build/SubmitJob";
+import BuildDeployments from "./pages/build/Deployments";
+import BuildDeploymentDetail from "./pages/build/DeploymentDetail";
+import BuildNewDeployment from "./pages/build/NewDeployment";
 import { ConfirmProvider } from "./components/ConfirmModal";
 import CommandPalette from "./components/CommandPalette";
 
@@ -148,6 +159,18 @@ function App() {
           <Route path="/platform/haproxy" element={<PlatformHAProxy />} />
           <Route path="/platform/storage" element={<PlatformStorage />} />
           <Route path="/platform/topology" element={<PlatformTopology />} />
+          <Route path="/platform/secrets" element={<PlatformSecrets />} />
+          <Route path="/build" element={<Navigate to="/build/deployments" replace />} />
+          <Route path="/build/deployments" element={<BuildDeployments />} />
+          <Route path="/build/deployments/:id" element={<BuildDeploymentDetail />} />
+          <Route path="/build/new" element={<BuildNewDeployment />} />
+          <Route path="/build/jobs" element={<BuildJobs />} />
+          <Route path="/build/jobs/:id" element={<BuildJobDetail />} />
+          <Route path="/build/customers" element={<BuildCustomers />} />
+          <Route path="/build/signing" element={<BuildSigning />} />
+          <Route path="/build/sessions" element={<BuildSessions />} />
+          <Route path="/build/runners" element={<BuildRunners />} />
+          <Route path="/build/submit" element={<BuildSubmitJob />} />
         </Routes>
       </ModernLayout>
     </Router>

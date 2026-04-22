@@ -1,0 +1,12 @@
+{
+  "name": "spinforge-builder-linux",
+  "version": "0.1.0",
+  "description": "SpinBuild Linux runner agent",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "redis": "^4.6.5"
+  }
+}

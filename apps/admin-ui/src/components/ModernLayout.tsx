@@ -75,6 +75,21 @@ const groupedNav: NavGroup[] = [
       // same admin.spinforge.dev session.
       { path: "/platform/nomad",     icon: Layers,      label: "Nomad",     color: "from-fuchsia-500 to-fuchsia-600" },
       { path: "/platform/haproxy",   icon: Activity,    label: "HAProxy",   color: "from-sky-500 to-sky-600" },
+      { path: "/platform/secrets",   icon: Shield,      label: "Secrets",   color: "from-orange-500 to-orange-600" },
+    ],
+  },
+  {
+    title: "Deployments",
+    items: [
+      { path: "/build/deployments", icon: Rocket,  label: "Deployments",        color: "from-fuchsia-500 to-fuchsia-600" },
+      { path: "/build/new",         icon: Upload,  label: "New deployment",     color: "from-indigo-500 to-indigo-600" },
+      { path: "/build/customers",   icon: Users,   label: "Customers + Policy", color: "from-teal-500 to-teal-600" },
+      { path: "/build/signing",     icon: Shield,  label: "Signing",            color: "from-amber-500 to-amber-600" },
+      { path: "/build/sessions",    icon: Monitor, label: "Sessions",           color: "from-cyan-500 to-cyan-600" },
+      { path: "/build/runners",     icon: Server,  label: "Runners",            color: "from-emerald-500 to-emerald-600" },
+      // Raw jobs view — still useful for debugging the build runner; not
+      // the primary user surface anymore. Kept but de-emphasized.
+      { path: "/build/jobs",        icon: Activity, label: "Build logs",        color: "from-slate-500 to-slate-600" },
     ],
   },
   {

@@ -1,0 +1,13 @@
+{
+  "name": "spinforge-builder-macos",
+  "version": "0.1.0",
+  "description": "SpinBuild Mac runner — long-lived agent for bare-metal iOS/macOS builds",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "dev": "node agent.js --log-level=debug"
+  },
+  "dependencies": {
+    "redis": "^4.6.5"
+  }
+}

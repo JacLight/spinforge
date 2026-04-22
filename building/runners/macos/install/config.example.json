@@ -1,0 +1,11 @@
+{
+  "runnerId": "mac-mini-1",
+  "redisUrl": "redis://spinforge-keydb.tailnet.ts.net:16378/1",
+  "redisPassword": "set-if-configured",
+  "apiUrl": "http://building-api.tailnet.ts.net:8090",
+  "slots": 1,
+  "capabilities": ["ios", "macos"],
+  "scratchDir": "/Users/runner/spinforge-scratch",
+  "xcodePath": "/Applications/Xcode.app",
+  "tailscaleIp": "100.x.y.z"
+}

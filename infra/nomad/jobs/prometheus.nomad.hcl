@@ -119,6 +119,33 @@ scrape_configs:
           cluster: 'spinforge'
           tier: 'edge'
 
+  # SpinBuild API — Node/Express service running on each node at :8090.
+  # Exposes /metrics (no auth) via prom-client. The `spinbuild_*` series
+  # sit alongside hosting's `spinforge_*` — both end up in Grafana under
+  # the SpinBuild — Jobs dashboard.
+  - job_name: 'building-api'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - '192.168.88.170:8090'
+          - '192.168.88.171:8090'
+          - '192.168.88.172:8090'
+        labels:
+          cluster: 'spinforge'
+          tier: 'build'
+
+  # node-exporter on every VM via Nomad system job → one instance per
+  # node on port 9100. Emits CPU, memory, disk, network, filesystem,
+  # load average — everything Nomad's own metrics don't expose.
+  - job_name: 'node'
+    static_configs:
+      - targets:
+          - '192.168.88.170:9100'
+          - '192.168.88.171:9100'
+          - '192.168.88.172:9100'
+        labels:
+          cluster: 'spinforge'
+
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
