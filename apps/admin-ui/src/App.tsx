@@ -57,6 +57,10 @@ import BuildSubmitJob from "./pages/build/SubmitJob";
 import BuildDeployments from "./pages/build/Deployments";
 import BuildDeploymentDetail from "./pages/build/DeploymentDetail";
 import BuildNewDeployment from "./pages/build/NewDeployment";
+import Pipelines from "./pages/pipelines/Pipelines";
+import PipelineBuilds from "./pages/pipelines/Builds";
+import PipelineArtifacts from "./pages/pipelines/Artifacts";
+import PipelineActions from "./pages/pipelines/Actions";
 import { ConfirmProvider } from "./components/ConfirmModal";
 import CommandPalette from "./components/CommandPalette";
 
@@ -171,6 +175,10 @@ function App() {
           <Route path="/build/sessions" element={<BuildSessions />} />
           <Route path="/build/runners" element={<BuildRunners />} />
           <Route path="/build/submit" element={<BuildSubmitJob />} />
+          <Route path="/pipelines" element={<Pipelines />} />
+          <Route path="/pipelines/builds" element={<PipelineBuilds />} />
+          <Route path="/pipelines/artifacts" element={<PipelineArtifacts />} />
+          <Route path="/pipelines/actions" element={<PipelineActions />} />
         </Routes>
       </ModernLayout>
     </Router>

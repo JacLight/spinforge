@@ -315,7 +315,213 @@ export const buildApi = {
   // job streaming (SSE) — returned as EventSource, caller manages lifecycle
   openJobStream: (id: string): EventSource =>
     new EventSource(`${BASE_URL}/api/jobs/${id}/stream?token=${encodeURIComponent(localStorage.getItem('adminToken') || '')}`),
+
+  // ─── Pipelines / Actions / Builds ───────────────────────────────────
+  // The new CI-style pipeline system. A Pipeline is a saved customer-owned
+  // config of ordered stages; a Build is one execution of that pipeline.
+  // Actions are code-defined primitives exposed read-only for inspection.
+
+  // actions catalog
+  listActions: () =>
+    client.get<{ count: number; actions: ActionDef[]; byCategory: Record<string, ActionDef[]> }>('/api/actions')
+      .then(r => r.data),
+  getActionSchema: (id: string) =>
+    client.get<{ id: string; version: string; inputs: any; outputs: any }>(
+      `/api/actions/${encodeURIComponent(id)}/schema`,
+    ).then(r => r.data),
+
+  // pipelines
+  createPipeline: (body: {
+    customerId: string;
+    name: string;
+    type?: PipelineType;
+    source?: PipelineSource;
+    stages: Stage[];
+    trigger?: any;
+    metadata?: any;
+  }) =>
+    client.post<Pipeline>('/api/pipelines', body).then(r => r.data),
+  listPipelines: (q: { customerId?: string; limit?: number; offset?: number } = {}) =>
+    client.get<{ pipelines: Pipeline[]; total: number }>('/api/pipelines', { params: q }).then(r => r.data),
+  getPipeline: (id: string) =>
+    client.get<Pipeline>(`/api/pipelines/${encodeURIComponent(id)}`).then(r => r.data),
+  updatePipeline: (id: string, patch: {
+    name?: string;
+    type?: PipelineType;
+    source?: PipelineSource;
+    stages?: Stage[];
+    trigger?: any;
+    metadata?: any;
+  }) =>
+    client.put<Pipeline>(`/api/pipelines/${encodeURIComponent(id)}`, patch).then(r => r.data),
+  deletePipeline: (id: string) =>
+    client.delete<void>(`/api/pipelines/${encodeURIComponent(id)}`).then(r => r.data),
+  validatePipeline: (stages: Stage[]) =>
+    client.post<{ valid: boolean; errors: PipelineValidationError[] }>(
+      '/api/pipelines/validate',
+      { stages },
+    ).then(r => r.data),
+
+  // builds
+  createBuild: (body: { pipelineId: string; trigger?: any; inputs?: Record<string, any>; customerId?: string }) =>
+    client.post<Build>('/api/builds', body).then(r => r.data),
+  listBuilds: (q: { pipelineId?: string; customerId?: string; status?: string; limit?: number; offset?: number } = {}) =>
+    client.get<{ builds: Build[]; total: number }>('/api/builds', { params: q }).then(r => r.data),
+  getBuild: (id: string) =>
+    client.get<Build>(`/api/builds/${encodeURIComponent(id)}`).then(r => r.data),
+  cancelBuild: (id: string) =>
+    client.post<Build>(`/api/builds/${encodeURIComponent(id)}/cancel`, {}).then(r => r.data),
+  resumeBuild: (id: string) =>
+    client.post<Build>(`/api/builds/${encodeURIComponent(id)}/resume`, {}).then(r => r.data),
+  retryStage: (id: string, stageId: string, overrides?: Record<string, any>) =>
+    client.post<Build>(
+      `/api/builds/${encodeURIComponent(id)}/stages/${encodeURIComponent(stageId)}/retry`,
+      overrides ? { with: overrides } : {},
+    ).then(r => r.data),
+  getBuildEvents: (id: string, limit = 200) =>
+    client.get<{ buildId: string; events: BuildEvent[] }>(
+      `/api/builds/${encodeURIComponent(id)}/events`, { params: { limit } },
+    ).then(r => r.data),
+  getStageDetail: (buildId: string, stageId: string) =>
+    client.get<{ buildId: string; stage: Stage; events: BuildEvent[]; log: StageLogLine[] }>(
+      `/api/builds/${encodeURIComponent(buildId)}/stages/${encodeURIComponent(stageId)}`,
+    ).then(r => r.data),
+  // Fetch one artifact through the authenticated API and trigger a
+  // browser download. For URL-type outputs the server responds with a
+  // 302 to the external URL — axios follows it, and we save whatever
+  // body comes back. Caller should special-case http(s) values and
+  // window.open() them directly instead of calling this.
+  downloadArtifact: async (buildId: string, stageId: string, key: string, filenameHint?: string) => {
+    const r = await client.get(
+      `/api/builds/${encodeURIComponent(buildId)}/artifacts/${encodeURIComponent(stageId)}/${encodeURIComponent(key)}`,
+      { responseType: 'blob' },
+    );
+    const cd = r.headers['content-disposition'] as string | undefined;
+    const m = cd && /filename="?([^"]+)"?/.exec(cd);
+    const name = (m && m[1]) || filenameHint || `${stageId}-${key}`;
+    const url = URL.createObjectURL(r.data as Blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
 };
+
+// ─── Pipeline / Build types ────────────────────────────────────────────
+
+export type StageStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'skipped_unimplemented';
+export type BuildStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+
+// Top-level pipeline type — drives the recipe the UI pre-fills on
+// create, and is persisted on the pipeline record for later rendering.
+// 'custom' is the escape hatch: no recipe, the author builds stages by hand.
+export type PipelineType =
+  | 'static-site'
+  | 'node-service'
+  | 'ios-app'
+  | 'android-app'
+  | 'container'
+  | 'custom';
+
+// Pipeline-level source. Moved off the first stage so every pipeline
+// has one canonical place to say "where does the code come from".
+// `git` carries the URL/ref/depth/token inline; `zip` carries no
+// pipeline-level config — the archive is supplied at build-trigger time.
+export interface PipelineSource {
+  type: 'git' | 'zip';
+  url?: string;
+  ref?: string;
+  depth?: number;
+  token?: string;
+}
+
+export interface Stage {
+  id: string;
+  name?: string;
+  action: string;
+  actionVersion?: string;
+  with: Record<string, any>;
+  needs: string[];
+  enabled?: boolean;
+  continueOnError?: boolean;
+  timeoutSec?: number | null;
+  // runtime (build-only) fields — optional on pipeline records
+  status?: StageStatus;
+  attempt?: number;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  outputs?: Record<string, any>;
+  error?: string;
+}
+
+export interface Pipeline {
+  id: string;
+  customerId: string;
+  name: string;
+  type: PipelineType;
+  source: PipelineSource;
+  stages: Stage[];
+  trigger?: { type?: string; [k: string]: any };
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Build {
+  id: string;
+  pipelineId: string;
+  customerId: string;
+  pipelineSnapshot: { name: string; updatedAt: string };
+  trigger: { type: string; [k: string]: any };
+  inputs: Record<string, any>;
+  workspace: string;
+  stages: Stage[];
+  status: BuildStatus;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  error?: string;
+}
+
+export interface ActionDef {
+  id: string;
+  version: string;
+  category: string;
+  name: string;
+  description: string;
+  inputs: any;   // JSON Schema
+  outputs: any;  // JSON Schema
+  runner?: string;
+}
+
+export interface PipelineValidationError {
+  stageIndex: number;
+  stageId?: string;
+  actionId?: string;
+  path: string;
+  code: string;
+  message: string;
+  params?: Record<string, any>;
+}
+
+export interface BuildEvent {
+  id: string;
+  level: 'debug' | 'info' | 'warn' | 'error' | string;
+  phase: string;
+  message: string;
+  ts: string;
+  context?: Record<string, any>;
+}
+
+export interface StageLogLine {
+  id: string;
+  stream: 'stdout' | 'stderr' | string;
+  line: string;
+}
 
 // ─── Shared helpers ────────────────────────────────────────────────────
 

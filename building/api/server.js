@@ -13,6 +13,12 @@ const DispatchRouter = require('./services/DispatchRouter');
 const HostingDeployService = require('./services/HostingDeployService');
 const DeploymentService = require('./services/DeploymentService');
 const CustomerPolicyService = require('./services/CustomerPolicyService');
+const ActionRegistry = require('./services/ActionRegistry');
+const PipelineService = require('./services/PipelineService');
+const BuildService = require('./services/BuildService');
+const actionCatalog = require('./services/actions/catalog');
+const inprocHandlers = require('./services/handlers/inproc');
+const nomadHandlers = require('./services/handlers/nomad');
 const healthRoute = require('./routes/health');
 const routes = require('./routes');
 const { authenticateAdmin } = require('./utils/admin-auth');
@@ -89,6 +95,31 @@ jobs.onTerminal = async (jobId, status, { error, job } = {}) => {
   }
 };
 
+// Pipeline model — action catalog + pipeline CRUD. Execution of a
+// pipeline as a Build lives in BuildService (wired separately once the
+// executor is in). For this cut, the routes let operators author and
+// inspect pipeline definitions while the existing /api/jobs +
+// /api/deployments paths remain unchanged.
+const actions = new ActionRegistry({ logger });
+for (const def of actionCatalog) {
+  try { actions.register(def); }
+  catch (err) { logger.error(`[actions] register ${def.id} failed: ${err.message}`); }
+}
+const pipelines = new PipelineService(redis, { logger, actions, events });
+// Compose handler maps — inproc (file-shuffle, git clone, hosting hand-off,
+// webhook) + nomad (build.static, build.node via builder-linux image).
+// build.container / build.android / sign.* / publish.* remain
+// unregistered; BuildService emits `skipped_unimplemented` with a clear
+// reason until each gets a dedicated runner workflow.
+const allHandlers = new Map([
+  ...inprocHandlers.build({ hostingDeploy, logger }),
+  ...nomadHandlers.build({ logger }),
+]);
+const builds = new BuildService(redis, {
+  logger, events, pipelines, actions,
+  handlers: allHandlers,
+});
+
 app.locals.redis = redis;
 app.locals.events = events;
 app.locals.jobs = jobs;
@@ -100,6 +131,9 @@ app.locals.dispatch = dispatch;
 app.locals.sessions = sessions;
 app.locals.deployments = deployments;
 app.locals.hostingDeploy = hostingDeploy;
+app.locals.actions = actions;
+app.locals.pipelines = pipelines;
+app.locals.builds = builds;
 
 // Friendly landing at / — returns an API index. Lets a browser hitting
 // the root see "yes this is running" instead of a 404 JSON.

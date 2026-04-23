@@ -55,7 +55,7 @@ job "admin-ui" {
       driver = "docker"
 
       config {
-        image = "192.168.88.170:5000/spinforge/admin-ui:4b0bd31-20260421222440"
+        image = "192.168.88.170:5000/spinforge/admin-ui:server-edit-20260423075528"
         ports = ["http"]
       }
 

@@ -8,6 +8,9 @@ const router = express.Router();
 
 router.use('/jobs', jobs);
 router.use('/deployments', require('./deployments'));
+router.use('/pipelines', require('./pipelines'));
+router.use('/actions', require('./actions'));
+router.use('/builds', require('./builds'));
 router.use('/signing-profiles', signing);
 router.use('/sessions', sessions);
 router.use('/customers', customers);

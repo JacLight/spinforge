@@ -37,6 +37,9 @@ import {
   LogOut,
   FileCode,
   Layers,
+  Workflow,
+  PlayCircle,
+  BookOpen,
 } from "lucide-react";
 import { classNames } from "@/utils/helpers";
 
@@ -79,17 +82,23 @@ const groupedNav: NavGroup[] = [
     ],
   },
   {
-    title: "Deployments",
+    title: "Pipelines",
     items: [
-      { path: "/build/deployments", icon: Rocket,  label: "Deployments",        color: "from-fuchsia-500 to-fuchsia-600" },
-      { path: "/build/new",         icon: Upload,  label: "New deployment",     color: "from-indigo-500 to-indigo-600" },
-      { path: "/build/customers",   icon: Users,   label: "Customers + Policy", color: "from-teal-500 to-teal-600" },
-      { path: "/build/signing",     icon: Shield,  label: "Signing",            color: "from-amber-500 to-amber-600" },
-      { path: "/build/sessions",    icon: Monitor, label: "Sessions",           color: "from-cyan-500 to-cyan-600" },
-      { path: "/build/runners",     icon: Server,  label: "Runners",            color: "from-emerald-500 to-emerald-600" },
-      // Raw jobs view — still useful for debugging the build runner; not
-      // the primary user surface anymore. Kept but de-emphasized.
-      { path: "/build/jobs",        icon: Activity, label: "Build logs",        color: "from-slate-500 to-slate-600" },
+      { path: "/pipelines",           icon: Workflow,   label: "Pipelines",       color: "from-indigo-500 to-indigo-600" },
+      { path: "/pipelines/builds",    icon: PlayCircle, label: "Builds",          color: "from-blue-500 to-blue-600" },
+      { path: "/pipelines/artifacts", icon: Archive,    label: "Artifacts",       color: "from-purple-500 to-purple-600" },
+      { path: "/pipelines/actions",   icon: BookOpen,   label: "Actions catalog", color: "from-cyan-500 to-cyan-600" },
+    ],
+  },
+  // Build-farm operator tools only. No customer-scoped entries here —
+  // per-customer policy lives on the customer's detail page, not in
+  // the nav.
+  {
+    title: "Build admin",
+    items: [
+      { path: "/build/signing",  icon: Shield,  label: "Signing",  color: "from-amber-500 to-amber-600" },
+      { path: "/build/sessions", icon: Monitor, label: "Sessions", color: "from-cyan-500 to-cyan-600" },
+      { path: "/build/runners",  icon: Server,  label: "Runners",  color: "from-emerald-500 to-emerald-600" },
     ],
   },
   {
