@@ -6,6 +6,7 @@
  * See the LICENSE file in the root directory for details.
  */
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
@@ -18,9 +19,29 @@ const { checkStaticFiles } = require('../utils/site-helpers');
 const { STATIC_ROOT, UPLOADS_ROOT } = require('../utils/constants');
 const CustomerTokenService = require('../services/CustomerTokenService');
 const NomadService = require('../services/NomadService');
+const bcrypt = require('bcryptjs');
 
 const customerTokenService = new CustomerTokenService(redisClient);
 const nomad = new NomadService();
+
+// Default plan limits — used when a customer's record has no `limits` set.
+const DEFAULT_POLICY = {
+  hosting: {
+    maxSites: 10,
+    maxCustomDomains: 10,
+    maxSslCerts: 10,
+    storageMB: 1024,
+  },
+  build: {
+    concurrentJobs: 2,
+    maxJobDurationMin: 30,
+    maxJobMemoryMB: 2048,
+    maxArtifactMB: 512,
+    monthlyBuildMinutes: 600,
+    allowedPlatforms: ['static', 'docker', 'node'],
+    allowedRunnerClasses: ['standard'],
+  },
+};
 
 // Uploads: same temp dir + 500 MB cap the admin route uses.
 if (!fs.existsSync(UPLOADS_ROOT)) fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
@@ -96,6 +117,10 @@ const authenticateCustomer = async (req, res, next) => {
 
 // Apply authentication to all routes
 router.use(authenticateCustomer);
+
+// Per-customer audit. Hooked AFTER auth so req.customerId is populated.
+const customerAudit = require('../utils/customer-audit');
+router.use(customerAudit.auditCustomerActivity());
 
 // ─── Customer API Tokens ───────────────────────────────────────────────────
 // Per-customer long-lived tokens. Each token is scoped to its owning customer
@@ -582,6 +607,10 @@ router.post('/sites', async (req, res) => {
     const site = {
       ...siteData,
       customerId,
+      // Stable opaque identity for the app, independent of its domain. The
+      // deployment manifest committed to a customer's repo references this,
+      // so renaming the domain later does not invalidate the manifest.
+      appId: siteData.appId || `app_${crypto.randomUUID()}`,
       enabled: siteData.enabled !== false,
       // SSL is always on. Callers can't opt out — every site is served
       // over HTTPS with a Let's Encrypt cert auto-issued on first request.
@@ -604,6 +633,10 @@ router.post('/sites', async (req, res) => {
     }
 
     await redisClient.set(`site:${site.domain}`, JSON.stringify(site));
+    // app:<appId> -> current domain. The deployment manifest resolves an app
+    // through this pointer, so a later domain change is a pointer rewrite
+    // rather than an edit to every customer's committed manifest.
+    await redisClient.set(`app:${site.appId}`, site.domain);
     await sitesIndex.registerSite(site.domain, customerId);
 
     // Aliases: every extra domain routes to the primary site's content.
@@ -657,6 +690,157 @@ router.post('/sites', async (req, res) => {
 
     res.status(201).json(site);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Download the deployment manifest for an app.
+//
+// This is the handoff between the control panel and the customer's repo:
+// the panel creates the app (where quotas and domain assignment are
+// enforced), then hands back a pre-filled spinforge.yaml carrying the appId.
+// The customer commits it, and CI posts it to building-api on every push.
+//
+// The file deliberately contains no secret. The API token stays in the
+// caller's CI environment — a manifest is committed to source control, so
+// anything in it should be safe to make public.
+router.get('/sites/:domain/manifest', async (req, res) => {
+  try {
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+
+    if (!site.appId) {
+      return res.status(409).json({
+        error: 'This app predates manifest support and has no appId. Re-save it from the dashboard to assign one.',
+      });
+    }
+
+    const format = String(req.query.format || 'yaml').toLowerCase();
+    const repoUrl = String(req.query.repo || 'https://github.com/you/your-repo');
+
+    if (format === 'json') {
+      const body = {
+        $schema: 'https://build.spinforge.dev/_api/customer/manifest/schema',
+        appId: site.appId,
+        repo: { url: repoUrl },
+      };
+      res.setHeader('Content-Disposition', 'attachment; filename="spinforge.json"');
+      return res.type('application/json').send(JSON.stringify(body, null, 2) + '\n');
+    }
+
+    const yaml = [
+      '# SpinForge deployment manifest',
+      `# App:    ${site.domain}`,
+      `# Type:   ${site.type}`,
+      '#',
+      '# Commit this file to your repository root, then on every push run:',
+      '#   curl -X POST https://build.spinforge.dev/_api/customer/manifest \\',
+      '#        -H "Authorization: Bearer $SPINFORGE_TOKEN" \\',
+      '#        -H "Content-Type: application/yaml" \\',
+      '#        --data-binary @spinforge.yaml',
+      '#',
+      '# appId is stable — changing this app\'s domain will not invalidate it.',
+      '',
+      `appId: ${site.appId}`,
+      '',
+      'repo:',
+      `  url: ${repoUrl}`,
+      '  # ref: main          # default: the repository default branch',
+      '',
+      '# rootDir: apps/web    # subdirectory holding this project, for monorepos',
+      '# autoDeploy: true     # false = save configuration without building',
+      '',
+    ].join('\n');
+
+    res.setHeader('Content-Disposition', 'attachment; filename="spinforge.yaml"');
+    res.type('application/yaml').send(yaml);
+  } catch (error) {
+    console.error('Failed to build manifest:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Move an app to a different domain.
+//
+// The domain is the site key, so a rename is a key move rather than a field
+// update — which is why PUT /sites/:domain locks it. What must survive the
+// move is `appId`: customers commit it to their repo in spinforge.yaml, and
+// re-pointing `app:<appId>` here is what keeps that manifest valid instead
+// of forcing every customer to edit and re-commit after a rename.
+//
+// Only one domain is live at a time: the old key is deleted in the same
+// request that writes the new one.
+router.post('/sites/:domain/rename', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const { domain } = req.params;
+    const newDomain = String((req.body || {}).domain || '').trim().toLowerCase();
+
+    if (!newDomain) {
+      return res.status(400).json({ error: 'domain is required' });
+    }
+    if (newDomain === domain) {
+      return res.status(400).json({ error: 'new domain is the same as the current one' });
+    }
+
+    const site = await loadOwnedSite(req, res);
+    if (!site) return;
+
+    // Refuse if the target is taken — by any site or alias, not just ours.
+    if (await redisClient.exists(`site:${newDomain}`)) {
+      return res.status(409).json({ error: 'Domain already exists' });
+    }
+    if (await redisClient.get(`alias:${newDomain}`)) {
+      return res.status(409).json({ error: 'Domain is in use as an alias' });
+    }
+
+    const appId = site.appId || `app_${crypto.randomUUID()}`;
+    const moved = {
+      ...site,
+      appId,
+      domain: newDomain,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Nomad job ids are derived from the domain, so the workload has to be
+    // re-registered under the new name. Deploy first: if it fails we return
+    // before touching Redis and the app keeps serving on its old domain.
+    if (moved.type === 'container' || moved.type === 'node') {
+      try {
+        moved.orchestrator = 'nomad';
+        const deployed = await nomad.deploySite(moved);
+        moved.nomadJobId = deployed.jobId;
+        moved.nomadEvalId = deployed.evalId;
+      } catch (error) {
+        return res.status(500).json({ error: 'Nomad redeploy failed', details: error.message });
+      }
+    }
+
+    await redisClient.set(`site:${newDomain}`, JSON.stringify(moved));
+    await redisClient.set(`app:${appId}`, newDomain);
+    await sitesIndex.registerSite(newDomain, customerId);
+
+    // Re-point aliases at the new primary.
+    if (Array.isArray(site.aliases)) {
+      for (const a of site.aliases) {
+        const alias = String(a || '').trim();
+        if (alias) await redisClient.set(`alias:${alias}`, newDomain);
+      }
+    }
+
+    // Retire the old domain last, so a failure above never leaves the app
+    // unreachable on both names.
+    await redisClient.del(`site:${domain}`);
+    await sitesIndex.unregisterSite(domain, customerId);
+    if (site.type === 'container' || site.type === 'node') {
+      await nomad.stopSite(domain, { purge: true }).catch(() => {});
+    }
+
+    publishEvent('site.renamed', newDomain, { customerId, appId, from: domain, to: newDomain });
+
+    res.json({ appId, domain: newDomain, previousDomain: domain, url: `https://${newDomain}` });
+  } catch (error) {
+    console.error('Failed to rename site:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -998,6 +1182,246 @@ router.get('/deployments/:id/metrics', async (req, res) => {
         lastUpdated: metricsData.lastUpdated || null
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Profile (the signed-in user) ─────────────────────────────────────────
+
+// GET /me — returns the current user + customer record
+router.get('/me', async (req, res) => {
+  try {
+    const userData = req.userEmail ? await redisClient.get(`user:email:${req.userEmail}`) : null;
+    const user = userData ? JSON.parse(userData) : null;
+    const custData = await redisClient.get(`customer:${req.customerId}`);
+    const customer = custData ? JSON.parse(custData) : null;
+
+    res.json({
+      id: req.customerId,
+      email: req.userEmail || user?.email || customer?.email || null,
+      name: customer?.name || user?.name || null,
+      role: user?.role || 'customer',
+      customer: customer
+        ? { id: customer.id, name: customer.name, email: customer.email, createdAt: customer.createdAt }
+        : null,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /me — update name / email
+router.put('/me', async (req, res) => {
+  try {
+    const { name, email } = req.body || {};
+    const updates = {};
+    if (typeof name === 'string') updates.name = name.trim();
+    if (typeof email === 'string') updates.email = email.trim().toLowerCase();
+
+    // Update customer record (name/email) if it exists.
+    const custKey = `customer:${req.customerId}`;
+    const custRaw = await redisClient.get(custKey);
+    if (custRaw) {
+      const customer = JSON.parse(custRaw);
+      if (updates.name !== undefined) customer.name = updates.name;
+      if (updates.email !== undefined && updates.email !== customer.email) {
+        // Guard email collision.
+        const taken = await redisClient.get(`customer:email:${updates.email}`);
+        if (taken && taken !== req.customerId) {
+          return res.status(409).json({ error: 'Email already in use' });
+        }
+        await redisClient.del(`customer:email:${customer.email}`);
+        await redisClient.set(`customer:email:${updates.email}`, customer.id);
+        customer.email = updates.email;
+      }
+      customer.updatedAt = new Date().toISOString();
+      await redisClient.set(custKey, JSON.stringify(customer));
+    }
+
+    // Mirror name onto the user record so the UI is consistent.
+    if (req.userEmail && updates.name !== undefined) {
+      const userKey = `user:email:${req.userEmail}`;
+      const userRaw = await redisClient.get(userKey);
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        user.name = updates.name;
+        user.updatedAt = new Date().toISOString();
+        await redisClient.set(userKey, JSON.stringify(user));
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /me/password — change password (requires current password)
+router.post('/me/password', async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+    if (!req.userEmail) {
+      return res.status(400).json({ error: 'No user email associated with this token' });
+    }
+
+    const userKey = `user:email:${req.userEmail}`;
+    const userRaw = await redisClient.get(userKey);
+    if (!userRaw) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = JSON.parse(userRaw);
+
+    const ok = await bcrypt.compare(currentPassword, user.password);
+    if (!ok) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordUpdatedAt = new Date().toISOString();
+    user.updatedAt = new Date().toISOString();
+    await redisClient.set(userKey, JSON.stringify(user));
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /me/policy — plan limits for this customer (falls back to DEFAULT_POLICY)
+router.get('/me/policy', async (req, res) => {
+  try {
+    const custData = await redisClient.get(`customer:${req.customerId}`);
+    const customer = custData ? JSON.parse(custData) : null;
+    const limits = customer?.limits && Object.keys(customer.limits).length > 0
+      ? customer.limits
+      : DEFAULT_POLICY;
+    res.json(limits);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Templates (read-only catalog + customer-scoped deploy) ───────────────
+// Customers can browse the platform template catalog and deploy a template
+// as one of their own sites. Authoring (create/update/delete/init-defaults)
+// stays admin-only on /api/templates.
+
+router.get('/templates', async (_req, res) => {
+  try {
+    const keys = await redisClient.keys('template:*');
+    const templates = [];
+    for (const key of keys) {
+      const raw = await redisClient.get(key);
+      if (raw) templates.push(JSON.parse(raw));
+    }
+    res.json(templates);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/templates/:id', async (req, res) => {
+  try {
+    const raw = await redisClient.get(`template:${req.params.id}`);
+    if (!raw) return res.status(404).json({ error: 'Template not found' });
+    res.json(JSON.parse(raw));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/templates/:id/deploy', async (req, res) => {
+  try {
+    const { customerId } = req;
+    const raw = await redisClient.get(`template:${req.params.id}`);
+    if (!raw) return res.status(404).json({ error: 'Template not found' });
+    const template = JSON.parse(raw);
+
+    const { domain, deployName, variables = {} } = req.body || {};
+    if (!domain) return res.status(400).json({ error: 'domain is required' });
+    if (!deployName) return res.status(400).json({ error: 'deployName is required' });
+
+    const exists = await redisClient.exists(`site:${domain}`);
+    if (exists) return res.status(409).json({ error: 'Domain already exists' });
+
+    const config = JSON.parse(JSON.stringify(template.config || {}));
+    const allVariables = {
+      ...variables,
+      customerName: customerId,
+      deployName,
+      domain,
+      namespace: `${customerId}-${deployName}`,
+    };
+    const substitute = (obj) => {
+      for (const k in obj) {
+        if (typeof obj[k] === 'string') {
+          obj[k] = obj[k].replace(/\{\{(\w+)\}\}/g, (m, n) => allVariables[n] ?? m);
+        } else if (obj[k] && typeof obj[k] === 'object') {
+          substitute(obj[k]);
+        }
+      }
+    };
+    substitute(config);
+
+    const site = {
+      ...config,
+      domain,
+      customerId,
+      deployName,
+      fromTemplate: template.id,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (template.category === 'container') {
+      site.containerName = `spinforge-${customerId}-${deployName}`;
+    }
+
+    if (site.type === 'container' || site.type === 'node' || template.category === 'container') {
+      try {
+        site.orchestrator = 'nomad';
+        if (!site.type) site.type = 'container';
+        const deployed = await nomad.deploySite(site);
+        site.nomadJobId = deployed.jobId;
+        site.nomadEvalId = deployed.evalId;
+      } catch (err) {
+        return res.status(500).json({ error: 'Nomad deployment failed', details: err.message });
+      }
+    }
+
+    await redisClient.set(`site:${domain}`, JSON.stringify(site));
+    await sitesIndex.registerSite(domain, customerId);
+    require('../utils/auto-cert').maybeAutoIssueCert(site);
+
+    res.status(201).json({
+      message: 'Deployed from template',
+      deployment: {
+        id: domain,
+        domain,
+        type: site.type,
+        status: site.nomadJobId ? 'scheduled' : 'created',
+        createdAt: site.createdAt,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /audit — most recent activity entries for this customer.
+router.get('/audit', async (req, res) => {
+  try {
+    const limit = Math.min(500, parseInt(req.query.limit, 10) || 100);
+    const entries = await customerAudit.recent(req.customerId, limit);
+    res.json({ entries });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

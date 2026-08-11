@@ -6,10 +6,14 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "name",
+    "appId",
     "repo"
   ],
   "properties": {
+    "appId": {
+      "type": "string",
+      "pattern": "^app_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
     "$schema": {
       "type": "string"
     },
@@ -26,47 +30,9 @@
         }
       ]
     },
-    "name": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 100
-    },
-    "type": {
-      "type": "string",
-      "enum": [
-        "static",
-        "node",
-        "container"
-      ],
-      "default": "static"
-    },
-    "domain": {
-      "type": "string",
-      "minLength": 1
-    },
-    "aliases": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
     "rootDir": {
       "type": "string",
       "default": "."
-    },
-    "owner": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "email": {
-          "type": "string",
-          "format": "email"
-        },
-        "name": {
-          "type": "string"
-        }
-      }
     },
     "repo": {
       "type": "object",

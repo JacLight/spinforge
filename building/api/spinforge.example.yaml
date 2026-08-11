@@ -1,48 +1,25 @@
 # SpinForge deployment manifest
 #
-# Editor completion — point your editor at the schema:
-#   yaml.schemas:
-#     https://build.spinforge.dev/_api/customer/manifest/schema: spinforge.yaml
+# Download this pre-filled from your dashboard: open the app, then
+# "Download manifest". Commit it to your repository root.
 #
-# Apply it:
+# Deploy on every push:
 #   curl -X POST https://build.spinforge.dev/_api/customer/manifest \
-#        -H "Authorization: Bearer sfc_your_token" \
+#        -H "Authorization: Bearer $SPINFORGE_TOKEN" \
 #        -H "Content-Type: application/yaml" \
 #        --data-binary @spinforge.yaml
 #
-# Idempotent per (account, name): the first call creates the deployment,
-# every call after updates it. Safe to run on every push.
+# The app must already exist — create it in the dashboard first. A manifest
+# points at an app you own; it can never create one or claim a domain.
+#
+# appId is stable: changing the app's domain does not invalidate this file.
 
-# ── Required ────────────────────────────────────────────────────────────
-name: my-app                        # 1-100 chars; also the idempotency key
+appId: app_b5354edd-e287-480f-b750-72b28a39a255
 
 repo:
   url: https://github.com/me/my-app
-  # ref: main                       # branch, tag, or SHA
-                                    # (default: the repo's default branch)
-  # token: ghp_xxx                  # private repos only; never echoed back
+  # ref: main           # default: the repository's default branch
+  # token: ghp_xxx      # private repos only
 
-# ── Optional ────────────────────────────────────────────────────────────
-
-# Leave `domain` out and SpinForge assigns <name>.spinforge.dev, checking
-# it is not already taken. Once assigned it never changes on re-apply.
-# domain: app.example.com
-
-# aliases:
-#   - www.app.example.com
-
-# static (default) | node | container
-# type: static
-
-# Subdirectory holding this project, for monorepos. The build runs from
-# here and output paths resolve relative to it.
-# rootDir: apps/web
-
-# Declares who this deployment belongs to. Checked against the account
-# behind your API token — a mismatch is rejected, which catches a CI job
-# running with the wrong token.
-# owner:
-#   email: me@example.com
-#   name: Jane Doe
-
-# autoDeploy: true                  # false = save config, don't build
+# rootDir: apps/web     # subdirectory holding this project, for monorepos
+# autoDeploy: true      # false = save configuration without building

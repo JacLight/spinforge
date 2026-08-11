@@ -15,7 +15,11 @@
  *   container  → Nomad job using the `docker` driver. Customer supplies an
  *                image (like nginx:alpine, their own GHCR image, etc.).
  *                For stateful workloads (MongoDB, Postgres) the caller
- *                supplies a host_volume mount via containerConfig.volumes.
+ *                supplies bind mounts via containerConfig.volumes. Host
+ *                paths are required to sit under the shared CephFS root
+ *                (SPINFORGE_SHARED_ROOT, default /mnt/cephfs) so the data
+ *                follows the alloc when Nomad reschedules it to another
+ *                node — see isSharedVolumePath below.
  *
  *   node       → Nomad job using the `raw_exec` driver. Customer supplies
  *                an artifact (git repo, tarball URL, or a static path on
@@ -33,7 +37,23 @@
  *   deploy. Deleting a site means `DELETE /v1/job/<id>?purge=true`.
  */
 const axios = require('axios');
+const path = require('path');
 const logger = require('../utils/logger');
+
+// Volume host paths must live on the shared CephFS mount, which is mounted at
+// the same location on every Nomad client. A node-local bind mount looks fine
+// until the alloc is rescheduled after a node failure: the path doesn't exist
+// on the new node, so the site comes back with an empty volume. Failing at
+// deploy time is far cheaper than discovering it mid-outage.
+const SHARED_VOLUME_ROOT = process.env.SPINFORGE_SHARED_ROOT || '/mnt/cephfs';
+
+function isSharedVolumePath(hostPath) {
+  if (!path.isAbsolute(hostPath)) return false;
+  // resolve() normalizes away any ".." segments before we compare prefixes.
+  const resolved = path.resolve(hostPath);
+  const root = path.resolve(SHARED_VOLUME_ROOT);
+  return resolved === root || resolved.startsWith(root + path.sep);
+}
 
 const DEFAULT_NOMAD_ADDR =
   process.env.NOMAD_ADDR || 'http://172.18.0.1:4646';
@@ -338,9 +358,27 @@ class NomadService {
   }
 
   _volumeMounts(vols) {
-    // Simple shape: ["hostPath:containerPath", ...]
+    // Simple shape: ["hostPath:containerPath", ...] (an optional trailing
+    // ":ro"/":rw" mode is passed through to the docker driver untouched).
     if (!Array.isArray(vols)) return [];
-    return vols.map(v => String(v));
+    return vols.map((v) => {
+      const spec = String(v);
+      const hostPath = spec.split(':')[0];
+      if (!hostPath || !spec.includes(':')) {
+        throw new Error(
+          `invalid volume "${spec}" (expected "hostPath:containerPath")`
+        );
+      }
+      if (!isSharedVolumePath(hostPath)) {
+        throw new Error(
+          `volume host path "${hostPath}" is not under ${SHARED_VOLUME_ROOT}. ` +
+          `Node-local paths do not survive rescheduling — after a node failure ` +
+          `the workload restarts elsewhere with an empty volume. Use a path ` +
+          `under ${SHARED_VOLUME_ROOT}.`
+        );
+      }
+      return spec;
+    });
   }
 
   _parseCommand(entrypoint) {

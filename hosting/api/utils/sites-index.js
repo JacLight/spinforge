@@ -120,6 +120,7 @@ module.exports = {
   registerSite,
   unregisterSite,
   listAllDomains,
+  listAllSiteKeys,
   listDomainsForCustomer,
   rebuildIndex,
   ensureIndexOnBoot,

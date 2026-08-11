@@ -5,25 +5,25 @@
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  *
- * Turns a single declarative document ("spinforge.json") into the pipeline
- * that SpinForge already knows how to run. The caller describes *what* they
- * want hosted — name, domain, repo, project type — and this service derives
- * the concrete build + deploy stages from the action catalog.
+ * Turns a single declarative document ("spinforge.yaml") into the pipeline
+ * that SpinForge already knows how to run. The manifest says which app to
+ * deploy and where the code lives; everything else — domain, project type,
+ * aliases — is read from the app record, so there is one source of truth.
+ *
+ * The manifest is a POINTER, never a creator. Apps are created in the
+ * control panel, which is the single place quotas, reserved names and domain
+ * assignment are enforced. A manifest that names an app you do not own is
+ * rejected, so it cannot be used to claim a subdomain.
+ *
+ * `appId` is opaque and stable. Changing an app's domain updates the app
+ * record and the app:<appId> pointer; the committed manifest is untouched.
  *
  * The manifest deliberately does NOT carry the stage list. Stage wiring is
- * derived from `type` so the same manifest keeps working when the catalog
- * gains new actions or changes an input name.
+ * derived from the app's type so manifests keep working when the action
+ * catalog changes.
  *
- * Ownership is NOT taken from the manifest. The authoritative owner is the
- * customer behind the sfc_ API token on the request — otherwise anyone could
- * claim a domain by typing someone else's address into `owner.email`. The
- * manifest's owner block is recorded as metadata and cross-checked, with a
- * mismatch surfaced as a warning rather than a hard failure (shared team
- * keys are a legitimate pattern).
- *
- * Applying a manifest is idempotent per (customerId, name): the first apply
- * creates the pipeline, later applies update it in place. That makes the
- * manifest safe to run from CI on every push.
+ * Applying is idempotent per app: the first apply creates the pipeline,
+ * later applies update it in place. Safe to run from CI on every push.
  */
 const Ajv = require('ajv');
 const addFormats = require('ajv-formats');
@@ -32,14 +32,6 @@ const path = require('path');
 
 // Project types a manifest may declare, mapped to the pipeline `type`
 // vocabulary in PipelineService (PIPELINE_TYPES).
-// DNS suffix for auto-generated domains. Deliberately NOT reusing BASE_DOMAIN
-// from .env — that holds the router IP (192.168.88.170), which would produce
-// nonsense like "my-app.192.168.88.170".
-const BASE_DOMAIN = process.env.MANIFEST_BASE_DOMAIN || 'spinforge.dev';
-
-// How many suffixed candidates to try before giving up on a free name.
-const MAX_DOMAIN_ATTEMPTS = 50;
-
 const TYPE_TO_PIPELINE_TYPE = {
   static: 'static-site',
   node: 'node-service',
@@ -49,8 +41,16 @@ const TYPE_TO_PIPELINE_TYPE = {
 const MANIFEST_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['name', 'repo'],
+  required: ['appId', 'repo'],
   properties: {
+    // The app this repo deploys to. Created in the control panel first —
+    // that is where quotas, reserved names and domain assignment are
+    // enforced, so a manifest can only ever point at an app you already own
+    // and can never mint a domain.
+    //
+    // Opaque and stable: renaming the app's domain does not change appId, so
+    // the committed manifest keeps working without an edit.
+    appId: { type: 'string', pattern: '^app_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' },
     // Editors resolve `$schema` to offer completion and inline validation.
     // Ignored by the server, but it must be allowed through or every
     // schema-aware manifest would fail additionalProperties.
@@ -60,25 +60,10 @@ const MANIFEST_SCHEMA = {
     $comment: {
       anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     },
-    // Human name; also the idempotency key within a customer.
-    name: { type: 'string', minLength: 1, maxLength: 100 },
-    // Defaults to static. Set explicitly for node or container — with the
-    // build/container blocks gone there is nothing else to infer from.
-    type: { type: 'string', enum: Object.keys(TYPE_TO_PIPELINE_TYPE), default: 'static' },
-    domain: { type: 'string', minLength: 1 },
-    aliases: { type: 'array', items: { type: 'string' }, default: [] },
     // Subdirectory within the repo holding this project. For monorepos:
     // the repo is cloned whole, then the build runs from here and output
     // paths resolve relative to it.
     rootDir: { type: 'string', default: '.' },
-    owner: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        email: { type: 'string', format: 'email' },
-        name: { type: 'string' },
-      },
-    },
     repo: {
       type: 'object',
       additionalProperties: false,
@@ -305,81 +290,41 @@ class ManifestService {
   }
 
   /**
-   * Decide the domain a manifest deploys to.
+   * Resolve the app a manifest points at, and prove the caller owns it.
    *
-   *   1. An explicit `domain` always wins.
-   *   2. Otherwise reuse whatever this deployment was assigned last time, so
-   *      re-applying never silently moves a live site to a new address.
-   *   3. Otherwise derive `<name>.spinforge.dev`, walking a numeric suffix
-   *      until an unclaimed one is found.
+   * `app:<appId>` holds the app's current domain; the site record under
+   * `site:<domain>` holds everything else. Two hops rather than one so a
+   * domain change only rewrites the pointer, leaving committed manifests
+   * valid.
    *
-   * Availability is checked against `site:<domain>` in the shared KeyDB, so a
-   * generated domain cannot collide with any site on the platform — including
-   * the platform's own (admin, api, grafana…), which are stored the same way.
+   * A missing app and an app owned by someone else return the SAME error.
+   * Distinguishing them would make this endpoint an oracle for probing which
+   * appIds exist.
    */
-  async resolveDomain(manifest, { currentDomain } = {}) {
-    if (manifest.domain) return manifest.domain;
-    if (currentDomain) return currentDomain;
+  async resolveApp(appId, { customerId } = {}) {
+    if (!this.redis) throw bad('app lookup unavailable');
 
-    const slug = slugifyName(manifest.name);
-    for (let n = 1; n <= MAX_DOMAIN_ATTEMPTS; n += 1) {
-      const candidate = n === 1
-        ? `${slug}.${BASE_DOMAIN}`
-        : `${slug}-${n}.${BASE_DOMAIN}`;
-      if (!(await this.domainTaken(candidate))) return candidate;
-    }
-    throw bad(
-      `could not find a free domain for "${manifest.name}" after ` +
-      `${MAX_DOMAIN_ATTEMPTS} attempts — set "domain" explicitly`
-    );
-  }
+    const notFound = () => {
+      const err = bad(
+        `app ${appId} not found, or not owned by this account — create the ` +
+        `app in your dashboard and download its manifest`
+      );
+      err.status = 404;
+      err.code = 'app_not_found';
+      return err;
+    };
 
-  /** True when a site record already exists for this domain. */
-  async domainTaken(domain) {
-    if (!this.redis) return false;
-    return Boolean(await this.redis.get(`site:${domain}`));
-  }
+    const domain = await this.redis.get(`app:${appId}`);
+    if (!domain) throw notFound();
 
-  /**
-   * Confirm the manifest's declared owner really is the authenticated
-   * account. Accepts either the account's own address or the address the
-   * token was issued to, so shared team tokens still work.
-   *
-   * Rejecting here is the point: without it, `owner.email` would be a
-   * comment, and a CI job holding the wrong token would deploy into the
-   * wrong account with no signal.
-   */
-  async assertOwner(declaredEmail, { customerId, userEmail } = {}) {
-    const declared = String(declaredEmail).trim().toLowerCase();
-    const accepted = new Set();
-    if (userEmail) accepted.add(String(userEmail).trim().toLowerCase());
+    const raw = await this.redis.get(`site:${domain}`);
+    if (!raw) throw notFound();
 
-    const account = await this.getCustomer(customerId);
-    if (account && account.email) accepted.add(String(account.email).trim().toLowerCase());
+    let site;
+    try { site = JSON.parse(raw); } catch (_) { throw notFound(); }
+    if (!site.customerId || site.customerId !== customerId) throw notFound();
 
-    // Nothing to compare against (no account record, no token email) — let
-    // it through rather than block a deploy on a lookup we couldn't do.
-    if (!accepted.size) return;
-    if (accepted.has(declared)) return;
-
-    const err = bad(
-      `manifest owner.email "${declaredEmail}" does not belong to the ` +
-      `authenticated account — check you are using the right API token`
-    );
-    err.status = 403;
-    err.code = 'owner_mismatch';
-    throw err;
-  }
-
-  /** Load a customer record from the shared KeyDB. Null when unavailable. */
-  async getCustomer(customerId) {
-    if (!this.redis || !customerId) return null;
-    try {
-      const raw = await this.redis.get(`customer:${customerId}`);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      return null;
-    }
+    return { appId, domain, site };
   }
 
   /**
@@ -393,23 +338,18 @@ class ManifestService {
     const manifest = this.normalize(rawManifest);
     const warnings = [];
 
-    // Verify the declared owner before doing any work. This is the guard
-    // against a CI job configured with the wrong token quietly deploying
-    // into someone else's account — the manifest states who it belongs to,
-    // and we refuse if the token says otherwise.
-    const declaredEmail = manifest.owner && manifest.owner.email;
-    if (declaredEmail) {
-      await this.assertOwner(declaredEmail, { customerId, userEmail });
+    // Resolve the app first — this both finds the domain and proves the
+    // caller owns it. Nothing else runs until that passes.
+    const { appId, domain, site } = await this.resolveApp(manifest.appId, { customerId });
+
+    // Project type comes from the app record, not the manifest, so the two
+    // can never disagree.
+    const type = TYPE_TO_PIPELINE_TYPE[site.type] ? site.type : 'static';
+    if (!TYPE_TO_PIPELINE_TYPE[site.type]) {
+      warnings.push(`app type "${site.type}" is not buildable from a manifest; treating as static`);
     }
 
-    // Reuse a previously assigned domain so re-applying never moves a live
-    // site; only a brand-new deployment gets a fresh generated name.
-    const existing = await this._findByName(customerId, manifest.name);
-    manifest.domain = await this.resolveDomain(manifest, {
-      currentDomain: existing && existing.metadata && existing.metadata.domain,
-    });
-
-    const stages = this.toStages(manifest);
+    const stages = this.toStages({ ...manifest, type, domain, aliases: site.aliases || [] });
     const missing = this.unsupportedStages(stages);
     if (missing.length) {
       warnings.push(
@@ -418,10 +358,14 @@ class ManifestService {
       );
     }
 
+    // Pipelines are keyed on the app, so re-applying updates in place even
+    // if the app's domain changed since the last deploy.
+    const existing = await this._findByName(customerId, appId);
+
     const spec = {
       customerId,
-      name: manifest.name,
-      type: TYPE_TO_PIPELINE_TYPE[manifest.type],
+      name: appId,
+      type: TYPE_TO_PIPELINE_TYPE[type],
       source: pruneUndefined({
         type: 'git',
         url: manifest.repo.url,
@@ -431,11 +375,10 @@ class ManifestService {
       stages,
       trigger: { type: 'manifest' },
       metadata: pruneUndefined({
-        domain: manifest.domain,
-        aliases: manifest.aliases,
-        ownerEmail: declaredEmail,
-        ownerName: manifest.owner && manifest.owner.name,
-        manifestType: manifest.type,
+        appId,
+        domain,
+        appType: type,
+        rootDir: manifest.rootDir,
         appliedBy: userEmail,
       }),
     };
@@ -467,9 +410,11 @@ class ManifestService {
 
     return {
       created,
+      appId,
+      domain,
+      url: `https://${domain}`,
       pipeline: redactSource(pipeline),
       build: build ? { id: build.id, status: build.status } : null,
-      domain: manifest.domain,
       warnings,
     };
   }
@@ -501,21 +446,6 @@ function safeSubPath(...parts) {
     throw bad(`path "${joined}" must stay inside the repository`);
   }
   return normalized;
-}
-
-/**
- * Turn a manifest name into a DNS label: lowercase, alphanumerics and single
- * hyphens, no leading/trailing hyphen, capped at 40 chars to leave room for a
- * numeric suffix inside the 63-char label limit.
- */
-function slugifyName(name) {
-  const slug = String(name || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-    .replace(/-+$/, '');
-  return slug || 'app';
 }
 
 function pruneUndefined(obj) {
