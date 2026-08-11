@@ -16,21 +16,25 @@ const CustomerPolicyService = require('./services/CustomerPolicyService');
 const ActionRegistry = require('./services/ActionRegistry');
 const PipelineService = require('./services/PipelineService');
 const BuildService = require('./services/BuildService');
+const ManifestService = require('./services/ManifestService');
 const actionCatalog = require('./services/actions/catalog');
 const inprocHandlers = require('./services/handlers/inproc');
 const nomadHandlers = require('./services/handlers/nomad');
 const healthRoute = require('./routes/health');
 const routes = require('./routes');
 const { authenticateAdmin } = require('./utils/admin-auth');
+const { authenticateCustomer } = require('./utils/customer-auth');
+const customerRoutes = require('./routes/customer');
 const metrics = require('./utils/metrics');
 
 const app = express();
 
-// CORS — admin UI (https://admin.spinforge.dev) calls this service cross-origin
-// with Authorization: Bearer <admin JWT>. Must be mounted BEFORE express.json
-// and BEFORE authenticateAdmin so preflights (OPTIONS) are answered without
-// auth. Non-browser callers (curl/postman) send no Origin and are allowed.
-const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || 'https://admin.spinforge.dev,http://localhost:5173,http://localhost:3000')
+// CORS — admin-ui (admin.spinforge.dev) and customer-ui (app.spinforge.dev)
+// both call this service cross-origin with Authorization: Bearer. Must be
+// mounted BEFORE express.json and BEFORE authenticateAdmin so preflights
+// (OPTIONS) are answered without auth. Non-browser callers (curl/postman)
+// send no Origin and are allowed.
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || 'https://admin.spinforge.dev,https://app.spinforge.dev,http://localhost:5173,http://localhost:3000')
   .split(',').map((s) => s.trim()).filter(Boolean);
 
 app.use(cors({
@@ -48,6 +52,13 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '1mb' }));
+// Manifests may be sent as YAML. Capture those bodies as raw text — the
+// manifest routes parse them (js-yaml reads JSON too, so one parser covers
+// both). Any other route still sees only parsed JSON.
+app.use(express.text({
+  limit: '1mb',
+  type: ['application/yaml', 'text/yaml', 'application/x-yaml', 'text/x-yaml'],
+}));
 
 app.use((req, _res, next) => {
   logger.info(`${req.method} ${req.path}`);
@@ -119,6 +130,11 @@ const builds = new BuildService(redis, {
   logger, events, pipelines, actions,
   handlers: allHandlers,
 });
+// Declarative entry point: a spinforge.json manifest becomes a pipeline
+// (+ optional build) without the caller hand-assembling stages.
+const manifests = new ManifestService({
+  pipelines, builds, actions, handlers: allHandlers, redis, logger,
+});
 
 app.locals.redis = redis;
 app.locals.events = events;
@@ -134,6 +150,7 @@ app.locals.hostingDeploy = hostingDeploy;
 app.locals.actions = actions;
 app.locals.pipelines = pipelines;
 app.locals.builds = builds;
+app.locals.manifests = manifests;
 
 // Friendly landing at / — returns an API index. Lets a browser hitting
 // the root see "yes this is running" instead of a 404 JSON.
@@ -176,6 +193,18 @@ app.get('/metrics', async (_req, res) => {
   res.end(await metrics.registry.metrics());
 });
 app.use('/api', authenticateAdmin, routes);
+// Customer-scoped surface. Same KeyDB as hosting/api, so apitoken: / session:
+// / sfc_ tokens minted by the customer-ui login flow (or POST /_api/customer/
+// tokens) authenticate here without enrollment. All routes below this line
+// force req.customerId on lists/creates and assert ownership on fetches.
+// The manifest JSON Schema is public and mounted BEFORE the auth gate.
+// Editors resolve a manifest's `$schema` with a plain unauthenticated GET —
+// behind authenticateCustomer it would 401 and completion would silently
+// stop working. The schema is a published contract, not customer data.
+app.get('/_api/customer/manifest/schema', (_req, res) => {
+  res.type('application/schema+json').json(manifests.schema());
+});
+app.use('/_api/customer', authenticateCustomer, customerRoutes);
 // Internal mount for bare-metal runners over Tailscale (Mac et al.).
 // See routes/internal.js for the security posture — never expose this
 // outside the trusted mesh. Also gated by admin auth so a leaked mesh
@@ -192,6 +221,7 @@ app.use((req, res) => {
       '/api/deployments', '/api/jobs', '/api/customers/:id/policy',
       '/api/signing-profiles', '/api/sessions', '/api/runners',
       '/api/admin/retention/run',
+      '/_api/customer/pipelines', '/_api/customer/builds', '/_api/customer/actions',
       '/_internal/workspaces/:jobId', '/_internal/artifacts/:jobId',
     ],
   });
@@ -199,7 +229,15 @@ app.use((req, res) => {
 
 app.use((err, _req, res, _next) => {
   logger.error(`unhandled: ${err.message}`, { stack: err.stack });
-  res.status(err.status || 500).json({ error: err.expose ? err.message : 'internal_error' });
+  if (!err.expose) {
+    return res.status(err.status || 500).json({ error: 'internal_error' });
+  }
+  // Exposable errors may carry a machine-readable `code` and per-field
+  // `details` (schema validation). Without these the caller gets a bare
+  // sentence and has to guess which field was wrong.
+  const body = { error: err.code || err.message, message: err.message };
+  if (err.details) body.details = err.details;
+  res.status(err.status || 500).json(body);
 });
 
 const PORT = Number(process.env.PORT || 8090);

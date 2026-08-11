@@ -1,0 +1,653 @@
+<title>SpinForge Deployment Manifest</title>
+<style>
+  :root {
+    --ground: #F6F7F9;
+    --surface: #FFFFFF;
+    --code-bg: #F1F3F6;
+    --ink: #1A1E25;
+    --muted: #5C6472;
+    --faint: #8A93A2;
+    --rule: #E2E5EA;
+    --accent: #A9540A;
+    --accent-soft: #FDF3E7;
+    --ok: #0E7A57;
+    --ok-soft: #E7F5EF;
+    --gap: #9A3412;
+    --gap-soft: #FCEEE8;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #14171C;
+      --surface: #1B1F26;
+      --code-bg: #101318;
+      --ink: #E4E7EC;
+      --muted: #9AA3B2;
+      --faint: #6D7686;
+      --rule: #2A2F38;
+      --accent: #FBBF24;
+      --accent-soft: #2A2113;
+      --ok: #34D399;
+      --ok-soft: #10241D;
+      --gap: #FB923C;
+      --gap-soft: #2A1810;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #14171C;
+    --surface: #1B1F26;
+    --code-bg: #101318;
+    --ink: #E4E7EC;
+    --muted: #9AA3B2;
+    --faint: #6D7686;
+    --rule: #2A2F38;
+    --accent: #FBBF24;
+    --accent-soft: #2A2113;
+    --ok: #34D399;
+    --ok-soft: #10241D;
+    --gap: #FB923C;
+    --gap-soft: #2A1810;
+  }
+
+  :root[data-theme="light"] {
+    --ground: #F6F7F9;
+    --surface: #FFFFFF;
+    --code-bg: #F1F3F6;
+    --ink: #1A1E25;
+    --muted: #5C6472;
+    --faint: #8A93A2;
+    --rule: #E2E5EA;
+    --accent: #A9540A;
+    --accent-soft: #FDF3E7;
+    --ok: #0E7A57;
+    --ok-soft: #E7F5EF;
+    --gap: #9A3412;
+    --gap-soft: #FCEEE8;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5rem;
+  }
+
+  .prose { max-width: 42rem; }
+
+  /* ---- masthead ---- */
+  .masthead { display: flex; flex-direction: column; gap: 1rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(1.9rem, 4.5vw, 2.6rem);
+    line-height: 1.12;
+    letter-spacing: -0.022em;
+    font-weight: 680;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: 1.075rem;
+    color: var(--muted);
+    max-width: 40rem;
+    margin: 0;
+  }
+
+  .factbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+  .fact { display: flex; gap: 0.5rem; }
+  .fact-k { color: var(--faint); }
+  .fact-v { color: var(--ink); }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+
+  h2 {
+    font-size: 1.32rem;
+    letter-spacing: -0.014em;
+    font-weight: 650;
+    margin: 0;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  h3 {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 0.75rem 0 0;
+  }
+
+  p { margin: 0; max-width: 42rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+    margin: 0;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.83rem;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+  .c-key { color: var(--accent); }
+  .c-str { color: var(--ok); }
+  .c-com { color: var(--faint); font-style: italic; }
+
+  /* ---- steps ---- */
+  ol.steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    counter-reset: step;
+  }
+  ol.steps > li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    gap: 0 0.9rem;
+    align-items: start;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--accent);
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    width: 1.6rem;
+    height: 1.6rem;
+    display: grid;
+    place-items: center;
+    margin-top: 0.1rem;
+  }
+  ol.steps .step-body { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+  ol.steps .step-title { font-weight: 620; }
+
+  /* ---- tables ---- */
+  .scroller { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+  th, td { text-align: left; padding: 0.7rem 0.95rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--faint);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.field { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); white-space: nowrap; }
+  td.type { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+  td.dflt { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+  .req {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--gap);
+    background: var(--gap-soft);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .sub { color: var(--muted); font-size: 0.9em; }
+
+  /* ---- status pills ---- */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .pill-ok { color: var(--ok); background: var(--ok-soft); }
+  .pill-gap { color: var(--gap); background: var(--gap-soft); }
+
+  /* ---- callout ---- */
+  .note {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .note-gap { border-left-color: var(--gap); }
+  .note-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .note p { font-size: 0.94rem; }
+
+  ul.plain { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  ul.plain li { max-width: 40rem; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.5rem;
+  }
+
+  @media (max-width: 34rem) {
+    .wrap { padding: 2.5rem 1.1rem 4rem; gap: 2.75rem; }
+    ol.steps > li { grid-template-columns: 1fr; }
+    ol.steps > li::before { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">SpinForge · Developer Reference</p>
+    <h1>The deployment manifest</h1>
+    <p class="standfirst">
+      Describe your project once in a file, POST it, and SpinForge clones your repo,
+      builds it, and puts it on your domain. Re-run it on every push — applying is idempotent.
+    </p>
+    <div class="factbar">
+      <span class="fact"><span class="fact-k">format</span><span class="fact-v">YAML or JSON</span></span>
+      <span class="fact"><span class="fact-k">filename</span><span class="fact-v">spinforge.yaml</span></span>
+      <span class="fact"><span class="fact-k">endpoint</span><span class="fact-v">POST /_api/customer/manifest</span></span>
+      <span class="fact"><span class="fact-k">required</span><span class="fact-v">name + repo.url</span></span>
+      <span class="fact"><span class="fact-k">auth</span><span class="fact-v">Bearer sfc_…</span></span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Quick start</h2>
+    <ol class="steps">
+      <li>
+        <div class="step-body">
+          <span class="step-title">Get an API token</span>
+          <p class="sub">You need a long-lived customer token — it starts with <code>sfc_</code>.
+          Create one from your account settings in the dashboard. The token identifies you as the
+          owner of everything you deploy.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <span class="step-title">Add <code>spinforge.yaml</code> to your repo</span>
+          <p class="sub">Two fields are required. Everything else has a default.</p>
+<pre><code><span class="c-key">name</span>: <span class="c-str">my-app</span>
+<span class="c-key">repo</span>:
+  <span class="c-key">url</span>: <span class="c-str">https://github.com/me/my-app</span></code></pre>
+          <p class="sub">Prefer JSON? Same fields, same endpoint:</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"name"</span>: <span class="c-str">"my-app"</span>,
+  <span class="c-key">"repo"</span>: { <span class="c-key">"url"</span>: <span class="c-str">"https://github.com/me/my-app"</span> }
+<span class="c-key">}</span></code></pre>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <span class="step-title">Send it</span>
+<pre><code>curl -X POST https://build.spinforge.dev/_api/customer/manifest \
+  -H <span class="c-str">"Authorization: Bearer sfc_your_token"</span> \
+  -H <span class="c-str">"Content-Type: application/yaml"</span> \
+  --data-binary @spinforge.yaml</code></pre>
+          <p class="sub">SpinForge creates the pipeline and starts a build immediately. You get back
+          the pipeline id, the build id, and any warnings.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>YAML or JSON — both work</h2>
+    <p>Write whichever you prefer. The same parser reads both, so the fields, defaults, and
+    validation are identical. Set <code>Content-Type</code> to match what you send:</p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>You send</th><th>Content-Type</th><th>curl flag</th></tr></thead>
+        <tbody>
+          <tr><td class="field">spinforge.yaml</td><td class="type">application/yaml</td><td class="type">--data-binary @file</td></tr>
+          <tr><td class="field">spinforge.json</td><td class="type">application/json</td><td class="type">--data @file</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub"><code>text/yaml</code>, <code>application/x-yaml</code>, and
+    <code>text/x-yaml</code> are accepted too. Use <code>--data-binary</code> for YAML so curl
+    preserves newlines — plain <code>--data</code> strips them and the document won't parse.</p>
+    <p class="sub">Unknown fields are rejected rather than ignored, so a typo like
+    <code>domian</code> fails loudly instead of being silently dropped.</p>
+  </section>
+
+  <section>
+    <h2>Editor support</h2>
+    <p>The schema is published, so your editor can autocomplete fields and flag mistakes as you
+    type. Add <code>$schema</code> to a JSON manifest:</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"$schema"</span>: <span class="c-str">"https://build.spinforge.dev/_api/customer/manifest/schema"</span>,
+  <span class="c-key">"name"</span>: <span class="c-str">"my-app"</span>
+<span class="c-key">}</span></code></pre>
+    <p class="sub">For YAML, map it once in your editor settings — in VS Code with the YAML
+    extension:</p>
+<pre><code><span class="c-key">"yaml.schemas"</span>: {
+  <span class="c-str">"https://build.spinforge.dev/_api/customer/manifest/schema"</span>: <span class="c-str">"spinforge.yaml"</span>
+}</code></pre>
+    <p class="sub">Fetch it directly with <code>GET /_api/customer/manifest/schema</code>. It is
+    draft-07 and is generated from the same definition the server validates against, so it can
+    never drift out of sync.</p>
+  </section>
+
+  <section>
+    <h2>A complete manifest</h2>
+    <p>Every field, shown with its default. Only <code>name</code> and <code>repo.url</code> are
+    required — most manifests are three lines.</p>
+<pre><code><span class="c-key">name</span>: <span class="c-str">my-app</span>                     <span class="c-com"># required</span>
+
+<span class="c-key">repo</span>:
+  <span class="c-key">url</span>: <span class="c-str">https://github.com/me/my-app</span>   <span class="c-com"># required</span>
+  <span class="c-key">ref</span>: <span class="c-str">main</span>                         <span class="c-com"># default: the repo's default branch</span>
+  <span class="c-key">token</span>: <span class="c-str">ghp_…</span>                      <span class="c-com"># private repos only</span>
+
+<span class="c-key">domain</span>: <span class="c-str">app.example.com</span>            <span class="c-com"># default: &lt;name&gt;.spinforge.dev</span>
+<span class="c-key">type</span>: <span class="c-str">static</span>                       <span class="c-com"># static | node | container</span>
+<span class="c-key">rootDir</span>: <span class="c-str">apps/web</span>                  <span class="c-com"># default: .  (monorepo subdirectory)</span>
+<span class="c-key">aliases</span>:
+  - <span class="c-str">www.app.example.com</span>
+
+<span class="c-key">owner</span>:
+  <span class="c-key">email</span>: <span class="c-str">me@example.com</span>            <span class="c-com"># verified against your account</span>
+  <span class="c-key">name</span>: <span class="c-str">Jane Doe</span>
+
+<span class="c-key">autoDeploy</span>: <span class="c-str">true</span>                  <span class="c-com"># false = save config, don't build</span></code></pre>
+  </section>
+
+  <section>
+    <h2>Field reference</h2>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field">name</td><td class="type">string</td><td class="dflt"><span class="req">required</span></td><td>1–100 chars. Re-applying with the same name updates that deployment instead of creating a second one.</td></tr>
+          <tr><td class="field">repo.url</td><td class="type">string</td><td class="dflt"><span class="req">required</span></td><td>Git clone URL, HTTPS or SSH.</td></tr>
+          <tr><td class="field">repo.ref</td><td class="type">string</td><td class="dflt">default branch</td><td>Branch, tag, or SHA. Defaults to whatever the repo's default branch is.</td></tr>
+          <tr><td class="field">repo.token</td><td class="type">string</td><td class="dflt">—</td><td>PAT for private repos. Never returned in a response.</td></tr>
+          <tr><td class="field">domain</td><td class="type">string</td><td class="dflt">&lt;name&gt;.spinforge.dev</td><td>Auto-assigned and collision-checked if omitted. Never changes once assigned.</td></tr>
+          <tr><td class="field">type</td><td class="type">enum</td><td class="dflt">static</td><td><code>static</code>, <code>node</code>, or <code>container</code>.</td></tr>
+          <tr><td class="field">rootDir</td><td class="type">string</td><td class="dflt">.</td><td>Subdirectory holding the project, for monorepos.</td></tr>
+          <tr><td class="field">aliases</td><td class="type">string[]</td><td class="dflt">[]</td><td>Extra domains pointing at the same site.</td></tr>
+          <tr><td class="field">owner.email</td><td class="type">email</td><td class="dflt">—</td><td>Verified against your account. A mismatch is rejected with 403.</td></tr>
+          <tr><td class="field">owner.name</td><td class="type">string</td><td class="dflt">—</td><td>Display name only.</td></tr>
+          <tr><td class="field">autoDeploy</td><td class="type">boolean</td><td class="dflt">true</td><td>Set <code>false</code> to save the configuration without building.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub"><code>$schema</code> and <code>$comment</code> are accepted and ignored by the
+    server.</p>
+    <div class="note note-gap">
+      <span class="note-title">No build customization</span>
+      <p>Build command, output directory, package manager, and Node version are fixed:
+      <code>npm ci &amp;&amp; npm run build</code> producing <code>dist</code>. A project using
+      yarn or pnpm, or writing to <code>build/</code>, cannot deploy through a manifest yet.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Project types</h2>
+    <p>Defaults to <code>static</code>. Set it explicitly for <code>node</code> or
+    <code>container</code>.</p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Use for</th><th>What runs</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="field">static</td>
+            <td>Vite, Next export, Astro, plain HTML</td>
+            <td class="type">build.static → deploy.static-site</td>
+            <td><span class="pill pill-ok">Deploys</span></td>
+          </tr>
+          <tr>
+            <td class="field">node</td>
+            <td>Node apps with a build step</td>
+            <td class="type">build.node → deploy.static-site</td>
+            <td><span class="pill pill-ok">Deploys</span></td>
+          </tr>
+          <tr>
+            <td class="field">container</td>
+            <td>Anything with a Dockerfile</td>
+            <td class="type">build.container → deploy.container</td>
+            <td><span class="pill pill-gap">Not yet</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note note-gap">
+      <span class="note-title">Container support is incomplete</span>
+      <p>A <code>container</code> manifest validates and saves, but nothing is built or deployed —
+      those two steps have no runner yet. The build will report success having done nothing, so
+      SpinForge tells you up front: every apply returns a warning naming the skipped steps. Use
+      <code>static</code> or <code>node</code> until this lands.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Endpoints</h2>
+
+    <h3>Apply a manifest</h3>
+<pre><code>POST /_api/customer/manifest</code></pre>
+    <p class="sub">Creates the deployment on first call (<code>201</code>), updates it on every call
+    after (<code>200</code>). Starts a build unless <code>autoDeploy</code> is <code>false</code>.</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"created"</span>:  true,
+  <span class="c-key">"domain"</span>:   <span class="c-str">"app.example.com"</span>,
+  <span class="c-key">"pipeline"</span>: { <span class="c-key">"id"</span>: <span class="c-str">"pl_01J…"</span>, <span class="c-key">"name"</span>: <span class="c-str">"my-app"</span>, <span class="c-key">"stages"</span>: [ … ] },
+  <span class="c-key">"build"</span>:    { <span class="c-key">"id"</span>: <span class="c-str">"bld_01J…"</span>, <span class="c-key">"status"</span>: <span class="c-str">"queued"</span> },
+  <span class="c-key">"warnings"</span>: []
+<span class="c-key">}</span></code></pre>
+
+    <h3>Check a manifest without applying it</h3>
+<pre><code>POST /_api/customer/manifest/validate</code></pre>
+    <p class="sub">Same body, no side effects. Returns the resolved type and the steps that would
+    run. Good for a CI pre-check.</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"valid"</span>:  true,
+  <span class="c-key">"type"</span>:   <span class="c-str">"static"</span>,
+  <span class="c-key">"domain"</span>: <span class="c-str">"app.example.com"</span>,
+  <span class="c-key">"stages"</span>: [
+    { <span class="c-key">"id"</span>: <span class="c-str">"build"</span>,  <span class="c-key">"action"</span>: <span class="c-str">"build.static"</span> },
+    { <span class="c-key">"id"</span>: <span class="c-str">"deploy"</span>, <span class="c-key">"action"</span>: <span class="c-str">"deploy.static-site"</span> }
+  ],
+  <span class="c-key">"unsupported"</span>: []
+<span class="c-key">}</span></code></pre>
+
+    <h3>Fetch the schema</h3>
+<pre><code>GET /_api/customer/manifest/schema</code></pre>
+    <p class="sub">Public — no auth. Mounted before the auth gate so editors resolving
+    <code>$schema</code> can fetch it. Returns <code>application/schema+json</code>.</p>
+
+    <h3>Authentication</h3>
+    <p class="sub">Send your token either way:</p>
+<pre><code>Authorization: Bearer sfc_your_token
+x-auth-token: sfc_your_token</code></pre>
+  </section>
+
+  <section>
+    <h2>Errors</h2>
+    <p>An invalid manifest returns <code>400</code> with one entry per problem, each pointing at the
+    exact path that failed.</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"error"</span>:   <span class="c-str">"manifest_invalid"</span>,
+  <span class="c-key">"message"</span>: <span class="c-str">"manifest validation failed"</span>,
+  <span class="c-key">"details"</span>: [
+    { <span class="c-key">"path"</span>: <span class="c-str">"/repo"</span>, <span class="c-key">"message"</span>: <span class="c-str">"must have required property 'url'"</span> },
+    { <span class="c-key">"path"</span>: <span class="c-str">"/type"</span>, <span class="c-key">"message"</span>: <span class="c-str">"must be equal to one of the allowed values"</span> }
+  ]
+<span class="c-key">}</span></code></pre>
+    <h3>Wrong account</h3>
+    <p class="sub">A declared owner that does not match your token returns <code>403</code>:</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"error"</span>:   <span class="c-str">"owner_mismatch"</span>,
+  <span class="c-key">"message"</span>: <span class="c-str">"manifest owner.email \"x@y.com\" does not belong to the authenticated account — check you are using the right API token"</span>
+<span class="c-key">}</span></code></pre>
+
+    <h3>Common causes</h3>
+    <ul class="plain">
+      <li><span class="sub">A misspelled field name — unknown properties are rejected, not ignored.</span></li>
+      <li><span class="sub">Missing <code>name</code>, <code>domain</code>, or <code>repo.url</code>.</span></li>
+      <li><span class="sub">A <code>type</code> outside <code>static</code> / <code>node</code> / <code>container</code>.</span></li>
+      <li><span class="sub">A malformed <code>owner.email</code>.</span></li>
+      <li><span class="sub">YAML sent with <code>curl --data</code> instead of <code>--data-binary</code>, which strips the newlines.</span></li>
+    </ul>
+    <p class="sub">A malformed document fails before validation and tells you where:</p>
+<pre><code><span class="c-key">{</span>
+  <span class="c-key">"error"</span>:   <span class="c-str">"manifest_invalid"</span>,
+  <span class="c-key">"message"</span>: <span class="c-str">"could not parse manifest as YAML at line 2, column 6: bad indentation of a mapping entry"</span>
+<span class="c-key">}</span></code></pre>
+  </section>
+
+  <section>
+    <h2>Your domain</h2>
+    <p>Leave <code>domain</code> out and SpinForge assigns
+    <code>&lt;name&gt;.spinforge.dev</code>, slugified from the name. Availability is checked
+    against every site on the platform — including platform domains like <code>admin</code> and
+    <code>api</code> — and a numeric suffix is added on a clash
+    (<code>my-app-2</code>, <code>my-app-3</code>).</p>
+    <p class="sub">Once assigned, the domain is reused on every later apply. Re-running a manifest
+    never moves a live site to a new address.</p>
+  </section>
+
+  <section>
+    <h2>Monorepos</h2>
+    <p><code>rootDir</code> points at the subdirectory holding the project. The repo is cloned
+    whole; the build runs from there and output paths resolve against it.</p>
+<pre><code><span class="c-key">name</span>: <span class="c-str">web</span>
+<span class="c-key">rootDir</span>: <span class="c-str">apps/web</span>
+<span class="c-key">repo</span>:
+  <span class="c-key">url</span>: <span class="c-str">https://github.com/me/monorepo</span></code></pre>
+    <p class="sub">Runs <code>cd apps/web &amp;&amp; npm ci &amp;&amp; npm run build</code> with
+    output at <code>apps/web/dist</code>. Paths that escape the clone are rejected.</p>
+  </section>
+
+  <section>
+    <h2>Things worth knowing</h2>
+
+    <div class="note">
+      <span class="note-title">Your token owns the deployment</span>
+      <p>Ownership is taken from the <code>sfc_</code> token, never from <code>owner.email</code> —
+      otherwise anyone could claim a domain by typing your address into a file. When
+      <code>owner.email</code> <em>is</em> present it is checked against your account's email or the
+      token's email and rejected with <code>403</code> on a mismatch. That is what catches a CI job
+      running with the wrong token. Shared team tokens still work.</p>
+    </div>
+
+    <div class="note">
+      <span class="note-title">Safe to run on every push</span>
+      <p>Applying is keyed on your account plus <code>name</code>. The first call creates, every call
+      after updates in place. Two different accounts can each have a deployment called
+      <code>my-app</code> without collision.</p>
+    </div>
+
+    <div class="note">
+      <span class="note-title">Private repo tokens</span>
+      <p>A <code>repo.token</code> is stored with the deployment configuration so builds can clone,
+      and is redacted from every API response and build log. It is never echoed back to you.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Templates</h2>
+    <p>Copy one of these into your repo as a starting point. Both are annotated and both validate
+    as-is.</p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>File</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td class="field">spinforge.example.yaml</td><td>Commented YAML template, every field with its default</td></tr>
+          <tr><td class="field">spinforge.example.json</td><td>The same manifest in JSON</td></tr>
+          <tr><td class="field">spinforge.schema.json</td><td>The JSON Schema — point <code>$schema</code> or your editor at it</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub">All three live in <code>building/api/</code> in the SpinForge repo.</p>
+  </section>
+
+  <footer>
+    <span>SpinForge deployment manifest</span>
+    <span>schema draft-07</span>
+    <span>formats: YAML, JSON</span>
+  </footer>
+
+</div>

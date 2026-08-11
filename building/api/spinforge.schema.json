@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://build.spinforge.dev/_api/customer/manifest/schema",
+  "title": "SpinForge deployment manifest",
+  "description": "Declarative hosting configuration. POST to /_api/customer/manifest as JSON or YAML with an sfc_ token to create or update a deployment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "repo"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "$comment": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "static",
+        "node",
+        "container"
+      ],
+      "default": "static"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "rootDir": {
+      "type": "string",
+      "default": "."
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "default": "HEAD"
+        },
+        "token": {
+          "type": "string"
+        }
+      }
+    },
+    "autoDeploy": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

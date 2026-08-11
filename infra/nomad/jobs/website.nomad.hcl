@@ -53,7 +53,7 @@ job "website" {
       driver = "docker"
 
       config {
-        image = "192.168.88.170:5000/spinforge/website:5ee1b97-20260417172923"
+        image = "192.168.88.171:5000/spinforge/website:server-edit-20260810222712"
         ports = ["http"]
       }
 

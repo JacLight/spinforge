@@ -56,6 +56,7 @@ const docSections: DocSection[] = [
     title: "Deployment Guides",
     icon: Rocket,
     items: [
+      { title: "Deploy from Git", href: "/docs/deployment/manifest", description: "spinforge.yaml, build from a repo" },
       { title: "Static Sites", href: "/docs/deployment/static-sites", description: "Upload a zip, serve files" },
       { title: "Containers", href: "/docs/deployment/containers", description: "Run your image on our cluster" },
       { title: "Proxy & Load Balancer", href: "/docs/deployment/proxy", description: "Route to external backends" },

@@ -1,0 +1,48 @@
+# SpinForge deployment manifest
+#
+# Editor completion — point your editor at the schema:
+#   yaml.schemas:
+#     https://build.spinforge.dev/_api/customer/manifest/schema: spinforge.yaml
+#
+# Apply it:
+#   curl -X POST https://build.spinforge.dev/_api/customer/manifest \
+#        -H "Authorization: Bearer sfc_your_token" \
+#        -H "Content-Type: application/yaml" \
+#        --data-binary @spinforge.yaml
+#
+# Idempotent per (account, name): the first call creates the deployment,
+# every call after updates it. Safe to run on every push.
+
+# ── Required ────────────────────────────────────────────────────────────
+name: my-app                        # 1-100 chars; also the idempotency key
+
+repo:
+  url: https://github.com/me/my-app
+  # ref: main                       # branch, tag, or SHA
+                                    # (default: the repo's default branch)
+  # token: ghp_xxx                  # private repos only; never echoed back
+
+# ── Optional ────────────────────────────────────────────────────────────
+
+# Leave `domain` out and SpinForge assigns <name>.spinforge.dev, checking
+# it is not already taken. Once assigned it never changes on re-apply.
+# domain: app.example.com
+
+# aliases:
+#   - www.app.example.com
+
+# static (default) | node | container
+# type: static
+
+# Subdirectory holding this project, for monorepos. The build runs from
+# here and output paths resolve relative to it.
+# rootDir: apps/web
+
+# Declares who this deployment belongs to. Checked against the account
+# behind your API token — a mismatch is rejected, which catches a CI job
+# running with the wrong token.
+# owner:
+#   email: me@example.com
+#   name: Jane Doe
+
+# autoDeploy: true                  # false = save config, don't build

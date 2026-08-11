@@ -1,0 +1,28 @@
+{
+  "$schema": "https://build.spinforge.dev/_api/customer/manifest/schema",
+
+  "name": "my-app",
+  "repo": {
+    "url": "https://github.com/me/my-app"
+  },
+
+  "$comment": [
+    "Only name and repo.url are required.",
+    "",
+    "Optional fields, all shown with their defaults:",
+    "  type       static | node | container      (default: static)",
+    "  domain     app.example.com                (default: <name>.spinforge.dev)",
+    "  aliases    [\"www.app.example.com\"]        (default: [])",
+    "  rootDir    apps/web                       (default: .)",
+    "  repo.ref   main                           (default: repo's default branch)",
+    "  repo.token ghp_xxx                        private repos only",
+    "  owner      { email, name }                verified against your account",
+    "  autoDeploy true | false                   (default: true)",
+    "",
+    "Apply:",
+    "  curl -X POST https://build.spinforge.dev/_api/customer/manifest \\",
+    "       -H 'Authorization: Bearer sfc_your_token' \\",
+    "       -H 'Content-Type: application/json' \\",
+    "       --data @spinforge.json"
+  ]
+}
