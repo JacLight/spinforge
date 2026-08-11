@@ -22,7 +22,19 @@ const EVENTS = [
   'custom_domain_added',
   'cert_renewal_failed',
   'container_crashed',
+  'magic_link_signin',
+  'password_reset',
+  'password_changed',
 ];
+
+// Events that carry a single-use credential. If an operator disables the
+// template, the customer silently never receives their link and support
+// gets a "the site is broken" ticket. So these send regardless of the
+// `enabled` flag — operators can still edit the wording.
+const ALWAYS_SEND = new Set([
+  'magic_link_signin',
+  'password_reset',
+]);
 
 const QUEUE = 'email:queue';
 const LOG_LIST = 'email:log';
@@ -52,7 +64,8 @@ class NotificationService {
       }
 
       const tmpl = await this.templates.get(event);
-      if (!tmpl || tmpl.enabled === false) return false;
+      if (!tmpl) return false;
+      if (tmpl.enabled === false && !ALWAYS_SEND.has(event)) return false;
 
       const rendered = this.templates.render(tmpl, context);
       const job = {
@@ -82,6 +95,7 @@ class NotificationService {
 }
 
 NotificationService.EVENTS = EVENTS;
+NotificationService.ALWAYS_SEND = ALWAYS_SEND;
 NotificationService.QUEUE = QUEUE;
 NotificationService.LOG_LIST = LOG_LIST;
 NotificationService.LOG_CAP = LOG_CAP;

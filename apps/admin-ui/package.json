@@ -5,6 +5,7 @@
   "dependencies": {
     "@appmint/form": "^0.5.3",
     "@headlessui/react": "^2.2.7",
+    "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-popover": "^1.0.7",
@@ -22,6 +23,7 @@
     "framer-motion": "^10.16.0",
     "js-yaml": "^4.1.0",
     "lucide-react": "^0.294.0",
+    "monaco-editor": "^0.56.0",
     "react": "^18.2.0",
     "react-day-picker": "^8.10.0",
     "react-dom": "^18.2.0",

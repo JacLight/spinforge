@@ -90,4 +90,70 @@ module.exports = [
 </div>`,
     variables: ['name', 'domain', 'restartCount', 'windowMinutes', 'logs'],
   },
+
+  // ─── Account access ─────────────────────────────────────────────────
+  // These three carry or confirm a credential. Keep {{link}} as a bare
+  // anchor — some clients strip button markup, and a customer who can't
+  // click the link can't get into their account.
+
+  {
+    event: 'magic_link_signin',
+    subject: 'Your SpinForge sign-in link',
+    html: `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+  <h2 style="margin:0 0 16px;">Sign in to SpinForge</h2>
+  <p>Hi {{name}},</p>
+  <p>Click below to sign in. No password needed.</p>
+  <p style="margin:24px 0;">
+    <a href="{{link}}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;">Sign in to SpinForge</a>
+  </p>
+  <p style="font-size:13px;color:#666;">Or paste this into your browser:<br/>
+    <a href="{{link}}" style="word-break:break-all;">{{link}}</a>
+  </p>
+  <p>This link expires in {{expiresMinutes}} minutes and can only be used once.</p>
+  <p style="color:#666;margin-top:32px;font-size:13px;">
+    Didn't ask for this? Ignore this email — nothing changes until the link is used.
+  </p>
+</div>`,
+    variables: ['name', 'email', 'link', 'expiresMinutes'],
+  },
+
+  {
+    event: 'password_reset',
+    subject: 'Reset your SpinForge password',
+    html: `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+  <h2 style="margin:0 0 16px;">Reset your password</h2>
+  <p>Hi {{name}},</p>
+  <p>Someone asked to reset the password for <strong>{{email}}</strong>. Click below to choose a new one.</p>
+  <p style="margin:24px 0;">
+    <a href="{{link}}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;">Choose a new password</a>
+  </p>
+  <p style="font-size:13px;color:#666;">Or paste this into your browser:<br/>
+    <a href="{{link}}" style="word-break:break-all;">{{link}}</a>
+  </p>
+  <p>This link expires in {{expiresMinutes}} minutes and can only be used once. Setting a new password signs out every other device.</p>
+  <p style="color:#666;margin-top:32px;font-size:13px;">
+    Didn't ask for this? Ignore this email — your current password still works.
+  </p>
+</div>`,
+    variables: ['name', 'email', 'link', 'expiresMinutes'],
+  },
+
+  {
+    event: 'password_changed',
+    subject: 'Your SpinForge password was changed',
+    html: `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+  <h2 style="margin:0 0 16px;">Password changed</h2>
+  <p>Hi {{name}},</p>
+  <p>The password for <strong>{{email}}</strong> was changed on {{changedAt}}. Every other signed-in session was ended.</p>
+  <p>If that was you, nothing more to do.</p>
+  <p><strong>If it wasn't</strong>, reset your password immediately at
+    <a href="{{resetUrl}}">{{resetUrl}}</a> and reply to this email so we can look into it.
+  </p>
+  <p style="color:#666;margin-top:32px;font-size:13px;">
+    API tokens you created are not affected by a password change — revoke them from
+    Settings if you think they've been exposed.
+  </p>
+</div>`,
+    variables: ['name', 'email', 'changedAt', 'resetUrl'],
+  },
 ];

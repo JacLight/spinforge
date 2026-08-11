@@ -49,7 +49,6 @@ import PlatformTopology from "./pages/platform/Topology";
 import PlatformSecrets from "./pages/platform/Secrets";
 import BuildJobs from "./pages/build/Jobs";
 import BuildJobDetail from "./pages/build/JobDetail";
-import BuildCustomers from "./pages/build/Customers";
 import BuildSigning from "./pages/build/Signing";
 import BuildSessions from "./pages/build/Sessions";
 import BuildRunners from "./pages/build/Runners";
@@ -170,7 +169,7 @@ function App() {
           <Route path="/build/new" element={<BuildNewDeployment />} />
           <Route path="/build/jobs" element={<BuildJobs />} />
           <Route path="/build/jobs/:id" element={<BuildJobDetail />} />
-          <Route path="/build/customers" element={<BuildCustomers />} />
+          <Route path="/build/customers" element={<Navigate to="/customers" replace />} />
           <Route path="/build/signing" element={<BuildSigning />} />
           <Route path="/build/sessions" element={<BuildSessions />} />
           <Route path="/build/runners" element={<BuildRunners />} />

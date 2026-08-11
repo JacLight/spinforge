@@ -14,21 +14,48 @@ class CustomerService {
 
   async createCustomer(data) {
     const id = 'cust_' + crypto.randomBytes(16).toString('hex');
-    
+    const userId = 'user_' + crypto.randomBytes(16).toString('hex');
+    const email = String(data.email || '').trim().toLowerCase();
+    const now = new Date().toISOString();
+    const name = data.name || email.split('@')[0];
+
     const customer = {
       id,
       name: data.name,
-      email: data.email,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      email,
+      createdAt: now,
+      updatedAt: now,
       isActive: true,
-      metadata: data.metadata || {},
+      metadata: { ...(data.metadata || {}), userId },
       limits: data.limits || {},
     };
 
     await this.redis.set(`customer:${id}`, JSON.stringify(customer));
     await this.redis.sAdd('customers', id);
-    await this.redis.set(`customer:email:${data.email}`, id);
+    await this.redis.set(`customer:email:${email}`, id);
+
+    // Sign-in half of the account. Without this the customer exists but
+    // /_auth/customer/* can't find them, and an admin-provisioned account
+    // could never be signed into. No password is set — they get in with a
+    // magic link and set one from there.
+    const existingUser = await this.redis.get(`user:email:${email}`);
+    if (!existingUser) {
+      const user = {
+        id: userId,
+        email,
+        password: null,
+        name,
+        company: data.metadata?.company,
+        customerId: id,
+        role: 'customer',
+        emailVerified: false,
+        createdAt: now,
+        updatedAt: now,
+        provisionedBy: 'admin',
+      };
+      await this.redis.set(`user:${userId}`, JSON.stringify(user));
+      await this.redis.set(`user:email:${email}`, JSON.stringify(user));
+    }
 
     return customer;
   }

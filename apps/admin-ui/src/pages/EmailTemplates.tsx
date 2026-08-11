@@ -11,7 +11,7 @@
  * event also needs a code-side trigger.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mail, Save, Send, AlertTriangle, Check, X, Power, Eye, RefreshCw, ChevronRight,
@@ -19,6 +19,16 @@ import {
 import {
   api, EmailTemplate, EmailLogEntry, MailerStatus,
 } from '../services/api';
+
+// Lazy so Monaco's ~3 MB lands in its own chunk, fetched when an operator
+// actually opens this page rather than on every admin page load.
+const CodeEditor = lazy(() => import('../components/CodeEditor'));
+
+const EditorFallback = ({ height }: { height: string }) => (
+  <div className="flex items-center justify-center text-xs text-gray-500 bg-[#1e1e1e]" style={{ height }}>
+    Loading editor…
+  </div>
+);
 
 export default function EmailTemplates() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -217,25 +227,38 @@ export default function EmailTemplates() {
                 />
               </label>
 
-              <label className="block mb-3">
+              <div className="block mb-3">
                 <div className="text-xs text-gray-600 mb-1">HTML body</div>
-                <textarea
-                  className="w-full border rounded px-3 py-2 font-mono text-xs"
-                  rows={14}
-                  value={selected.html}
-                  onChange={(e) => { setSelected({ ...selected, html: e.target.value }); setDirty(true); }}
-                />
-              </label>
+                {/* Keyed on the event so switching templates remounts the
+                    editor — otherwise Monaco keeps the previous template's
+                    undo history and a Ctrl+Z can paste one email into another. */}
+                <div className="border rounded overflow-hidden">
+                  <Suspense fallback={<EditorFallback height="420px" />}>
+                    <CodeEditor
+                      key={selected.event}
+                      height="420px"
+                      language="html"
+                      value={selected.html}
+                      onChange={(value) => { setSelected({ ...selected, html: value }); setDirty(true); }}
+                    />
+                  </Suspense>
+                </div>
+              </div>
 
-              <label className="block mb-3">
+              <div className="block mb-3">
                 <div className="text-xs text-gray-600 mb-1">Plain text (optional)</div>
-                <textarea
-                  className="w-full border rounded px-3 py-2 font-mono text-xs"
-                  rows={4}
-                  value={selected.text || ''}
-                  onChange={(e) => { setSelected({ ...selected, text: e.target.value }); setDirty(true); }}
-                />
-              </label>
+                <div className="border rounded overflow-hidden">
+                  <Suspense fallback={<EditorFallback height="160px" />}>
+                    <CodeEditor
+                      key={`${selected.event}:text`}
+                      height="160px"
+                      language="plaintext"
+                      value={selected.text || ''}
+                      onChange={(value) => { setSelected({ ...selected, text: value }); setDirty(true); }}
+                    />
+                  </Suspense>
+                </div>
+              </div>
 
               {selected.variables && selected.variables.length > 0 && (
                 <div className="text-xs text-gray-500">

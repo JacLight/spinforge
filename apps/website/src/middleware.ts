@@ -1,38 +1,24 @@
 /**
  * SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
  * Copyright (c) 2025 Jacob Ajiboye
- * 
+ *
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export async function middleware(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  
-  // For protected routes, ensure auth token exists
-  if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
+const CUSTOMER_PORTAL_ORIGIN = "https://app.spinforge.dev";
 
-  // Pass the token in headers for API routes to verify
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-auth-token", token);
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+export function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  const target = new URL(
+    pathname.replace(/^\/dashboard/, "") + search || "/",
+    CUSTOMER_PORTAL_ORIGIN,
+  );
+  return NextResponse.redirect(target, 308);
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/api/deployments/:path*",
-    "/api/domains/:path*",
-    "/api/tokens/:path*",
-    "/api/usage/:path*",
-  ],
+  matcher: ["/dashboard/:path*"],
 };

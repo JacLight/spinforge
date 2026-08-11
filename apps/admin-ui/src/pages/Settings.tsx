@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useConfirm } from "../components/ConfirmModal";
 
 interface SettingSection {
   id: string;
@@ -94,6 +95,7 @@ const settingSections: SettingSection[] = [
 ];
 
 export default function Settings() {
+  const confirm = useConfirm();
   const [activeSection, setActiveSection] = useState("authentication");
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
@@ -405,16 +407,17 @@ export default function Settings() {
                   </button>
                   {tokens.length > 0 && (
                     <button
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Revoke ALL ${tokens.length} admin tokens?\n\n` +
-                              `This is for incident response. Anything still using these tokens ` +
-                              `will get 401 immediately. Your current browser session will be preserved.`
-                          )
-                        ) {
-                          revokeAllMutation.mutate();
-                        }
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Revoke ALL ${tokens.length} admin tokens?`,
+                          description:
+                            'This is for incident response. Anything still using these tokens will get 401 immediately. Your current browser session will be preserved.',
+                          severity: 'danger',
+                          confirmLabel: 'Revoke all tokens',
+                          typeToConfirm: 'revoke all',
+                        });
+                        if (!ok) return;
+                        revokeAllMutation.mutate();
                       }}
                       disabled={revokeAllMutation.isPending}
                       className="inline-flex items-center px-3 py-2 border border-red-200 text-red-700 text-sm font-medium rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
@@ -498,14 +501,15 @@ export default function Settings() {
                           </div>
                         </div>
                         <button
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `Revoke "${token.name}"? Anything still using this token will start receiving 401 immediately.`
-                              )
-                            ) {
-                              deleteTokenMutation.mutate(token.id);
-                            }
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Revoke "${token.name}"?`,
+                              description: 'Anything still using this token will start receiving 401 immediately.',
+                              severity: 'danger',
+                              confirmLabel: 'Revoke token',
+                            });
+                            if (!ok) return;
+                            deleteTokenMutation.mutate(token.id);
                           }}
                           disabled={deleteTokenMutation.isPending}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"

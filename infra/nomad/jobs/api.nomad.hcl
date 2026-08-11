@@ -64,7 +64,7 @@ job "api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/api:api-20260811061552"
+        image = "192.168.88.171:5000/spinforge/api:auth-20260811172347"
         ports = ["http"]
       }
 
@@ -106,6 +106,9 @@ EOT
         NOMAD_ADDR               = "http://${attr.unique.network.ip-address}:4646"
         CONSUL_HTTP_ADDR         = "http://${attr.unique.network.ip-address}:8500"
         BASE_DOMAIN              = "192.168.88.170"
+        # Customer portal origin. Magic-link and password-reset emails point
+        # here, so it must be the URL a customer can actually open.
+        CUSTOMER_APP_URL         = "https://app.spinforge.dev"
         NODE_ENV                 = "production"
         ENABLE_METRICS           = "true"
         ENABLE_LOGGING           = "true"

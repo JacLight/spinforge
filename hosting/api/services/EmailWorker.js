@@ -105,7 +105,7 @@ class EmailWorker {
 
   async _log(entry) {
     try {
-      await this.redis.lPush(LOG_LIST, JSON.stringify(entry));
+      await this.redis.lPush(LOG_LIST, JSON.stringify(redactBody(entry)));
       await this.redis.lTrim(LOG_LIST, 0, LOG_CAP - 1);
     } catch (err) {
       this.logger.error('[email-worker] log write failed:', err.message);
@@ -114,6 +114,29 @@ class EmailWorker {
 }
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+/**
+ * Strip the rendered body from log entries for emails that carry a
+ * single-use credential.
+ *
+ * The send log is readable from the admin UI and holds the last 500
+ * messages. Magic-link and reset emails embed a live token in their HTML,
+ * so logging the body verbatim would turn admin read access into
+ * take-over-any-customer-account: copy the link out of the log, click it,
+ * you're them. Everything else keeps its body — that's what makes the log
+ * useful for debugging a broken template.
+ */
+const CREDENTIAL_EVENTS = new Set(['magic_link_signin', 'password_reset']);
+
+function redactBody(entry) {
+  if (!CREDENTIAL_EVENTS.has(entry.event)) return entry;
+  return {
+    ...entry,
+    html: '[redacted — contains a single-use sign-in token]',
+    text: entry.text ? '[redacted — contains a single-use sign-in token]' : undefined,
+    redacted: true,
+  };
+}
 
 // SES errors that indicate the message will never deliver. Anything else
 // we assume is worth retrying. The specific codes are from the AWS SDK
