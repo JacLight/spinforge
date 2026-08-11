@@ -106,6 +106,19 @@ async function ensureSpinForgeCustomer({ partnerId, externalCustomerId, email, n
     redisClient.set(key, JSON.stringify(customer)),
     redisClient.sAdd('customers', customerId),
   ]);
+
+  // Reverse index by email. Without it /_auth/customer/* can't resolve the
+  // account at all, so a partner customer asking for a sign-in link gets
+  // the "if that email has an account…" reply and no email — the account
+  // is real but invisible to auth.
+  //
+  // NX, not overwrite: two partners can onboard the same person, and the
+  // index holds one id. First claim wins rather than the newest partner
+  // silently taking over where that address signs in.
+  if (customer.email) {
+    await redisClient.set(`customer:email:${String(customer.email).toLowerCase()}`, customerId, { NX: true });
+  }
+
   return customerId;
 }
 

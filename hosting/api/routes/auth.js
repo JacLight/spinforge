@@ -52,6 +52,19 @@ function notifier(req) {
   return req.app?.locals?.notifications || null;
 }
 
+/**
+ * Record why a link request sent nothing.
+ *
+ * The HTTP response is deliberately identical whether or not the address
+ * has an account — it must not become an oracle for which emails are
+ * registered. That leaves operators with no way to tell "no such account"
+ * from "mail is broken" except by reading Redis by hand, so the reason goes
+ * to the server log, where only operators can see it.
+ */
+function logLinkSkipped(purpose, email, reason) {
+  console.warn(`[auth] ${purpose} link not sent to ${email}: ${reason}`);
+}
+
 // ─── User record lookup ────────────────────────────────────────────────────
 
 /**
@@ -352,12 +365,21 @@ router.post('/customer/magic-link', rateLimit({ name: 'customer-magic-link', max
     }
 
     const user = await ensureLoginRecord(email);
-    if (!user) return res.json(genericOk);
+    if (!user) {
+      logLinkSkipped('magic', email, 'no account for this address');
+      return res.json(genericOk);
+    }
 
-    if (!(await customerIsActive(user.customerId))) return res.json(genericOk);
+    if (!(await customerIsActive(user.customerId))) {
+      logLinkSkipped('magic', email, `customer ${user.customerId} is deactivated`);
+      return res.json(genericOk);
+    }
 
     // Counted only for real accounts, so a 429 never confirms an address.
-    if (await authLinks.throttled('magic', user.email)) return res.json(genericOk);
+    if (await authLinks.throttled('magic', user.email)) {
+      logLinkSkipped('magic', email, 'per-address throttle exceeded');
+      return res.json(genericOk);
+    }
 
     const token = await authLinks.issue('magic', user);
 
@@ -435,9 +457,18 @@ router.post('/customer/forgot-password', rateLimit({ name: 'customer-forgot-pass
     }
 
     const user = await ensureLoginRecord(email);
-    if (!user) return res.json(genericOk);
-    if (!(await customerIsActive(user.customerId))) return res.json(genericOk);
-    if (await authLinks.throttled('reset', user.email)) return res.json(genericOk);
+    if (!user) {
+      logLinkSkipped('reset', email, 'no account for this address');
+      return res.json(genericOk);
+    }
+    if (!(await customerIsActive(user.customerId))) {
+      logLinkSkipped('reset', email, `customer ${user.customerId} is deactivated`);
+      return res.json(genericOk);
+    }
+    if (await authLinks.throttled('reset', user.email)) {
+      logLinkSkipped('reset', email, 'per-address throttle exceeded');
+      return res.json(genericOk);
+    }
 
     const token = await authLinks.issue('reset', user);
 
