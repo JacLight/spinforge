@@ -47,6 +47,29 @@ const BUILD_EVENTS_MAXLEN = 2000;
 const STAGE_TERMINAL = new Set(['succeeded', 'failed', 'skipped', 'skipped_unimplemented']);
 const BUILD_TERMINAL = new Set(['succeeded', 'failed', 'canceled']);
 
+// ─── Admission control ────────────────────────────────────────────────
+//
+// Builds used to be fire-and-forget: create() wrote status 'queued' and
+// immediately executed. "Queued" was a label, not a queue — ten pushes in
+// ten seconds started ten concurrent builds, each asking Nomad for a
+// 2000 MHz / 2048 MB stage on the same three nodes that serve hosting.
+//
+// Slots are claimed with SET NX so the three building-api replicas can't
+// hand out the same one. A build that can't get a slot is pushed onto
+// `builds:pending` and drained when a slot frees, so a git push is never
+// rejected for being unlucky about timing.
+//
+// The TTL is the leak guard: if a replica dies mid-build its slot would
+// otherwise be held forever. It must exceed the longest plausible build —
+// the Nomad stage wait alone is 10 minutes.
+const BUILD_MAX_CONCURRENT = Number(process.env.BUILD_MAX_CONCURRENT || 4);
+const BUILD_MAX_PER_CUSTOMER = Number(process.env.BUILD_MAX_CONCURRENT_PER_CUSTOMER || 2);
+const BUILD_SLOT_TTL_SEC = Number(process.env.BUILD_SLOT_TTL_SEC || 3600);
+const BUILD_PENDING_KEY = 'builds:pending';
+const DRAIN_SWEEP_MS = 30_000;
+const slotKey = (n) => `buildslot:${n}`;
+const customerActiveKey = (cid) => `customer:${cid}:builds:active`;
+
 class BuildService {
   constructor(redis, { logger, events, pipelines, actions, handlers } = {}) {
     this.redis = redis;
@@ -57,6 +80,25 @@ class BuildService {
     // Action-id → async handler function. Supplied from outside so
     // tests can inject stubs and server.js can wire real ones.
     this.handlers = handlers || new Map();
+
+    // Slot index currently held per in-flight build, so release knows
+    // which key to drop without re-reading it.
+    this._slots = new Map();
+
+    // Backstop drain. Releases normally drain inline; this catches the
+    // case where every replica was idle when a slot expired by TTL.
+    this._sweep = setInterval(() => {
+      this._drain().catch((err) => {
+        this.logger.error(`[builds] drain sweep failed: ${err.message}`);
+      });
+    }, DRAIN_SWEEP_MS);
+    if (this._sweep.unref) this._sweep.unref();
+  }
+
+  /** Stop the background drain sweep. Called on shutdown and in tests. */
+  stop() {
+    if (this._sweep) clearInterval(this._sweep);
+    this._sweep = null;
   }
 
   // ─── CRUD ─────────────────────────────────────────────────────────────
@@ -136,11 +178,10 @@ class BuildService {
       pipelineId, customerId: record.customerId, trigger: trigger.type,
     });
 
-    // Drive it forward. Fire-and-forget: the route returns the queued
-    // record and the executor logs each stage to KeyDB streams.
-    this._execute(id).catch((err) => {
-      this.logger.error(`[build ${id}] executor crashed: ${err.message}`);
-    });
+    // Drive it forward if there's capacity, otherwise leave it genuinely
+    // queued. Either way the route returns immediately — admission is a
+    // handful of KeyDB ops, the build itself is fire-and-forget.
+    await this._admit(id, record.customerId);
     return record;
   }
 
@@ -173,6 +214,122 @@ class BuildService {
   }
 
   // ─── Execution ────────────────────────────────────────────────────────
+
+  // ─── Admission control ──────────────────────────────────────────────
+
+  /**
+   * Run `id` now if a slot is free, otherwise leave it queued.
+   *
+   * Never throws for capacity reasons: a deferred build is a normal
+   * outcome, not an error. Callers get their record back either way and
+   * the UI reads `status: 'queued'` until a slot frees.
+   */
+  async _admit(id, customerId) {
+    const slot = await this._acquireSlot(id, customerId);
+    if (slot === null) {
+      await this.redis.rPush(BUILD_PENDING_KEY, id);
+      const depth = await this.redis.lLen(BUILD_PENDING_KEY).catch(() => null);
+      await this._emitBuild(id, 'build.queued', {
+        reason: 'at_capacity',
+        limit: BUILD_MAX_CONCURRENT,
+        perCustomerLimit: BUILD_MAX_PER_CUSTOMER,
+        queueDepth: depth,
+      });
+      return false;
+    }
+    this._runGuarded(id, customerId, slot);
+    return true;
+  }
+
+  /**
+   * Claim a concurrency slot. Returns the slot index, or null when the
+   * cluster (or this customer) is already at its limit.
+   *
+   * SET NX is the whole interlock — three building-api replicas race for
+   * the same keys and exactly one wins each. The per-customer set is
+   * checked first so one noisy account can't occupy every global slot;
+   * that check is read-then-write and can overshoot by one under a tight
+   * race, which the global cap bounds.
+   */
+  async _acquireSlot(buildId, customerId) {
+    if (customerId && BUILD_MAX_PER_CUSTOMER > 0) {
+      const active = await this.redis.sCard(customerActiveKey(customerId)).catch(() => 0);
+      if (active >= BUILD_MAX_PER_CUSTOMER) return null;
+    }
+
+    for (let n = 0; n < BUILD_MAX_CONCURRENT; n += 1) {
+      const won = await this.redis.set(slotKey(n), buildId, {
+        NX: true,
+        EX: BUILD_SLOT_TTL_SEC,
+      });
+      if (!won) continue;
+
+      this._slots.set(buildId, n);
+      if (customerId) {
+        await this.redis.sAdd(customerActiveKey(customerId), buildId).catch(() => {});
+        // Backstop: the set is maintained by release, but a hard crash
+        // shouldn't strand a customer at their limit forever.
+        await this.redis.expire(customerActiveKey(customerId), BUILD_SLOT_TTL_SEC * 2).catch(() => {});
+      }
+      return n;
+    }
+    return null;
+  }
+
+  async _releaseSlot(buildId, customerId, slot) {
+    const n = slot != null ? slot : this._slots.get(buildId);
+    this._slots.delete(buildId);
+    if (n != null) await this.redis.del(slotKey(n)).catch(() => {});
+    if (customerId) {
+      await this.redis.sRem(customerActiveKey(customerId), buildId).catch(() => {});
+    }
+  }
+
+  /**
+   * Execute a build with its slot released no matter how it ends, then
+   * pull the next queued build forward. The finally is load-bearing: an
+   * executor crash that skipped release would permanently shrink cluster
+   * build capacity by one.
+   */
+  _runGuarded(id, customerId, slot) {
+    this._execute(id)
+      .catch((err) => {
+        this.logger.error(`[build ${id}] executor crashed: ${err.message}`);
+      })
+      .finally(async () => {
+        try {
+          await this._releaseSlot(id, customerId, slot);
+          await this._drain();
+        } catch (err) {
+          this.logger.error(`[build ${id}] slot release failed: ${err.message}`);
+        }
+      });
+  }
+
+  /**
+   * Start queued builds until slots run out or the queue empties.
+   *
+   * Builds that went terminal while waiting (cancelled, or deleted) are
+   * dropped rather than run — cancel() doesn't reach into the list.
+   */
+  async _drain() {
+    for (let i = 0; i < BUILD_MAX_CONCURRENT; i += 1) {
+      const id = await this.redis.lPop(BUILD_PENDING_KEY);
+      if (!id) return;
+
+      const build = await this.get(id);
+      if (!build || BUILD_TERMINAL.has(build.status)) continue;
+
+      const slot = await this._acquireSlot(id, build.customerId);
+      if (slot === null) {
+        // No capacity — put it back at the head so ordering holds.
+        await this.redis.lPush(BUILD_PENDING_KEY, id);
+        return;
+      }
+      await this._emitBuild(id, 'build.dequeued', { slot });
+      this._runGuarded(id, build.customerId, slot);
+    }
+  }
 
   async _execute(id) {
     const build = await this.get(id);
@@ -578,9 +735,9 @@ class BuildService {
     await this.redis.set(`build:${buildId}`, JSON.stringify(build));
     await this._emitBuild(buildId, 'build.retried', { stageId, resetIds: [...resetIds] });
 
-    this._execute(buildId).catch((err) => {
-      this.logger.error(`[build ${buildId}] retry executor crashed: ${err.message}`);
-    });
+    // Retries take a slot like any other run — a retry storm is exactly
+    // the shape of traffic this gate exists to absorb.
+    await this._admit(buildId, build.customerId);
     return build;
   }
 
