@@ -9,19 +9,20 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Workflow, RefreshCw, Trash2, Play, Pencil, Plus, Search, Filter, Layers, GitBranch,
+  Workflow, RefreshCw, Trash2, Play, Pencil, Plus, Search, Filter, Layers, Wand2, GitBranch,
 } from 'lucide-react';
 import { buildApi, Pipeline, relativeTime, friendlyError } from '../../services/buildApi';
 import PipelineEditorDrawer from '../../components/PipelinesDrawer/PipelineEditorDrawer';
 import PipelineDetailDrawer from '../../components/PipelinesDrawer/PipelineDetailDrawer';
 import BuildDetailDrawer from '../../components/PipelinesDrawer/BuildDetailDrawer';
-import ManifestDrawer from '../../components/PipelinesDrawer/ManifestDrawer';
+import AutoPipelineDrawer from '../../components/PipelinesDrawer/AutoPipelineDrawer';
 import { useConfirm } from '../../components/ConfirmModal';
 
 export default function Pipelines() {
+  // Auto Pipeline — Railpack reads the repo so nobody configures stages.
+  const [autoOpen, setAutoOpen] = useState(false);
   // Manifest generator — a spinforge.yaml points a repo at an app, which
   // is pipeline config, so it lives here rather than in the app drawer.
-  const [manifestOpen, setManifestOpen] = useState(false);
   const confirm = useConfirm();
   const [rows, setRows] = useState<Pipeline[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -145,12 +146,13 @@ export default function Pipelines() {
             </div>
 
             <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3">
             <button
-              onClick={() => setManifestOpen(true)}
-              className="flex items-center space-x-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-all duration-200 shadow-sm"
+              onClick={() => setAutoOpen(true)}
+              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl"
             >
-              <GitBranch className="w-4 h-4" />
-              <span className="text-sm font-medium">Deploy from Git</span>
+              <Wand2 className="w-4 h-4" />
+              <span className="text-sm font-medium">Auto Pipeline</span>
             </button>
             <button
               onClick={openCreate}
@@ -159,6 +161,7 @@ export default function Pipelines() {
               <Plus className="w-4 h-4" />
               <span className="text-sm font-medium">New Pipeline</span>
             </button>
+            </div>
             </div>
           </div>
         </div>
@@ -360,7 +363,7 @@ export default function Pipelines() {
       />
 
       {/* Build detail drawer — shown after Run from a row */}
-      <ManifestDrawer isOpen={manifestOpen} onClose={() => setManifestOpen(false)} scope="admin" />
+      <AutoPipelineDrawer isOpen={autoOpen} onClose={() => setAutoOpen(false)} onCreated={load} scope="admin" />
       <BuildDetailDrawer
         isOpen={!!runBuildId}
         buildId={runBuildId}
