@@ -124,8 +124,14 @@ EOT
         # Pin the runner image to a specific tag so Nomad clients don't
         # hold on to a stale :latest cache. Bump this when you push a
         # new runner build (building/runners/linux/Dockerfile changes).
-        BUILDER_IMAGE_WEB    = "192.168.88.170:5000/spinforge/builder-linux:20260421062522"
-        BUILDER_IMAGE_LINUX  = "192.168.88.170:5000/spinforge/builder-linux:20260421062522"
+        #
+        # These are read by DispatchService (the legacy per-job dispatch
+        # path), NOT by the pipeline stage handlers — handlers/nomad.js
+        # builds its own ref from BUILDER_REGISTRY. They pointed at
+        # .170:5000, which nothing serves, and at the pre-fix runner tag
+        # that still set NODE_ENV=production.
+        BUILDER_IMAGE_WEB    = "192.168.88.171:5000/spinforge/builder-linux:20260812073806"
+        BUILDER_IMAGE_LINUX  = "192.168.88.171:5000/spinforge/builder-linux:20260812073806"
       }
 
       resources {
