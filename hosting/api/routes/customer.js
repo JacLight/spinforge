@@ -374,13 +374,31 @@ router.post('/deploy', async (req, res) => {
     };
 
     if (type === 'container' || type === 'node') {
-      try {
-        site.orchestrator = 'nomad';
-        const deployed = await nomad.deploySite(site);
-        site.nomadJobId = deployed.jobId;
-        site.nomadEvalId = deployed.evalId;
-      } catch (error) {
-        return res.status(500).json({ error: 'Nomad deployment failed', details: error.message });
+      site.orchestrator = 'nomad';
+
+      // An app created for a git deploy has nothing to run yet — the image
+      // is produced by its first build. Scheduling here would throw
+      // ("containerConfig.image is required") and 500 the create, which
+      // made the whole flow impossible: you need the app to exist to get
+      // an appId for spinforge.yaml, but you couldn't create the app
+      // without an image, and the image only comes from a build.
+      //
+      // So only schedule when there's actually something to schedule.
+      // deploy.container fills this in and deploys after the first build.
+      const runnable = type === 'container'
+        ? !!(config.containerConfig && config.containerConfig.image)
+        : !!(config.nodeConfig && config.nodeConfig.entrypoint);
+
+      if (runnable) {
+        try {
+          const deployed = await nomad.deploySite(site);
+          site.nomadJobId = deployed.jobId;
+          site.nomadEvalId = deployed.evalId;
+        } catch (error) {
+          return res.status(500).json({ error: 'Nomad deployment failed', details: error.message });
+        }
+      } else {
+        site.awaitingFirstBuild = true;
       }
     }
 

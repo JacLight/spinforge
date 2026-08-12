@@ -124,13 +124,20 @@ class HostingDeployService {
     // short delay rather than invalidating the in-nginx shared dict.
     const siteKey = `site:${domain}`;
     const existing = await this._existingSite(domain);
+    // Merge over the existing record rather than replacing it. Rebuilding
+    // from scratch dropped every field the panel owns — most importantly
+    // `appId`, which the Deploy tab reads to generate spinforge.yaml. A
+    // customer's first deploy therefore destroyed their ability to
+    // re-download their own manifest. Applies kept working only because
+    // `app:<appId>` is a separate key.
     const siteRecord = {
+      ...(existing || {}),
       domain,
       type: 'static',
       static_path: destDir,
-      indexFile: 'index.html',
-      errorFile: '404.html',
-      directoryListing: false,
+      indexFile: existing?.indexFile || 'index.html',
+      errorFile: existing?.errorFile || '404.html',
+      directoryListing: existing?.directoryListing ?? false,
       ssl_enabled: true,
       enabled: true,
       customerId,
@@ -140,6 +147,10 @@ class HostingDeployService {
       updatedAt: new Date().toISOString(),
       lastDeployedAt: new Date().toISOString(),
     };
+    // Stale routing hints from a previous type would confuse router.lua.
+    delete siteRecord.consul_service;
+    delete siteRecord.imageRef;
+    delete siteRecord.awaitingFirstBuild;
     await this.redis.set(siteKey, JSON.stringify(siteRecord));
     await this.redis.sAdd('sites:all', domain);
     await this.redis.sAdd(`customer:${customerId}:sites`, domain);
@@ -208,7 +219,10 @@ class HostingDeployService {
     // lookup in router.lua.
     const siteKey = `site:${domain}`;
     const existing = await this._existingSite(domain);
+    // Merge, don't replace — see the note in _deployStatic. `appId` in
+    // particular is owned by the panel and needed by the Deploy tab.
     const siteRecord = {
+      ...(existing || {}),
       domain,
       type: 'container',
       consul_service: consulServiceName,
@@ -222,6 +236,10 @@ class HostingDeployService {
       updatedAt: new Date().toISOString(),
       lastDeployedAt: new Date().toISOString(),
     };
+    // The app is running now; clear the placeholder state and any stale
+    // static-serving fields left from a previous type.
+    delete siteRecord.awaitingFirstBuild;
+    delete siteRecord.static_path;
     await this.redis.set(siteKey, JSON.stringify(siteRecord));
     await this.redis.sAdd('sites:all', domain);
     await this.redis.sAdd(`customer:${customerId}:sites`, domain);
