@@ -9,15 +9,19 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Workflow, RefreshCw, Trash2, Play, Pencil, Plus, Search, Filter, Layers,
+  Workflow, RefreshCw, Trash2, Play, Pencil, Plus, Search, Filter, Layers, GitBranch,
 } from 'lucide-react';
 import { buildApi, Pipeline, relativeTime, friendlyError } from '../../services/buildApi';
 import PipelineEditorDrawer from '../../components/PipelinesDrawer/PipelineEditorDrawer';
 import PipelineDetailDrawer from '../../components/PipelinesDrawer/PipelineDetailDrawer';
 import BuildDetailDrawer from '../../components/PipelinesDrawer/BuildDetailDrawer';
+import ManifestDrawer from '../../components/PipelinesDrawer/ManifestDrawer';
 import { useConfirm } from '../../components/ConfirmModal';
 
 export default function Pipelines() {
+  // Manifest generator — a spinforge.yaml points a repo at an app, which
+  // is pipeline config, so it lives here rather than in the app drawer.
+  const [manifestOpen, setManifestOpen] = useState(false);
   const confirm = useConfirm();
   const [rows, setRows] = useState<Pipeline[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -140,6 +144,14 @@ export default function Pipelines() {
               </div>
             </div>
 
+            <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setManifestOpen(true)}
+              className="flex items-center space-x-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-all duration-200 shadow-sm"
+            >
+              <GitBranch className="w-4 h-4" />
+              <span className="text-sm font-medium">Deploy from Git</span>
+            </button>
             <button
               onClick={openCreate}
               className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl"
@@ -147,6 +159,7 @@ export default function Pipelines() {
               <Plus className="w-4 h-4" />
               <span className="text-sm font-medium">New Pipeline</span>
             </button>
+            </div>
           </div>
         </div>
       </div>
@@ -347,6 +360,7 @@ export default function Pipelines() {
       />
 
       {/* Build detail drawer — shown after Run from a row */}
+      <ManifestDrawer isOpen={manifestOpen} onClose={() => setManifestOpen(false)} scope="admin" />
       <BuildDetailDrawer
         isOpen={!!runBuildId}
         buildId={runBuildId}

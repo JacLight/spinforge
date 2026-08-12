@@ -6,6 +6,7 @@
  * See the LICENSE file in the root directory for details.
  */
 const express = require('express');
+const { renderManifest } = require('../utils/manifest-file');
 const crypto = require('crypto');
 const router = express.Router();
 const fs = require('fs');
@@ -727,53 +728,17 @@ router.get('/sites/:domain/manifest', async (req, res) => {
     const site = await loadOwnedSite(req, res);
     if (!site) return;
 
-    if (!site.appId) {
-      return res.status(409).json({
-        error: 'This app predates manifest support and has no appId. Re-save it from the dashboard to assign one.',
-      });
+    // Shared with the admin route so an operator and the owner can never
+    // be shown different files for the same app.
+    const out = renderManifest(site, {
+      format: req.query.format,
+      repoUrl: req.query.repo ? String(req.query.repo) : undefined,
+    });
+    if (out.filename) {
+      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
     }
-
-    const format = String(req.query.format || 'yaml').toLowerCase();
-    const repoUrl = String(req.query.repo || 'https://github.com/you/your-repo');
-
-    if (format === 'json') {
-      const body = {
-        $schema: 'https://build.spinforge.dev/_api/customer/manifest/schema',
-        appId: site.appId,
-        repo: { url: repoUrl },
-      };
-      res.setHeader('Content-Disposition', 'attachment; filename="spinforge.json"');
-      return res.type('application/json').send(JSON.stringify(body, null, 2) + '\n');
-    }
-
-    const yaml = [
-      '# SpinForge deployment manifest',
-      `# App:    ${site.domain}`,
-      `# Type:   ${site.type}`,
-      '#',
-      '# Commit this file to your repository root, then on every push run:',
-      '#   curl -X POST https://build.spinforge.dev/_api/customer/manifest \\',
-      '#        -H "Authorization: Bearer $SPINFORGE_TOKEN" \\',
-      '#        -H "Content-Type: application/yaml" \\',
-      '#        --data-binary @spinforge.yaml',
-      '#',
-      '# appId is stable — changing this app\'s domain will not invalidate it.',
-      '',
-      `appId: ${site.appId}`,
-      '',
-      'repo:',
-      `  url: ${repoUrl}`,
-      '  # ref: main          # default: the repository default branch',
-      '',
-      '# rootDir: apps/web    # subdirectory holding this project, for monorepos',
-      '# autoDeploy: true     # false = save configuration without building',
-      '',
-    ].join('\n');
-
-    res.setHeader('Content-Disposition', 'attachment; filename="spinforge.yaml"');
-    res.type('application/yaml').send(yaml);
+    return res.status(out.status).type(out.contentType).send(out.body);
   } catch (error) {
-    console.error('Failed to build manifest:', error);
     res.status(500).json({ error: error.message });
   }
 });

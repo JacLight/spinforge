@@ -8,6 +8,7 @@
  * Version: 2.0.0 - 2025-08-03 - Simplified ssl_enabled only (no nested ssl object)
  */
 const express = require("express");
+const { renderManifest } = require('../utils/manifest-file');
 const router = express.Router();
 const fs = require("fs");
 const path = require("path");
@@ -145,6 +146,30 @@ router.get("/:domain", async (req, res) => {
     site = checkStaticFiles(site);
 
     res.json(site);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Download an app's deployment manifest (admin view).
+//
+// Mirrors GET /_api/customer/sites/:domain/manifest, sharing the same
+// renderer so an operator and the app's owner can never be shown different
+// files. Admin scope: any site, not just the caller's.
+router.get('/:domain/manifest', async (req, res) => {
+  try {
+    const data = await redisClient.get(`site:${req.params.domain}`);
+    if (!data) return res.status(404).json({ error: 'Site not found' });
+    const site = JSON.parse(data);
+
+    const out = renderManifest(site, {
+      format: req.query.format,
+      repoUrl: req.query.repo ? String(req.query.repo) : undefined,
+    });
+    if (out.filename) {
+      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    }
+    return res.status(out.status).type(out.contentType).send(out.body);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
