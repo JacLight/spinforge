@@ -55,7 +55,7 @@ job "customer-ui" {
       driver = "docker"
 
       config {
-        image = "192.168.88.171:5000/spinforge/customer-ui:deploy-20260811201841"
+        image = "192.168.88.171:5000/spinforge/customer-ui:deploytab-20260812221218"
         ports = ["http"]
       }
 
