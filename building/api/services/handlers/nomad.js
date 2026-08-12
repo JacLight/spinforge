@@ -115,6 +115,7 @@ function containerHandler({ http, log, redis }) {
         // Cache is namespaced per customer so one tenant's layers are
         // never reused for another's build.
         CACHE_KEY: `cust-${slug(build.customerId)}`,
+        CACHE_REF: cacheRef(build),
         BUILDKIT_HOST,
         WORKSPACE_PATH: workspacePath,
         ARTIFACTS_DIR: artifactDir,
@@ -140,6 +141,18 @@ function containerHandler({ http, log, redis }) {
     emit('info', 'finish', `pushed ${manifest.imageRef}`, { nomadJobId });
     return { imageRef: manifest.imageRef, startCommand: manifest.startCommand || '' };
   };
+}
+
+/**
+ * Registry ref holding this app's BuildKit layer cache.
+ *
+ * Keyed per pipeline, under a per-customer path — one tenant can never
+ * import another's layers. Empty CACHE_REGISTRY disables registry cache
+ * and leaves builds on the build node's local disk cache.
+ */
+function cacheRef(build) {
+  if (!DEFAULT_REGISTRY) return '';
+  return `${DEFAULT_REGISTRY}/buildcache/${slug(build.customerId)}/${slug(build.pipelineId)}`;
 }
 
 // Registry paths allow [a-z0-9._/-]; ids carry underscores and case.
@@ -182,6 +195,7 @@ function staticHandler({ http, log, redis }) {
         BUILD_MODE: inputs.mode || 'command',
         ROOT_DIR: inputs.rootDir || '.',
         BUILDKIT_HOST: BUILDKIT_HOST,
+        CACHE_REF: cacheRef(build),
         WORKSPACE_PATH: workspacePath,
         ARTIFACTS_DIR: artifactDir,
         ...(inputs.env || {}),

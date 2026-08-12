@@ -53,6 +53,9 @@ const IMAGE_REF = process.env.IMAGE_REF || '';
 // Namespaces the BuildKit cache. Per-customer, so one tenant's cache
 // entries can never be served to another's build.
 const CACHE_KEY = process.env.CACHE_KEY || '';
+// Registry ref the BuildKit layer cache is imported from / exported to.
+// Empty disables it and falls back to the build node's local cache only.
+const CACHE_REF = process.env.CACHE_REF || '';
 const RAILPACK_FRONTEND = process.env.RAILPACK_FRONTEND
   || 'ghcr.io/railwayapp/railpack-frontend';
 
@@ -244,11 +247,21 @@ async function railpackBuild() {
   const exportDir = path.join(SCRATCH, '.railpack-fs');
   await fsp.mkdir(exportDir, { recursive: true });
 
-  await step('railpack_build', () => run(
-    ['railpack', 'build', '--output', exportDir, projectDir],
-    undefined,
-    { BUILDKIT_HOST },
-  ));
+  const buildArgs = ['railpack', 'build', '--output', exportDir];
+  // Same reasoning as the container path: local cache is per-node, so it
+  // stops helping the moment there is more than one build node.
+  // Full exporter specs, not bare refs — railpack passes these straight
+  // through to BuildKit, which rejects a bare ref with
+  // `unknown cache exporter: ""`.
+  if (CACHE_REF) {
+    buildArgs.push(
+      '--cache-from', `type=registry,ref=${CACHE_REF}`,
+      '--cache-to', `type=registry,ref=${CACHE_REF},mode=max`,
+    );
+  }
+  buildArgs.push(projectDir);
+
+  await step('railpack_build', () => run(buildArgs, undefined, { BUILDKIT_HOST }));
 
   // Where the assets landed is read back out of the build, not asked for
   // separately. `railpack info` answers the same question, but it
@@ -316,6 +329,16 @@ async function containerBuild() {
     '--progress', 'plain',
   ];
   if (CACHE_KEY) args.push('--opt', `build-arg:cache-key=${CACHE_KEY}`);
+
+  // Push the layer cache to the registry as well as keeping it on local
+  // disk. Local cache only helps while there is exactly one build node —
+  // the moment a second exists, a build landing on the other one starts
+  // cold. import is best-effort: on the very first build for an app the
+  // ref doesn't exist yet, which buildctl treats as a miss, not an error.
+  if (CACHE_REF) {
+    args.push('--import-cache', `type=registry,ref=${CACHE_REF}`);
+    args.push('--export-cache', `type=registry,ref=${CACHE_REF},mode=max`);
+  }
 
   await step('image_build_push', () => run(['buildctl', ...args], undefined, { BUILDKIT_HOST }));
 

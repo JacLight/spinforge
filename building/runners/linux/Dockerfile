@@ -45,6 +45,24 @@ RUN curl -fsSL -o /tmp/railpack.tar.gz \
 # `railpack prepare` then buildctl with --output type=image,push=true.
 COPY --from=moby/buildkit:v0.28.0 /usr/bin/buildctl /usr/local/bin/buildctl
 
+# Warm Railpack's mise cache into the image.
+#
+# `railpack prepare` downloads the mise binary from GitHub releases into
+# /tmp/railpack/mise on every run. /tmp is per-container, so that was one
+# GitHub round-trip per customer build — and it is exactly what failed:
+# two builds died on `503 Service Unavailable` fetching that tarball
+# before the retry policy caught them.
+#
+# Running prepare against a throwaway project here pulls whatever mise
+# version *this* railpack wants, so the cache can't drift out of sync
+# the way a hardcoded version would. Failure is non-fatal: a cold image
+# just downloads at build time as before.
+RUN mkdir -p /tmp/warm \
+  && printf '{"name":"warm","version":"1.0.0","scripts":{"start":"node index.js"}}' > /tmp/warm/package.json \
+  && (railpack prepare /tmp/warm --plan-out /tmp/warm/plan.json --info-out /tmp/warm/info.json >/dev/null 2>&1 || true) \
+  && rm -rf /tmp/warm \
+  && ls /tmp/railpack/mise/ 2>/dev/null || echo "mise not pre-warmed; builds will fetch it"
+
 WORKDIR /app
 
 COPY package.json ./
