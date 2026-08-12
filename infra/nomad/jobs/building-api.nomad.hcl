@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:server-edit-20260811061438"
+        image = "192.168.88.171:5000/spinforge/building-api:validate-20260812031021"
         ports = ["http"]
       }
 

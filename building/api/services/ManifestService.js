@@ -332,8 +332,17 @@ class ManifestService {
    * kicking off a build. `customerId` and `userEmail` come from the
    * authenticated sfc_ token, never from the manifest body.
    */
-  async apply(rawManifest, { customerId, userEmail } = {}) {
-    if (!customerId) throw bad('customerId is required to apply a manifest');
+  /**
+   * Work out what a manifest would do, without doing it.
+   *
+   * Everything up to the first write lives here so `apply()` and the
+   * /manifest/validate dry run share one implementation. They drifted once
+   * already — validate went on calling a resolver that had been renamed and
+   * 500'd on every request — and a dry run that computes its answer
+   * separately from the real path is worse than no dry run at all.
+   */
+  async plan(rawManifest, { customerId } = {}) {
+    if (!customerId) throw bad('customerId is required to read a manifest');
 
     const manifest = this.normalize(rawManifest);
     const warnings = [];
@@ -357,6 +366,15 @@ class ManifestService {
         `these stages will be skipped and nothing will be deployed`
       );
     }
+
+    return { manifest, appId, domain, site, type, stages, unsupported: missing, warnings };
+  }
+
+  async apply(rawManifest, { customerId, userEmail } = {}) {
+    if (!customerId) throw bad('customerId is required to apply a manifest');
+
+    const { manifest, appId, domain, type, stages, warnings } =
+      await this.plan(rawManifest, { customerId });
 
     // Pipelines are keyed on the app, so re-applying updates in place even
     // if the app's domain changed since the last deploy.

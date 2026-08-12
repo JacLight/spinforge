@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Info, Globe, ChevronRight, Shield, Lock, Stethoscope, Key, Settings, Edit2, Save, Trash2, Power, Activity, Calendar, RefreshCw, ExternalLink } from 'lucide-react';
+import { X, Info, Globe, ChevronRight, Shield, Lock, Stethoscope, Key, Settings, Edit2, Save, Trash2, Power, Activity, Calendar, RefreshCw, ExternalLink, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hostingAPI } from '../../services/hosting-api';
@@ -11,6 +11,7 @@ import MetricsTab from './tabs/MetricsTab';
 import DiagnosticsTab from './tabs/DiagnosticsTab';
 import ProtectedRoutesTab from './tabs/ProtectedRoutesTabV2';
 import AdvancedSettingsTab from './tabs/AdvancedSettingsTab';
+import DeployTab from './tabs/DeployTab';
 import SSLCertificateManager from '../SSLCertificateManager';
 
 interface ApplicationDrawerProps {
@@ -172,6 +173,7 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
   const navigationTabs = [
     { id: 'overview', label: 'Overview', icon: Info },
     { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'deploy', label: 'Deploy', icon: Rocket },
     { id: 'metrics', label: 'Metrics', icon: Activity },
     { id: 'ssl', label: 'SSL', icon: Lock },
     { id: 'protected', label: 'Protected Routes', icon: Key },
@@ -396,6 +398,10 @@ export default function ApplicationDrawer({ vhost, isOpen, onClose, onRefresh }:
                       />
                     )}
                     
+                    {activeSection === 'deploy' && (
+                      <DeployTab vhost={vhost} />
+                    )}
+
                     {activeSection === 'metrics' && (
                       <MetricsTab domain={vhost.domain} />
                     )}

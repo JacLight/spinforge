@@ -79,17 +79,23 @@ router.get('/manifest/schema', (req, res) => {
 router.post('/manifest/validate', async (req, res, next) => {
   try {
     const manifests = req.app.locals.manifests;
-    const manifest = manifests.normalize(manifests.parse(req.body, req.get('content-type')));
-    // Show the domain this manifest would actually land on, generated name
-    // included, so a dry run answers "where does this deploy to?".
-    manifest.domain = await manifests.resolveDomain(manifest);
-    const stages = manifests.toStages(manifest);
+
+    // Same code path a real deploy takes, stopping short of the first write:
+    // same ownership check, same app-type resolution, same stages. Anything
+    // computed separately here would be free to drift from what apply() does.
+    const plan = await manifests.plan(manifests.parse(req.body, req.get('content-type')), {
+      customerId: req.customerId,
+    });
+
     res.json({
       valid: true,
-      type: manifest.type,
-      domain: manifest.domain,
-      stages: stages.map((s) => ({ id: s.id, action: s.action })),
-      unsupported: manifests.unsupportedStages(stages),
+      appId: plan.appId,
+      domain: plan.domain,
+      url: `https://${plan.domain}`,
+      type: plan.type,
+      stages: plan.stages.map((s) => ({ id: s.id, action: s.action })),
+      unsupported: plan.unsupported,
+      warnings: plan.warnings,
     });
   } catch (err) { next(err); }
 });
