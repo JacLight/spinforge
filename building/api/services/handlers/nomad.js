@@ -39,6 +39,12 @@ const BUILD_NODE_CLASS = process.env.BUILD_NODE_CLASS !== undefined
   ? process.env.BUILD_NODE_CLASS
   : 'build';
 
+// buildkitd runs on the build node as a long-lived container with its
+// socket on a host path. Stage jobs bind-mount the directory rather than
+// dialling TCP — see the mount comment in staticHandler.
+const BUILDKIT_SOCKET_DIR = process.env.BUILDKIT_SOCKET_DIR || '/run/buildkit';
+const BUILDKIT_HOST = process.env.BUILDKIT_HOST || `unix://${BUILDKIT_SOCKET_DIR}/buildkitd.sock`;
+
 // Redis coordinates handed to every stage runner. Inherited from this
 // process so the runner talks to the same KeyDB building-api does.
 const REDIS_ENV = {
@@ -98,10 +104,18 @@ function staticHandler({ http, log, redis }) {
         BUILD_COMMAND: inputs.command,
         OUTPUT_DIR: inputs.outputDir,
         FRAMEWORK: inputs.framework || '',
+        BUILD_MODE: inputs.mode || 'command',
+        ROOT_DIR: inputs.rootDir || '.',
+        BUILDKIT_HOST: BUILDKIT_HOST,
         WORKSPACE_PATH: workspacePath,
         ARTIFACTS_DIR: artifactDir,
         ...(inputs.env || {}),
       },
+      // Railpack drives buildkitd over this socket. Bind-mounted rather
+      // than reached over TCP: buildkitd's protocol is unauthenticated
+      // and can build as root, so a TCP listener would be root-equivalent
+      // to anything on the LAN.
+      hostVolumes: inputs.mode === 'railpack' ? [`${BUILDKIT_SOCKET_DIR}:${BUILDKIT_SOCKET_DIR}`] : [],
     });
 
     await seedRunnerJob({ redis, jobId: `${build.id}-${stage.id}`, build, stage, log });
@@ -175,7 +189,7 @@ function nodeHandler({ http, log, redis }) {
 
 // ─── Nomad job helpers ─────────────────────────────────────────────────
 
-function buildNomadSpec({ buildId, stageId, image, env }) {
+function buildNomadSpec({ buildId, stageId, image, env, hostVolumes = [] }) {
   const id = `stage-${buildId}-${stageId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
   return {
     ID: id,
@@ -206,7 +220,10 @@ function buildNomadSpec({ buildId, stageId, image, env }) {
       Tasks: [{
         Name: 'stage',
         Driver: 'docker',
-        Config: { image },
+        Config: {
+          image,
+          ...(hostVolumes.length ? { volumes: hostVolumes } : {}),
+        },
         VolumeMounts: [{ Volume: 'spinforge-data', Destination: '/data', ReadOnly: false }],
         // The runner agent publishes step status to KeyDB. Its default host
         // is the compose-era name `spinforge-keydb`, which doesn't resolve

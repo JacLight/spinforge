@@ -22,6 +22,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential \
   && rm -rf /var/lib/apt/lists/*
 
+# Railpack: detects the project's language, package manager, toolchain
+# version and build command, then drives BuildKit to build it. Replaces
+# the hardcoded `npm ci && npm run build` for BUILD_MODE=railpack stages.
+#
+# It only plans and dispatches — the actual work happens in buildkitd on
+# the build node, reached over the socket bind-mounted at /run/buildkit.
+ARG RAILPACK_VERSION=0.36.4
+RUN curl -fsSL -o /tmp/railpack.tar.gz \
+      "https://github.com/railwayapp/railpack/releases/download/v${RAILPACK_VERSION}/railpack-v${RAILPACK_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+  && tar xzf /tmp/railpack.tar.gz -C /usr/local/bin railpack \
+  && chmod +x /usr/local/bin/railpack \
+  && rm -f /tmp/railpack.tar.gz \
+  && railpack --version
+
 WORKDIR /app
 
 COPY package.json ./

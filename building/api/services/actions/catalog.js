@@ -96,6 +96,14 @@ module.exports = [
         outputDir: { type: 'string', default: 'dist' },
         framework: { type: 'string', description: 'Hint only; no functional effect.' },
         env:       { type: 'object', additionalProperties: { type: 'string' } },
+        // 'railpack' detects the toolchain, package manager and output
+        // directory itself and builds through BuildKit, so `command` and
+        // `outputDir` are ignored. 'command' runs them verbatim.
+        mode:      { type: 'string', enum: ['command', 'railpack'], default: 'command' },
+        // Subdirectory holding the project, for monorepos. The command
+        // path bakes this into `command` as a `cd`; railpack needs it
+        // separately because it analyses the directory itself.
+        rootDir:   { type: 'string', default: '.' },
       },
     },
     outputs: {

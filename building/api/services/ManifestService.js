@@ -32,6 +32,12 @@ const path = require('path');
 
 // Project types a manifest may declare, mapped to the pipeline `type`
 // vocabulary in PipelineService (PIPELINE_TYPES).
+// How static builds are produced. 'railpack' detects the toolchain and
+// builds via BuildKit (any package manager, correct output dir, warm
+// layer cache); 'command' runs the hardcoded npm build. Platform-wide
+// switch so it can be rolled forward or back without touching manifests.
+const BUILD_MODE_DEFAULT = process.env.BUILD_DEFAULT_MODE || 'command';
+
 const TYPE_TO_PIPELINE_TYPE = {
   static: 'static-site',
   node: 'node-service',
@@ -218,6 +224,11 @@ class ManifestService {
             with: {
               command: runFrom('npm ci && npm run build'),
               outputDir: inRoot('dist'),
+              rootDir: root,
+              // Railpack detects the package manager, toolchain version
+              // and output directory per project; the command/outputDir
+              // above are the fallback when it's switched off.
+              mode: BUILD_MODE_DEFAULT,
             },
           },
           {

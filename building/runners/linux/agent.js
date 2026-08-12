@@ -40,6 +40,14 @@ const BUILD_COMMAND = process.env.BUILD_COMMAND && process.env.BUILD_COMMAND.tri
   : 'npm ci && npm run build';
 const OUTPUT_DIR = process.env.OUTPUT_DIR || 'dist';
 
+// 'railpack' detects the toolchain and builds via BuildKit; anything
+// else keeps the legacy path (run BUILD_COMMAND, collect OUTPUT_DIR).
+// The legacy path stays the default so an existing pipeline can't change
+// behaviour underneath itself on a runner-image bump.
+const BUILD_MODE = (process.env.BUILD_MODE || 'command').toLowerCase();
+const ROOT_DIR = process.env.ROOT_DIR || '.';
+const BUILDKIT_HOST = process.env.BUILDKIT_HOST || 'unix:///run/buildkit/buildkitd.sock';
+
 const REDIS_URL = `redis://${process.env.REDIS_HOST || 'spinforge-keydb'}:${process.env.REDIS_PORT || 16378}/${process.env.REDIS_DB ?? 1}`;
 
 const SCRATCH = `/tmp/spinbuild-${JOB_ID}`;
@@ -71,13 +79,22 @@ async function main() {
     await transition('running');
     await step('unzip', () => run(['unzip', '-q', WORKSPACE_PATH, '-d', SCRATCH]));
 
-    // Customer-provided build command runs in a shell inside the scratch
-    // dir. Shell parsing lets them chain with && / ||, pipe, etc.
-    await step('build', () => runShell(BUILD_COMMAND, SCRATCH));
+    let artifactSrc;
+    let srcLabel;
+    if (BUILD_MODE === 'railpack') {
+      artifactSrc = await railpackBuild();
+      srcLabel = `railpack output "${path.relative(SCRATCH, artifactSrc)}"`;
+    } else {
+      // Customer-provided build command runs in a shell inside the scratch
+      // dir. Shell parsing lets them chain with && / ||, pipe, etc.
+      await step('build', () => runShell(BUILD_COMMAND, SCRATCH));
+      artifactSrc = path.join(SCRATCH, OUTPUT_DIR);
+      srcLabel = `OUTPUT_DIR "${OUTPUT_DIR}"`;
+    }
 
     await step('collect_artifacts', async () => {
-      const src = path.join(SCRATCH, OUTPUT_DIR);
-      await assertDir(src, `OUTPUT_DIR "${OUTPUT_DIR}" not found in workspace root after build`);
+      const src = artifactSrc;
+      await assertDir(src, `${srcLabel} not found in workspace root after build`);
       // Copy contents of outputDir (not the dir itself) into ARTIFACTS_DIR
       // so downloads resolve at /data/artifacts/<jobId>/index.html etc.
       await run(['cp', '-r', `${src}/.`, ARTIFACTS_DIR]);
@@ -177,6 +194,79 @@ async function publishGlobal(type, severity, context = {}) {
   }
 }
 
+// ─── Railpack ─────────────────────────────────────────────────────────
+
+/**
+ * Build with Railpack and return the directory holding the built assets.
+ *
+ * Railpack normally produces a container image. We don't want one: static
+ * sites are served straight off CephFS by OpenResty, and running a
+ * container per site would cost far more than serving files. So we use
+ * `--output`, which exports the final filesystem to a directory instead
+ * of an image, and lift just the built assets out of it.
+ *
+ * The export is a whole rootfs (Caddy, libc, the assets — ~175 MB for a
+ * Vite app), but Railpack's deploy step only copies the output directory
+ * out of the build step, so no node_modules or toolchain comes with it.
+ * We land it on the stage's ephemeral disk and copy only the assets to
+ * Ceph.
+ */
+async function railpackBuild() {
+  const projectDir = ROOT_DIR && ROOT_DIR !== '.' ? path.join(SCRATCH, ROOT_DIR) : SCRATCH;
+  await assertDir(projectDir, `rootDir "${ROOT_DIR}" not found in the repository`);
+
+  const exportDir = path.join(SCRATCH, '.railpack-fs');
+  await fsp.mkdir(exportDir, { recursive: true });
+
+  await step('railpack_build', () => run(
+    ['railpack', 'build', '--output', exportDir, projectDir],
+    undefined,
+    { BUILDKIT_HOST },
+  ));
+
+  // Where the assets landed is read back out of the build, not asked for
+  // separately. `railpack info` answers the same question, but it
+  // re-resolves toolchain versions over the network — measured at 4.9s on
+  // one run and 68s on the next, which on a warm cache was longer than
+  // the build itself. The generated Caddyfile already records Railpack's
+  // own decision, and it costs a file read.
+  const outputPath = await caddyRootFromExport(exportDir);
+  if (!outputPath) {
+    // No Caddyfile means Railpack planned a long-running process (an API
+    // server, not a static bundle). Serving that needs the image
+    // published and scheduled — the container path, not wired up yet.
+    throw new Error(
+      'railpack detected a server application, not a static site (no Caddyfile in the build output). '
+      + 'Serving it requires the container deploy path, which is not implemented yet. '
+      + 'Use a static project, or set BUILD_MODE=command with an explicit BUILD_COMMAND.'
+    );
+  }
+
+  await appendEvent('railpack.output', { outputPath });
+  // outputPath is absolute inside the exported rootfs (e.g. /app/dist).
+  return path.join(exportDir, outputPath.replace(/^\/+/, ''));
+}
+
+/**
+ * Read the asset root out of the Caddyfile Railpack generates.
+ *
+ * The file carries a single `root * <path>` directive naming the
+ * directory the site is served from — for a Vite app, `/app/dist`.
+ * Returns null when there's no Caddyfile, which is the signal that this
+ * isn't a static site at all.
+ */
+async function caddyRootFromExport(exportDir) {
+  const caddyfile = path.join(exportDir, 'Caddyfile');
+  let text;
+  try {
+    text = await fsp.readFile(caddyfile, 'utf8');
+  } catch {
+    return null;
+  }
+  const m = /^\s*root\s+\*\s+(\S+)\s*$/m.exec(text);
+  return m ? m[1] : null;
+}
+
 // ─── Exec helpers ─────────────────────────────────────────────────────
 
 async function step(name, fn) {
@@ -191,10 +281,14 @@ async function step(name, fn) {
   }
 }
 
-function run(argv, cwd) {
+function run(argv, cwd, env) {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = argv;
-    const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, {
+      cwd,
+      env: env ? { ...process.env, ...env } : process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     pipeStream(child.stdout, 'stdout');
     pipeStream(child.stderr, 'stderr');
     child.on('error', reject);

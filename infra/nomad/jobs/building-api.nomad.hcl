@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:buildnode-20260812175635"
+        image = "192.168.88.171:5000/spinforge/building-api:railpack-20260812180633"
         ports = ["http"]
       }
 
@@ -120,6 +120,13 @@ EOT
         WORKSPACE_ROOT       = "/data/workspaces"
         ARTIFACT_ROOT        = "/data/artifacts"
         NODE_ENV             = "production"
+
+        # Static builds go through Railpack + BuildKit: it detects the
+        # package manager, toolchain version and output directory per
+        # project instead of assuming npm/dist, and BuildKit's layer cache
+        # turns rebuilds from minutes into seconds. Set to "command" to
+        # fall back to the hardcoded `npm ci && npm run build`.
+        BUILD_DEFAULT_MODE   = "railpack"
 
         # Customer builds run only on nodes carrying this class —
         # spinforge-build-01 (.173), a Nomad client that is deliberately
