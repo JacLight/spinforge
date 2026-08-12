@@ -13,15 +13,20 @@ export default function DeploymentManifestPage() {
     <div className="prose prose-gray max-w-none">
       <h1 className="text-3xl font-bold text-gray-900 mb-4">Deploy from a Git repo</h1>
       <p className="text-lg text-gray-600 mb-8">
-        Describe your project once in a <code>spinforge.yaml</code>, POST it, and SpinForge clones
-        your repo, builds it, and puts it on a domain. Re-run it on every push — applying the same
-        manifest updates the deployment rather than creating a second one.
+        Create an app in your dashboard, download its <code>spinforge.yaml</code>, and commit it to
+        your repo. POST it on every push and SpinForge clones, builds, and deploys to that app.
+        Applying the same manifest updates the deployment rather than creating a second one.
       </p>
 
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">1. Add a manifest</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">1. Get your manifest</h2>
       <p className="mb-4">
-        Only <code>name</code> and <code>repo.url</code> are required. Everything else has a
-        default.
+        In the dashboard, open your app and go to the <span className="font-semibold">Deploy</span>{" "}
+        tab. Enter your repository URL, pick YAML or JSON, and download. The file already carries
+        your app&apos;s <code>appId</code> — commit it to your repository root.
+      </p>
+      <p className="mb-4">
+        A manifest points at an app you already own. It can never create one or claim a domain, and
+        it holds no secret, so it is safe in a public repo.
       </p>
 
       <div className="bg-gray-900 rounded-lg p-6 mb-6 not-prose">
@@ -29,7 +34,7 @@ export default function DeploymentManifestPage() {
           <FileCode className="h-5 w-5 text-gray-400 mr-2" />
           <span className="text-gray-400 text-sm">spinforge.yaml</span>
         </div>
-        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`name: my-app
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`appId: app_b5354edd-e287-480f-b750-72b28a39a255
 repo:
   url: https://github.com/me/my-app`}</code></pre>
       </div>
@@ -56,9 +61,11 @@ repo:
         <span className="text-gray-400 text-sm">Response 201</span>
         <pre className="text-gray-100 overflow-x-auto text-sm mt-2"><code>{`{
   "created": true,
+  "appId": "app_b5354edd-e287-480f-b750-72b28a39a255",
   "domain": "my-app.spinforge.dev",
-  "pipeline": { "id": "pl_01J...", "name": "my-app" },
-  "build": { "id": "bld_01J...", "status": "queued" },
+  "url": "https://my-app.spinforge.dev",
+  "pipeline": { "id": "pl_01J..." },
+  "build": { "id": "b_01J...", "status": "queued" },
   "warnings": []
 }`}</code></pre>
       </div>
@@ -78,13 +85,16 @@ repo:
 
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Your domain</h2>
       <p className="mb-4">
-        Leave <code>domain</code> out and SpinForge assigns{" "}
-        <code>&lt;name&gt;.spinforge.dev</code>, checking it is not already taken and adding a
-        numeric suffix if it is. Once assigned it never changes — re-applying will not move a live
-        site to a new address.
+        The domain belongs to the app, not the manifest — you choose it in the dashboard when you
+        create the app. That is also where quotas are enforced.
+      </p>
+      <p className="mb-4">
+        Because the manifest references the app by <code>appId</code>, renaming the app&apos;s
+        domain does not invalidate the committed file. The id resolves to whatever domain the app
+        currently serves on, so nothing in your repo needs editing after a move.
       </p>
       <p className="mb-8">
-        Set <code>domain</code> explicitly to use your own. See{" "}
+        To use your own domain, see{" "}
         <Link href="/docs/deployment/custom-domains" className="text-blue-600 hover:text-blue-700">
           Custom Domains
         </Link>{" "}
@@ -104,9 +114,9 @@ repo:
           </thead>
           <tbody className="divide-y divide-gray-200">
             <tr>
-              <td className="px-4 py-2 font-mono text-blue-700">name</td>
+              <td className="px-4 py-2 font-mono text-blue-700">appId</td>
               <td className="px-4 py-2 text-gray-500">required</td>
-              <td className="px-4 py-2 text-gray-600">1–100 chars. Re-applying with the same name updates that deployment.</td>
+              <td className="px-4 py-2 text-gray-600">From your app&apos;s Deploy tab. Stable across domain changes.</td>
             </tr>
             <tr>
               <td className="px-4 py-2 font-mono text-blue-700">repo.url</td>
@@ -124,29 +134,9 @@ repo:
               <td className="px-4 py-2 text-gray-600">For private repos. Never returned in a response.</td>
             </tr>
             <tr>
-              <td className="px-4 py-2 font-mono text-blue-700">domain</td>
-              <td className="px-4 py-2 text-gray-500">&lt;name&gt;.spinforge.dev</td>
-              <td className="px-4 py-2 text-gray-600">Auto-assigned if omitted.</td>
-            </tr>
-            <tr>
-              <td className="px-4 py-2 font-mono text-blue-700">type</td>
-              <td className="px-4 py-2 text-gray-500">static</td>
-              <td className="px-4 py-2 text-gray-600"><code>static</code>, <code>node</code>, or <code>container</code>.</td>
-            </tr>
-            <tr>
               <td className="px-4 py-2 font-mono text-blue-700">rootDir</td>
               <td className="px-4 py-2 text-gray-500">.</td>
               <td className="px-4 py-2 text-gray-600">Subdirectory holding the project, for monorepos.</td>
-            </tr>
-            <tr>
-              <td className="px-4 py-2 font-mono text-blue-700">aliases</td>
-              <td className="px-4 py-2 text-gray-500">[]</td>
-              <td className="px-4 py-2 text-gray-600">Extra domains for the same site.</td>
-            </tr>
-            <tr>
-              <td className="px-4 py-2 font-mono text-blue-700">owner.email</td>
-              <td className="px-4 py-2 text-gray-500">—</td>
-              <td className="px-4 py-2 text-gray-600">Verified against your account; a mismatch is rejected.</td>
             </tr>
             <tr>
               <td className="px-4 py-2 font-mono text-blue-700">autoDeploy</td>
@@ -156,6 +146,12 @@ repo:
           </tbody>
         </table>
       </div>
+
+      <p className="mb-8 text-sm text-gray-600">
+        There is no <code>domain</code>, <code>name</code>, <code>type</code>, or{" "}
+        <code>owner</code> field. Domain and project type come from the app record, so the manifest
+        and the dashboard can never disagree.
+      </p>
 
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Monorepos</h2>
       <p className="mb-4">
@@ -168,7 +164,7 @@ repo:
           <GitBranch className="h-5 w-5 text-gray-400 mr-2" />
           <span className="text-gray-400 text-sm">spinforge.yaml</span>
         </div>
-        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`name: web
+        <pre className="text-gray-100 overflow-x-auto text-sm"><code>{`appId: app_b5354edd-e287-480f-b750-72b28a39a255
 rootDir: apps/web
 repo:
   url: https://github.com/me/monorepo`}</code></pre>
@@ -200,15 +196,16 @@ repo:
         <div className="flex items-start">
           <CheckCircle className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-gray-700">
-            <span className="font-semibold">Node projects</span> — set <code>type: node</code>.
+            <span className="font-semibold">Node projects</span> — create the app as type{" "}
+            <code>node</code> in the dashboard.
           </p>
         </div>
         <div className="flex items-start">
           <AlertCircle className="h-5 w-5 text-amber-600 mr-3 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-gray-700">
-            <span className="font-semibold">Containers are not deployed yet.</span> A{" "}
-            <code>type: container</code> manifest validates and saves, but the build and deploy
-            steps have no runner — the apply response returns a warning saying so, and nothing is
+            <span className="font-semibold">Containers are not deployed yet.</span> A manifest for
+            a <code>container</code> app validates and saves, but the build and deploy steps have
+            no runner — the apply response returns a warning saying so, and nothing is
             deployed. Use{" "}
             <Link href="/docs/deployment/containers" className="text-blue-600 hover:text-blue-700">
               the containers guide
@@ -224,9 +221,10 @@ repo:
           <div className="text-sm text-blue-900">
             <p className="font-semibold mb-1">Build commands are fixed for now</p>
             <p>
-              There is no way to override the build command, output directory, or package manager.
-              Projects using yarn or pnpm, or writing to <code>build/</code> instead of{" "}
-              <code>dist/</code>, cannot deploy through a manifest yet.
+              Every build runs <code>npm ci &amp;&amp; npm run build</code> and publishes{" "}
+              <code>dist</code>. There is no way to override the command, output directory, or
+              package manager, and <code>npm ci</code> requires a committed lockfile. Projects using
+              yarn or pnpm, or writing to <code>build/</code>, cannot deploy through a manifest yet.
             </p>
           </div>
         </div>
@@ -234,9 +232,10 @@ repo:
 
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Checking before you apply</h2>
       <p className="mb-4">
-        <code>POST /_api/customer/manifest/validate</code> takes the same body, has no side effects,
-        and returns the domain it would land on plus the steps that would run. Useful as a CI
-        pre-check.
+        <code>POST /_api/customer/manifest/validate</code> takes the same body and has no side
+        effects. It runs the same resolution a real apply does — same ownership check, same app
+        type, same steps — stopping short of the first write, then returns the domain it would land
+        on and the stages that would run. Useful as a CI pre-check.
       </p>
     </div>
   );

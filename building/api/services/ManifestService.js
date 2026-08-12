@@ -443,7 +443,11 @@ class ManifestService {
     const pageSize = 100;
     for (let offset = 0; ; offset += pageSize) {
       const page = await this.pipelines.list({ customerId, limit: pageSize, offset });
-      const items = Array.isArray(page) ? page : page.items || [];
+      // PipelineService.list returns { pipelines, total }. This read `items`,
+      // which is always undefined — so the lookup found nothing, every apply
+      // took the "create" branch, and re-running a manifest piled up a new
+      // pipeline per push instead of updating one.
+      const items = Array.isArray(page) ? page : (page.pipelines || page.items || []);
       const hit = items.find((p) => p.name === name);
       if (hit) return hit;
       if (items.length < pageSize) return null;

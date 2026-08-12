@@ -318,7 +318,7 @@
     <h1>The deployment manifest</h1>
     <p class="standfirst">
       Describe your project once in a file, POST it, and SpinForge clones your repo,
-      builds it, and puts it on your domain. Re-run it on every push — applying is idempotent.
+      builds it, and deploys it to that app. Re-run it on every push — applying is idempotent.
     </p>
     <div class="factbar">
       <span class="fact"><span class="fact-k">format</span><span class="fact-v">YAML or JSON</span></span>
@@ -344,7 +344,7 @@
         <div class="step-body">
           <span class="step-title">Add <code>spinforge.yaml</code> to your repo</span>
           <p class="sub">Two fields are required. Everything else has a default.</p>
-<pre><code><span class="c-key">name</span>: <span class="c-str">my-app</span>
+<pre><code><span class="c-key">appId</span>: <span class="c-str">app_b5354edd-e287-480f-b750-72b28a39a255</span>
 <span class="c-key">repo</span>:
   <span class="c-key">url</span>: <span class="c-str">https://github.com/me/my-app</span></code></pre>
           <p class="sub">Prefer JSON? Same fields, same endpoint:</p>
@@ -410,24 +410,14 @@
     <h2>A complete manifest</h2>
     <p>Every field, shown with its default. Only <code>name</code> and <code>repo.url</code> are
     required — most manifests are three lines.</p>
-<pre><code><span class="c-key">name</span>: <span class="c-str">my-app</span>                     <span class="c-com"># required</span>
-
+<pre><code><span class="c-key">appId</span>: <span class="c-str">app_b5354edd-e287-480f-b750-72b28a39a255</span>   <span class="c-com"># required</span>
 <span class="c-key">repo</span>:
   <span class="c-key">url</span>: <span class="c-str">https://github.com/me/my-app</span>   <span class="c-com"># required</span>
-  <span class="c-key">ref</span>: <span class="c-str">main</span>                         <span class="c-com"># default: the repo's default branch</span>
-  <span class="c-key">token</span>: <span class="c-str">ghp_…</span>                      <span class="c-com"># private repos only</span>
-
-<span class="c-key">domain</span>: <span class="c-str">app.example.com</span>            <span class="c-com"># default: &lt;name&gt;.spinforge.dev</span>
-<span class="c-key">type</span>: <span class="c-str">static</span>                       <span class="c-com"># static | node | container</span>
-<span class="c-key">rootDir</span>: <span class="c-str">apps/web</span>                  <span class="c-com"># default: .  (monorepo subdirectory)</span>
-<span class="c-key">aliases</span>:
-  - <span class="c-str">www.app.example.com</span>
-
-<span class="c-key">owner</span>:
-  <span class="c-key">email</span>: <span class="c-str">me@example.com</span>            <span class="c-com"># verified against your account</span>
-  <span class="c-key">name</span>: <span class="c-str">Jane Doe</span>
-
-<span class="c-key">autoDeploy</span>: <span class="c-str">true</span>                  <span class="c-com"># false = save config, don't build</span></code></pre>
+  <span class="c-key">ref</span>: <span class="c-str">main</span>                          <span class="c-com"># default: repo default branch</span>
+  <span class="c-key">token</span>: <span class="c-str">ghp_xxx</span>                     <span class="c-com"># private repos only</span>
+<span class="c-key">rootDir</span>: <span class="c-str">apps/web</span>                   <span class="c-com"># default: .</span>
+<span class="c-key">autoDeploy</span>: <span class="c-str">true</span>                    <span class="c-com"># false = save config, no build</span>
+</code></pre>
   </section>
 
   <section>
@@ -438,17 +428,12 @@
           <tr><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr>
         </thead>
         <tbody>
-          <tr><td class="field">name</td><td class="type">string</td><td class="dflt"><span class="req">required</span></td><td>1–100 chars. Re-applying with the same name updates that deployment instead of creating a second one.</td></tr>
+          <tr><td class="field">appId</td><td class="type">string</td><td class="dflt"><span class="req">required</span></td><td>From your app&#39;s Deploy tab in the dashboard. Stable across domain changes.</td></tr>
           <tr><td class="field">repo.url</td><td class="type">string</td><td class="dflt"><span class="req">required</span></td><td>Git clone URL, HTTPS or SSH.</td></tr>
-          <tr><td class="field">repo.ref</td><td class="type">string</td><td class="dflt">default branch</td><td>Branch, tag, or SHA. Defaults to whatever the repo's default branch is.</td></tr>
+          <tr><td class="field">repo.ref</td><td class="type">string</td><td class="dflt">default branch</td><td>Branch, tag, or SHA.</td></tr>
           <tr><td class="field">repo.token</td><td class="type">string</td><td class="dflt">—</td><td>PAT for private repos. Never returned in a response.</td></tr>
-          <tr><td class="field">domain</td><td class="type">string</td><td class="dflt">&lt;name&gt;.spinforge.dev</td><td>Auto-assigned and collision-checked if omitted. Never changes once assigned.</td></tr>
-          <tr><td class="field">type</td><td class="type">enum</td><td class="dflt">static</td><td><code>static</code>, <code>node</code>, or <code>container</code>.</td></tr>
           <tr><td class="field">rootDir</td><td class="type">string</td><td class="dflt">.</td><td>Subdirectory holding the project, for monorepos.</td></tr>
-          <tr><td class="field">aliases</td><td class="type">string[]</td><td class="dflt">[]</td><td>Extra domains pointing at the same site.</td></tr>
-          <tr><td class="field">owner.email</td><td class="type">email</td><td class="dflt">—</td><td>Verified against your account. A mismatch is rejected with 403.</td></tr>
-          <tr><td class="field">owner.name</td><td class="type">string</td><td class="dflt">—</td><td>Display name only.</td></tr>
-          <tr><td class="field">autoDeploy</td><td class="type">boolean</td><td class="dflt">true</td><td>Set <code>false</code> to save the configuration without building.</td></tr>
+          <tr><td class="field">autoDeploy</td><td class="type">boolean</td><td class="dflt">true</td><td>false saves configuration without building.</td></tr>
         </tbody>
       </table>
     </div>
@@ -557,18 +542,19 @@ x-auth-token: sfc_your_token</code></pre>
   ]
 <span class="c-key">}</span></code></pre>
     <h3>Wrong account</h3>
-    <p class="sub">A declared owner that does not match your token returns <code>403</code>:</p>
-<pre><code><span class="c-key">{</span>
-  <span class="c-key">"error"</span>:   <span class="c-str">"owner_mismatch"</span>,
-  <span class="c-key">"message"</span>: <span class="c-str">"manifest owner.email \"x@y.com\" does not belong to the authenticated account — check you are using the right API token"</span>
-<span class="c-key">}</span></code></pre>
+    <p class="sub">An <code>appId</code> you do not own returns <code>404</code> — the same response a
+    nonexistent app gives, so the endpoint cannot be used to discover which app ids exist:</p>
+<pre><code>{
+  <span class="c-key">"error"</span>:   <span class="c-str">"app_not_found"</span>,
+  <span class="c-key">"message"</span>: <span class="c-str">"app app_… not found, or not owned by this account — create the app in your dashboard and download its manifest"</span>
+}</code></pre>
 
     <h3>Common causes</h3>
     <ul class="plain">
       <li><span class="sub">A misspelled field name — unknown properties are rejected, not ignored.</span></li>
-      <li><span class="sub">Missing <code>name</code>, <code>domain</code>, or <code>repo.url</code>.</span></li>
-      <li><span class="sub">A <code>type</code> outside <code>static</code> / <code>node</code> / <code>container</code>.</span></li>
-      <li><span class="sub">A malformed <code>owner.email</code>.</span></li>
+      <li><span class="sub">Missing <code>appId</code> or <code>repo.url</code>.</span></li>
+      <li><span class="sub">An <code>appId</code> that is not a well-formed <code>app_</code> UUID.</span></li>
+      <li><span class="sub">Any unknown field — typos are rejected, not ignored.</span></li>
       <li><span class="sub">YAML sent with <code>curl --data</code> instead of <code>--data-binary</code>, which strips the newlines.</span></li>
     </ul>
     <p class="sub">A malformed document fails before validation and tells you where:</p>
@@ -580,20 +566,18 @@ x-auth-token: sfc_your_token</code></pre>
 
   <section>
     <h2>Your domain</h2>
-    <p>Leave <code>domain</code> out and SpinForge assigns
-    <code>&lt;name&gt;.spinforge.dev</code>, slugified from the name. Availability is checked
-    against every site on the platform — including platform domains like <code>admin</code> and
-    <code>api</code> — and a numeric suffix is added on a clash
-    (<code>my-app-2</code>, <code>my-app-3</code>).</p>
-    <p class="sub">Once assigned, the domain is reused on every later apply. Re-running a manifest
-    never moves a live site to a new address.</p>
-  </section>
+    <p>The domain belongs to the app, not the manifest — you choose it in the dashboard when you
+    create the app, which is also where quotas are enforced. A manifest can never claim one.</p>
+    <p class="sub">Because the manifest references the app by <code>appId</code>, renaming the
+    app&#39;s domain does not invalidate the committed file. The id resolves to whatever domain the
+    app currently serves on, so nothing in your repo needs editing after a move.</p>
+    </section>
 
   <section>
     <h2>Monorepos</h2>
     <p><code>rootDir</code> points at the subdirectory holding the project. The repo is cloned
     whole; the build runs from there and output paths resolve against it.</p>
-<pre><code><span class="c-key">name</span>: <span class="c-str">web</span>
+<pre><code><span class="c-key">appId</span>: <span class="c-str">app_b5354edd-e287-480f-b750-72b28a39a255</span>
 <span class="c-key">rootDir</span>: <span class="c-str">apps/web</span>
 <span class="c-key">repo</span>:
   <span class="c-key">url</span>: <span class="c-str">https://github.com/me/monorepo</span></code></pre>
@@ -606,11 +590,10 @@ x-auth-token: sfc_your_token</code></pre>
 
     <div class="note">
       <span class="note-title">Your token owns the deployment</span>
-      <p>Ownership is taken from the <code>sfc_</code> token, never from <code>owner.email</code> —
-      otherwise anyone could claim a domain by typing your address into a file. When
-      <code>owner.email</code> <em>is</em> present it is checked against your account's email or the
-      token's email and rejected with <code>403</code> on a mismatch. That is what catches a CI job
-      running with the wrong token. Shared team tokens still work.</p>
+      <p>Ownership is taken from the <code>sfc_</code> token. The manifest carries no identity claim
+      of its own — the <code>appId</code> must resolve to an app that token&#39;s account owns, or the
+      apply returns <code>404</code>. That is what catches a CI job running with the wrong token.
+      Shared team tokens still work.</p>
     </div>
 
     <div class="note">
