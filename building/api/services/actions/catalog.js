@@ -125,19 +125,28 @@ module.exports = [
     inputs: {
       type: 'object',
       additionalProperties: false,
-      required: ['dockerfile'],
+      required: [],
       properties: {
+        // 'railpack' detects the runtime and generates the build plan —
+        // no Dockerfile needed. 'dockerfile' builds the committed one.
+        mode:        { type: 'string', enum: ['railpack', 'dockerfile'], default: 'railpack' },
         dockerfile:  { type: 'string', default: 'Dockerfile' },
         context:     { type: 'string', default: '.' },
+        rootDir:     { type: 'string', default: '.' },
         imageName:   { type: 'string', description: 'If omitted, derived from customerId + pipelineId + buildId.' },
         buildArgs:   { type: 'object', additionalProperties: { type: 'string' } },
+        env:         { type: 'object', additionalProperties: { type: 'string' } },
       },
     },
     outputs: {
       type: 'object',
       required: ['imageRef'],
       properties: {
-        imageRef: { type: 'string', description: 'registry/repo:tag@sha256:…' },
+        imageRef:     { type: 'string', description: 'registry/repo:tag' },
+        // Railpack works out how the app is started. Carrying it forward
+        // means deploy.container doesn't have to re-derive it, and it
+        // becomes the app profile SpinForge stores for later builds.
+        startCommand: { type: 'string' },
       },
     },
     runner: { kind: 'nomad', image: 'spinforge/builder-linux' },

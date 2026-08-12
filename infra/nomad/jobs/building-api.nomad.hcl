@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:railpack-20260812180633"
+        image = "192.168.88.171:5000/spinforge/building-api:retry-20260812190627"
         ports = ["http"]
       }
 

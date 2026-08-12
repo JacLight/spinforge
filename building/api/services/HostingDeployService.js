@@ -161,14 +161,25 @@ class HostingDeployService {
     // phase. We expect a marker file so we don't submit a Nomad job that
     // would just ImagePullBackOff.
     const slug = domain.replace(/[^a-z0-9-]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase();
-    const imageRef = `${this.registryAddr}/${customerId}/${slug}:${deploymentId}`;
 
-    const marker = path.join(artifactDir, 'IMAGE_PUSHED');
-    if (!fs.existsSync(marker)) {
-      throw new Error(
-        `build phase did not push image for container deploy (missing IMAGE_PUSHED in ${artifactDir}). ` +
-        `Expected tag ${imageRef}.`
-      );
+    // build.container reports the ref it actually pushed. Trust that over
+    // re-deriving one: the two schemes have to agree exactly or Nomad
+    // pulls a tag that was never created, and a mismatch here surfaces as
+    // ImagePullBackOff long after the build reported success.
+    const imageRef = source.imageRef
+      || `${this.registryAddr}/${customerId}/${slug}:${deploymentId}`;
+
+    // The marker is the legacy contract for when we derive the ref
+    // ourselves. An explicit ref means the build handler already
+    // confirmed the push, so there's nothing left to prove.
+    if (!source.imageRef) {
+      const marker = path.join(artifactDir, 'IMAGE_PUSHED');
+      if (!fs.existsSync(marker)) {
+        throw new Error(
+          `build phase did not push image for container deploy (missing IMAGE_PUSHED in ${artifactDir}). ` +
+          `Expected tag ${imageRef}.`
+        );
+      }
     }
 
     // Customer vault bootstrap — inject VAULT_TOKEN scoped to

@@ -48,6 +48,14 @@ const BUILD_MODE = (process.env.BUILD_MODE || 'command').toLowerCase();
 const ROOT_DIR = process.env.ROOT_DIR || '.';
 const BUILDKIT_HOST = process.env.BUILDKIT_HOST || 'unix:///run/buildkit/buildkitd.sock';
 
+// Container builds only.
+const IMAGE_REF = process.env.IMAGE_REF || '';
+// Namespaces the BuildKit cache. Per-customer, so one tenant's cache
+// entries can never be served to another's build.
+const CACHE_KEY = process.env.CACHE_KEY || '';
+const RAILPACK_FRONTEND = process.env.RAILPACK_FRONTEND
+  || 'ghcr.io/railwayapp/railpack-frontend';
+
 const REDIS_URL = `redis://${process.env.REDIS_HOST || 'spinforge-keydb'}:${process.env.REDIS_PORT || 16378}/${process.env.REDIS_DB ?? 1}`;
 
 const SCRATCH = `/tmp/spinbuild-${JOB_ID}`;
@@ -78,6 +86,24 @@ async function main() {
 
     await transition('running');
     await step('unzip', () => run(['unzip', '-q', WORKSPACE_PATH, '-d', SCRATCH]));
+
+    if (BUILD_MODE === 'container') {
+      // Container builds produce an image in the registry, not a tree of
+      // files. The only artifact is the reference to it.
+      await containerBuild();
+      await step('register_artifacts', async () => {
+        const recorded = await registerArtifacts(ARTIFACTS_DIR);
+        await appendEvent('artifacts.collected', {
+          source: 'container-build',
+          count: recorded.length,
+          totalBytes: recorded.reduce((s, a) => s + a.bytes, 0),
+        });
+      });
+      await transition('succeeded');
+      await publishGlobal('job.succeeded', 'info');
+      log('done');
+      return;
+    }
 
     let artifactSrc;
     let srcLabel;
@@ -245,6 +271,100 @@ async function railpackBuild() {
   await appendEvent('railpack.output', { outputPath });
   // outputPath is absolute inside the exported rootfs (e.g. /app/dist).
   return path.join(exportDir, outputPath.replace(/^\/+/, ''));
+}
+
+/**
+ * Build a container image and push it to the cluster registry.
+ *
+ * Two steps, matching Railpack's documented platform integration:
+ *
+ *   1. `railpack prepare` writes the build plan and an info file. It
+ *      only analyses — no build happens, so it's cheap.
+ *   2. buildctl runs that plan through Railpack's BuildKit frontend and
+ *      exports straight to the registry.
+ *
+ * We deliberately do NOT use `railpack build --name`: that exports a
+ * docker tarball for `docker load`, which needs a Docker daemon in the
+ * build container. Handing customer builds the docker socket would give
+ * them root on the build node, and without it the command hangs at
+ * "sending tarball" indefinitely — observed, not theorised.
+ */
+async function containerBuild() {
+  if (!IMAGE_REF) throw new Error('container build requires IMAGE_REF');
+
+  const projectDir = ROOT_DIR && ROOT_DIR !== '.' ? path.join(SCRATCH, ROOT_DIR) : SCRATCH;
+  await assertDir(projectDir, `rootDir "${ROOT_DIR}" not found in the repository`);
+
+  const planDir = path.join(SCRATCH, '.railpack-plan');
+  await fsp.mkdir(planDir, { recursive: true });
+  const planPath = path.join(planDir, 'railpack-plan.json');
+  const infoPath = path.join(planDir, 'railpack-info.json');
+
+  await step('railpack_prepare', () => run(
+    ['railpack', 'prepare', projectDir, '--plan-out', planPath, '--info-out', infoPath],
+    undefined,
+    { BUILDKIT_HOST },
+  ));
+
+  const args = [
+    'build',
+    '--local', `context=${projectDir}`,
+    '--local', `dockerfile=${planDir}`,
+    '--frontend', 'gateway.v0',
+    '--opt', `source=${RAILPACK_FRONTEND}`,
+    '--output', `type=image,name=${IMAGE_REF},push=true`,
+    '--progress', 'plain',
+  ];
+  if (CACHE_KEY) args.push('--opt', `build-arg:cache-key=${CACHE_KEY}`);
+
+  await step('image_build_push', () => run(['buildctl', ...args], undefined, { BUILDKIT_HOST }));
+
+  // Railpack worked out how the app starts and what it's built from.
+  // Carry that forward so the deploy stage doesn't have to guess, and so
+  // SpinForge can keep it as the app's profile for later builds.
+  //
+  // The two files hold different halves: --plan-out has the start
+  // command, --info-out has the detected runtime and package manager.
+  // (`railpack info --format json` returns a third, larger shape — don't
+  // assume they're interchangeable.)
+  const plan = await readJson(planPath, log);
+  const info = await readJson(infoPath, log);
+  const profile = {
+    imageRef: IMAGE_REF,
+    startCommand: ((plan.deploy || {}).startCommand) || '',
+    runtime: ((info.metadata || {}).nodeRuntime) || '',
+    packageManager: ((info.metadata || {}).nodePackageManager) || '',
+    providers: info.detectedProviders || [],
+    resolvedPackages: Object.keys(info.resolvedPackages || {}),
+  };
+
+  await fsp.mkdir(ARTIFACTS_DIR, { recursive: true });
+  await fsp.writeFile(
+    path.join(ARTIFACTS_DIR, 'image.json'),
+    JSON.stringify(profile, null, 2) + '\n',
+  );
+  const startCommand = profile.startCommand;
+  // Keep the full info file as an artifact — it's the raw detection
+  // result, useful for debugging a misdetected project.
+  try {
+    await fsp.copyFile(infoPath, path.join(ARTIFACTS_DIR, 'railpack-info.json'));
+  } catch (_) {}
+
+  await appendEvent('image.pushed', {
+    imageRef: IMAGE_REF,
+    startCommand,
+    runtime: profile.runtime,
+    packageManager: profile.packageManager,
+  });
+}
+
+async function readJson(p, logger) {
+  try {
+    return JSON.parse(await fsp.readFile(p, 'utf8'));
+  } catch (err) {
+    logger(`could not read ${path.basename(p)}: ${err.message}`);
+    return {};
+  }
 }
 
 /**

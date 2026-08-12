@@ -36,6 +36,15 @@ RUN curl -fsSL -o /tmp/railpack.tar.gz \
   && rm -f /tmp/railpack.tar.gz \
   && railpack --version
 
+# buildctl drives buildkitd directly. Railpack's own `build --name` is a
+# dead end for a platform: it exports a docker tarball and pipes it to
+# `docker load`, so with a standalone buildkitd and no docker socket it
+# hangs at "sending tarball" forever. Railpack's docs say the same —
+# the CLI "is not designed or optimized to be used with high throughput";
+# platforms should drive the BuildKit frontend. Container builds do
+# `railpack prepare` then buildctl with --output type=image,push=true.
+COPY --from=moby/buildkit:v0.28.0 /usr/bin/buildctl /usr/local/bin/buildctl
+
 WORKDIR /app
 
 COPY package.json ./

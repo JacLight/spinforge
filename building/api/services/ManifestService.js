@@ -270,6 +270,8 @@ class ManifestService {
             with: {
               dockerfile: inRoot('Dockerfile'),
               context: inRoot('.'),
+              rootDir: root,
+              mode: 'railpack',
             },
           },
           {

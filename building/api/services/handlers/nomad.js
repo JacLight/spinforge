@@ -57,6 +57,10 @@ const REDIS_ENV = {
 const POLL_INTERVAL_MS = 2000;
 const LOG_TAIL_CHUNK = 64 * 1024;
 
+// In-allocation retries for a build stage. See the RestartPolicy comment
+// in buildNomadSpec for why this isn't 0.
+const STAGE_RESTART_ATTEMPTS = Number(process.env.BUILD_STAGE_RETRIES || 2);
+
 function build({ logger, redis } = {}) {
   const log = logger || console;
   const http = axios.create({
@@ -68,8 +72,79 @@ function build({ logger, redis } = {}) {
 
   handlers.set('build.static', staticHandler({ http, log, redis }));
   handlers.set('build.node', nodeHandler({ http, log, redis }));
+  handlers.set('build.container', containerHandler({ http, log, redis }));
 
   return handlers;
+}
+
+// ─── build.container ───────────────────────────────────────────────────
+// Produces an image in the cluster registry rather than a tree of files.
+// The runner writes image.json into the artifact dir; we read the ref
+// back out of it and hand it to deploy.container.
+
+function containerHandler({ http, log, redis }) {
+  return async ({ build, stage, inputs, emit }) => {
+    const artifactDir = path.join(build.workspace, '..', `${build.id}-${stage.id}-artifacts`);
+    await fs.mkdir(artifactDir, { recursive: true });
+
+    const workspacePath = inputs.workspacePath
+      || (build.workspace && await firstExisting([
+        path.join(build.workspace, 'workspace.zip'),
+      ]));
+    if (!workspacePath) {
+      throw new Error('build.container: no workspacePath input and no workspace.zip at build root');
+    }
+
+    // Tagged by build id so a rollback can name an exact prior image,
+    // and so two builds of the same app never race on one tag.
+    const imageRef = inputs.imageName
+      ? `${DEFAULT_REGISTRY}/${inputs.imageName}`
+      : `${DEFAULT_REGISTRY}/apps/${slug(build.customerId)}/${slug(build.pipelineId)}:${build.id}`;
+
+    const spec = buildNomadSpec({
+      buildId: build.id,
+      stageId: stage.id,
+      image: `${DEFAULT_REGISTRY}/spinforge/builder-linux:latest`,
+      env: {
+        JOB_ID: `${build.id}-${stage.id}`,
+        CUSTOMER_ID: build.customerId,
+        PLATFORM: 'linux',
+        BUILD_MODE: 'container',
+        ROOT_DIR: inputs.rootDir || '.',
+        IMAGE_REF: imageRef,
+        // Cache is namespaced per customer so one tenant's layers are
+        // never reused for another's build.
+        CACHE_KEY: `cust-${slug(build.customerId)}`,
+        BUILDKIT_HOST,
+        WORKSPACE_PATH: workspacePath,
+        ARTIFACTS_DIR: artifactDir,
+        ...(inputs.env || {}),
+      },
+      hostVolumes: [`${BUILDKIT_SOCKET_DIR}:${BUILDKIT_SOCKET_DIR}`],
+    });
+
+    await seedRunnerJob({ redis, jobId: `${build.id}-${stage.id}`, build, stage, log });
+    const { nomadJobId, allocId } = await submitAndWait({ http, spec, emit, log });
+    await tailNomadLogs({ http, allocId, emit, log });
+
+    let manifest;
+    try {
+      manifest = JSON.parse(await fs.readFile(path.join(artifactDir, 'image.json'), 'utf8'));
+    } catch (err) {
+      throw new Error(
+        `build.container: runner exited clean but wrote no image.json to ${artifactDir} — the push probably failed (${err.message})`
+      );
+    }
+    if (!manifest.imageRef) throw new Error('build.container: image.json has no imageRef');
+
+    emit('info', 'finish', `pushed ${manifest.imageRef}`, { nomadJobId });
+    return { imageRef: manifest.imageRef, startCommand: manifest.startCommand || '' };
+  };
+}
+
+// Registry paths allow [a-z0-9._/-]; ids carry underscores and case.
+function slug(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 // ─── build.static ──────────────────────────────────────────────────────
@@ -206,7 +281,23 @@ function buildNomadSpec({ buildId, stageId, image, env, hostVolumes = [] }) {
     TaskGroups: [{
       Name: 'stage',
       Count: 1,
-      RestartPolicy: { Attempts: 0, Mode: 'fail' },
+      // Builds pull from npm, GitHub releases, ghcr and apt — a lot of
+      // third-party network for something a customer sees as "my push
+      // failed". With Attempts:0 a single upstream 503 killed the whole
+      // build: two of four container builds died that way during
+      // bring-up, once on the yarn tarball and once on the mise binary,
+      // both transient and both fine on retry.
+      //
+      // Retrying a build stage is safe — it's a pure function of the
+      // workspace, and the image push overwrites its own tag. Restarts
+      // stay in-allocation so the warm BuildKit cache on that node is
+      // reused; a genuine failure still fails, just after 3 tries.
+      RestartPolicy: {
+        Attempts: STAGE_RESTART_ATTEMPTS,
+        Interval: 900 * 1e9,
+        Delay: 15 * 1e9,
+        Mode: 'fail',
+      },
       ReschedulePolicy: { Attempts: 0 },
       EphemeralDisk: { SizeMB: 2048 },
       Volumes: {
@@ -286,7 +377,10 @@ async function submitAndWait({ http, spec, emit, log }) {
   // Poll allocations until one is running or terminal.
   let allocId = null;
   const started = Date.now();
-  const maxWaitMs = 10 * 60 * 1000; // 10 min
+  // Must exceed the worst case of STAGE_RESTART_ATTEMPTS full builds plus
+  // their restart delays, or a stage that is legitimately retrying gets
+  // declared dead by the poller while it's still working.
+  const maxWaitMs = Number(process.env.BUILD_STAGE_TIMEOUT_MS || 30 * 60 * 1000);
   while (Date.now() - started < maxWaitMs) {
     const allocs = await http.get(`/v1/job/${encodeURIComponent(spec.ID)}/allocations`);
     if (allocs.status === 200 && Array.isArray(allocs.data) && allocs.data.length > 0) {

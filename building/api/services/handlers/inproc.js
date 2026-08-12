@@ -129,6 +129,26 @@ function build({ hostingDeploy, logger }) {
     // returns regardless of which alias the pipeline used.
     handlers.set('deploy.static-site', staticDeployHandler);
     handlers.set('host.static', staticDeployHandler);
+
+    // Run an already-pushed image as a Nomad service and wire it into
+    // OpenResty. The image ref comes from build.container rather than
+    // being re-derived here — see the note in _deployContainer.
+    const containerDeployHandler = async ({ build, inputs, emit }) => {
+      const { domain, imageRef } = inputs;
+      if (!imageRef) throw new Error('deploy.container: imageRef is required');
+      emit('info', 'handoff', `deploying ${imageRef} for ${domain}`);
+      const result = await hostingDeploy.deploy({
+        deploymentId: `build:${build.id}`,
+        customerId: build.customerId,
+        domain,
+        source: { type: 'build-container', imageRef },
+        artifactDir: null,
+      });
+      emit('info', 'finish', `${domain} → ${result.consulServiceName}`);
+      return { url: result.url, nomadJobId: result.consulServiceName };
+    };
+    handlers.set('deploy.container', containerDeployHandler);
+    handlers.set('host.container', containerDeployHandler);
   }
 
   handlers.set('util.webhook', async ({ inputs, emit }) => {
