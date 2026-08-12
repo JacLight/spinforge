@@ -35,6 +35,7 @@ const { ulid } = require('ulid');
 const path = require('path');
 const fs = require('fs/promises');
 const fsSync = require('fs');
+const os = require('os');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const pexecFile = promisify(execFile);
@@ -496,6 +497,31 @@ class BuildService {
         const { stdout } = await pexecFile('git', ['-C', workspace, 'rev-parse', 'HEAD']);
         commit = stdout.trim();
       } catch { /* non-fatal */ }
+
+      // Leave the same shape the zip branch does: unpacked tree at the
+      // workspace root AND a workspace.zip beside it. The Nomad runner
+      // agent's only entry point is `unzip $WORKSPACE_PATH`, so without
+      // this a git-sourced build clones fine and then dies at the first
+      // build stage with "no workspace.zip at build root".
+      //
+      // Written beside the workspace first — zipping a directory into a
+      // file inside that same directory races with the archive it's
+      // writing. It has to be the workspace's *parent*, not os.tmpdir():
+      // /data is a Ceph mount, so a rename from /tmp fails EXDEV.
+      // `.git` is excluded: it's the bulk of the bytes and a build never
+      // needs history.
+      const tmpZip = path.join(workspace, '..', `${buildId}-workspace.zip.tmp`);
+      try {
+        await pexecFile('zip', ['-r', '-q', '-X', tmpZip, '.', '-x', '.git/*'], {
+          cwd: workspace,
+          timeout: 300_000,
+          maxBuffer: 16 * 1024 * 1024,
+        });
+        await fs.rename(tmpZip, path.join(workspace, 'workspace.zip'));
+      } catch (err) {
+        await fs.rm(tmpZip, { force: true }).catch(() => {});
+        throw new Error(`git source: failed to package workspace: ${(err.stderr || err.message || '').toString().slice(0, 300)}`);
+      }
 
       await this._emitBuild(buildId, 'source.populated', {
         type: 'git', workspace, url, ref, commit,

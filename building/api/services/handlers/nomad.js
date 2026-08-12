@@ -30,10 +30,19 @@ const DEFAULT_DATACENTER = process.env.NOMAD_DATACENTER || 'spinforge-dc1';
 const DEFAULT_REGISTRY = process.env.BUILDER_REGISTRY || '192.168.88.170:5000';
 const DATA_HOST_VOLUME = process.env.SPINFORGE_DATA_HOST_VOLUME || 'spinforge-data';
 
+// Redis coordinates handed to every stage runner. Inherited from this
+// process so the runner talks to the same KeyDB building-api does.
+const REDIS_ENV = {
+  REDIS_HOST: process.env.REDIS_HOST || '127.0.0.1',
+  REDIS_PORT: String(process.env.REDIS_PORT || 16378),
+  REDIS_DB: String(process.env.REDIS_DB || 1),
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD || '',
+};
+
 const POLL_INTERVAL_MS = 2000;
 const LOG_TAIL_CHUNK = 64 * 1024;
 
-function build({ logger } = {}) {
+function build({ logger, redis } = {}) {
   const log = logger || console;
   const http = axios.create({
     baseURL: DEFAULT_NOMAD_ADDR,
@@ -42,8 +51,8 @@ function build({ logger } = {}) {
   });
   const handlers = new Map();
 
-  handlers.set('build.static', staticHandler({ http, log }));
-  handlers.set('build.node', nodeHandler({ http, log }));
+  handlers.set('build.static', staticHandler({ http, log, redis }));
+  handlers.set('build.node', nodeHandler({ http, log, redis }));
 
   return handlers;
 }
@@ -53,7 +62,7 @@ function build({ logger } = {}) {
 // stage's workspace, runs BUILD_COMMAND, copies OUTPUT_DIR into the
 // artifact dir. Outputs { artifactPath, bytes }.
 
-function staticHandler({ http, log }) {
+function staticHandler({ http, log, redis }) {
   return async ({ build, stage, inputs, emit, workspace }) => {
     const artifactDir = path.join(build.workspace, '..', `${build.id}-${stage.id}-artifacts`);
     await fs.mkdir(artifactDir, { recursive: true });
@@ -86,6 +95,7 @@ function staticHandler({ http, log }) {
       },
     });
 
+    await seedRunnerJob({ redis, jobId: `${build.id}-${stage.id}`, build, stage, log });
     const { nomadJobId, allocId } = await submitAndWait({ http, spec, emit, log });
     await tailNomadLogs({ http, allocId, emit, log });
 
@@ -106,7 +116,7 @@ function staticHandler({ http, log }) {
 // zipping is deferred to a follow-up (trivial: tar + gzip into
 // artifactDir).
 
-function nodeHandler({ http, log }) {
+function nodeHandler({ http, log, redis }) {
   return async ({ build, stage, inputs, emit }) => {
     const artifactDir = path.join(build.workspace, '..', `${build.id}-${stage.id}-artifacts`);
     await fs.mkdir(artifactDir, { recursive: true });
@@ -133,6 +143,7 @@ function nodeHandler({ http, log }) {
       },
     });
 
+    await seedRunnerJob({ redis, jobId: `${build.id}-${stage.id}`, build, stage, log });
     const { nomadJobId, allocId } = await submitAndWait({ http, spec, emit, log });
     await tailNomadLogs({ http, allocId, emit, log });
 
@@ -181,13 +192,55 @@ function buildNomadSpec({ buildId, stageId, image, env }) {
         Driver: 'docker',
         Config: { image },
         VolumeMounts: [{ Volume: 'spinforge-data', Destination: '/data', ReadOnly: false }],
-        Env: env,
+        // The runner agent publishes step status to KeyDB. Its default host
+        // is the compose-era name `spinforge-keydb`, which doesn't resolve
+        // inside Nomad's bridge network — the agent then retries the
+        // connection forever and the stage hangs until it times out rather
+        // than failing. Pass the same coordinates building-api itself uses.
+        Env: { ...REDIS_ENV, ...env },
         Resources: { CPU: 2000, MemoryMB: 2048 },
         KillTimeout: 30_000_000_000,
       }],
     }],
     Meta: { spinbuild_build_id: buildId, spinbuild_stage_id: stageId },
   };
+}
+
+/**
+ * Seed the `job:<id>` record the runner agent expects.
+ *
+ * agent.js predates pipelines: its first act is transition('assigned'),
+ * which reads `job:$JOB_ID` from KeyDB and throws "not found" if it's
+ * missing. The pipeline executor tracks state on the *build* record
+ * instead, so nothing was ever writing this — every Nomad stage started,
+ * connected to KeyDB, and immediately died.
+ *
+ * Writing a minimal record keeps agent.js unmodified and gives its status
+ * transitions somewhere to land. The build record stays authoritative for
+ * the UI; this one is the runner's scratch state.
+ */
+async function seedRunnerJob({ redis, jobId, build, stage, log }) {
+  if (!redis) {
+    log.warn?.('[nomad] no redis client — runner job record not seeded, agent will fail');
+    return;
+  }
+  const now = new Date().toISOString();
+  await redis.set(`job:${jobId}`, JSON.stringify({
+    id: jobId,
+    buildId: build.id,
+    stageId: stage.id,
+    customerId: build.customerId,
+    platform: 'web',
+    status: 'queued',
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    completedAt: null,
+    source: 'pipeline-stage',
+  }));
+  // Runner state is disposable once the stage reports back; don't let it
+  // accumulate in KeyDB forever.
+  await redis.expire(`job:${jobId}`, 7 * 24 * 60 * 60).catch(() => {});
 }
 
 async function submitAndWait({ http, spec, emit, log }) {

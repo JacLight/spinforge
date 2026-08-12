@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:validate-20260812031021"
+        image = "192.168.88.171:5000/spinforge/building-api:job-20260812073431"
         ports = ["http"]
       }
 
@@ -111,6 +111,10 @@ EOT
         REDIS_DB             = "1"
         REDIS_PASSWORD       = ""
         NOMAD_ADDR           = "http://${attr.unique.network.ip-address}:4646"
+        # Registry the build runner images are pulled from. The code default
+        # is .170:5000, which nothing serves — the registry lives on .171, so
+        # without this every build stage fails at image pull.
+        BUILDER_REGISTRY     = "192.168.88.171:5000"
         NOMAD_DATACENTER     = "spinforge-dc1"
         CONSUL_HTTP_ADDR     = "http://${attr.unique.network.ip-address}:8500"
         WORKSPACE_ROOT       = "/data/workspaces"

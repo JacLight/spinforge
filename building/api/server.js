@@ -124,7 +124,7 @@ const pipelines = new PipelineService(redis, { logger, actions, events });
 // reason until each gets a dedicated runner workflow.
 const allHandlers = new Map([
   ...inprocHandlers.build({ hostingDeploy, logger }),
-  ...nomadHandlers.build({ logger }),
+  ...nomadHandlers.build({ logger, redis }),
 ]);
 const builds = new BuildService(redis, {
   logger, events, pipelines, actions,

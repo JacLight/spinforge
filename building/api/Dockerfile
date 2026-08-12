@@ -1,7 +1,10 @@
 FROM node:22-alpine
 
 # python3/make/g++ needed so bcrypt's native bindings build (shared admin-auth).
-RUN apk add --no-cache openssl netcat-openbsd python3 make g++
+# git is required at runtime, not build time: BuildService._populateSource
+# clones a pipeline's `source: git` in-process before any stage runs, so
+# without it every repo-based deploy dies with "spawn git ENOENT".
+RUN apk add --no-cache openssl netcat-openbsd python3 make g++ git zip unzip
 
 WORKDIR /app
 
