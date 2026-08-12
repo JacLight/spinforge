@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:idem-20260812074256"
+        image = "192.168.88.171:5000/spinforge/building-api:buildnode-20260812175635"
         ports = ["http"]
       }
 
@@ -120,6 +120,17 @@ EOT
         WORKSPACE_ROOT       = "/data/workspaces"
         ARTIFACT_ROOT        = "/data/artifacts"
         NODE_ENV             = "production"
+
+        # Customer builds run only on nodes carrying this class —
+        # spinforge-build-01 (.173), a Nomad client that is deliberately
+        # NOT a Nomad/Consul server, so it can never affect quorum.
+        BUILD_NODE_CLASS     = "build"
+
+        # Admission control. The build node advertises 16000 MHz, so six
+        # concurrent 2000 MHz stages leaves headroom for the runner's own
+        # overhead. Previously unbounded: builds were fire-and-forget.
+        BUILD_MAX_CONCURRENT = "6"
+        BUILD_MAX_CONCURRENT_PER_CUSTOMER = "2"
 
         # Pin the runner image to a specific tag so Nomad clients don't
         # hold on to a stale :latest cache. Bump this when you push a

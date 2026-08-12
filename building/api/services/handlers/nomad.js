@@ -30,6 +30,15 @@ const DEFAULT_DATACENTER = process.env.NOMAD_DATACENTER || 'spinforge-dc1';
 const DEFAULT_REGISTRY = process.env.BUILDER_REGISTRY || '192.168.88.170:5000';
 const DATA_HOST_VOLUME = process.env.SPINFORGE_DATA_HOST_VOLUME || 'spinforge-data';
 
+// Node class customer builds are pinned to. Without this a build lands
+// wherever Nomad has room — which meant a 2000 MHz / 2048 MB stage
+// competing with the hosting API, the UIs and OpenResty on the same
+// three converged nodes. Set to empty to lift the constraint (single-node
+// dev setups where no node carries the class).
+const BUILD_NODE_CLASS = process.env.BUILD_NODE_CLASS !== undefined
+  ? process.env.BUILD_NODE_CLASS
+  : 'build';
+
 // Redis coordinates handed to every stage runner. Inherited from this
 // process so the runner talks to the same KeyDB building-api does.
 const REDIS_ENV = {
@@ -173,6 +182,13 @@ function buildNomadSpec({ buildId, stageId, image, env }) {
     Name: id,
     Type: 'batch',
     Datacenters: [DEFAULT_DATACENTER],
+    ...(BUILD_NODE_CLASS ? {
+      Constraints: [{
+        LTarget: '${node.class}',
+        RTarget: BUILD_NODE_CLASS,
+        Operand: '=',
+      }],
+    } : {}),
     TaskGroups: [{
       Name: 'stage',
       Count: 1,
