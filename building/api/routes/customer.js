@@ -132,6 +132,62 @@ router.get('/pipelines', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Inspect a repository and report what SpinForge would build from it.
+// Read-only: shallow clone into a temp dir, Railpack analysis, nothing
+// written and nothing scheduled.
+router.post('/pipelines/detect', async (req, res, next) => {
+  try {
+    const { url, ref, rootDir, token } = req.body || {};
+    const result = await req.app.locals.repoDetect.detect({ url, ref, rootDir, token });
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// Auto pipeline: point at a repo, get a working pipeline.
+//
+// Pipelines already carry a git source, so making someone then choose a
+// project type and hand-write build stages is asking them to restate what
+// the repository already says. Railpack reads it and the stages are
+// derived from that — the same derivation a manifest apply uses, so both
+// entry points produce identical pipelines.
+router.post('/pipelines/auto', async (req, res, next) => {
+  try {
+    const { url, ref, rootDir, token, domain, name } = req.body || {};
+    if (!domain) return res.status(400).json({ error: 'domain_required', message: 'Choose the app this repository deploys to' });
+
+    const detected = await req.app.locals.repoDetect.detect({ url, ref, rootDir, token });
+    if (!detected.ok) return res.status(400).json(detected);
+
+    const manifests = req.app.locals.manifests;
+    const stages = manifests.toStages({
+      type: detected.type,
+      domain,
+      rootDir: rootDir || '.',
+      aliases: [],
+    });
+
+    const pipeline = await req.app.locals.pipelines.create({
+      customerId: req.customerId,
+      name: name || domain,
+      type: detected.type,
+      source: { type: 'git', url, ref: ref || undefined, depth: 1, token: token || undefined },
+      stages,
+      metadata: {
+        autoDetected: true,
+        detectedAt: new Date().toISOString(),
+        runtime: detected.runtime,
+        packageManager: detected.packageManager,
+        providers: detected.providers,
+        outputDir: detected.outputDir,
+        startCommand: detected.startCommand,
+      },
+    });
+
+    res.status(201).json({ pipeline, detected });
+  } catch (err) { next(err); }
+});
+
 router.post('/pipelines', async (req, res, next) => {
   try {
     const body = req.body || {};
