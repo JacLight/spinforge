@@ -640,14 +640,30 @@ router.post('/sites', async (req, res) => {
 
     // Schedule container/node workloads on Nomad before we write Redis so a
     // deploy failure doesn't leave a dangling site record.
+    //
+    // An app created for a git deploy has nothing to run yet — its image
+    // comes from its first build. Scheduling here would throw
+    // ("containerConfig.image is required") and 500 the create, which is
+    // unsatisfiable by construction: you need the app to exist to point a
+    // pipeline at it, you cannot create it without an image, and the image
+    // only comes from a build of that app.
     if (site.type === 'container' || site.type === 'node') {
-      try {
-        site.orchestrator = 'nomad';
-        const deployed = await nomad.deploySite(site);
-        site.nomadJobId = deployed.jobId;
-        site.nomadEvalId = deployed.evalId;
-      } catch (error) {
-        return res.status(500).json({ error: 'Nomad deployment failed', details: error.message });
+      site.orchestrator = 'nomad';
+      const runnable = site.type === 'container'
+        ? !!(site.containerConfig && site.containerConfig.image)
+        : !!(site.nodeConfig && site.nodeConfig.entrypoint);
+
+      if (runnable) {
+        try {
+          const deployed = await nomad.deploySite(site);
+          site.nomadJobId = deployed.jobId;
+          site.nomadEvalId = deployed.evalId;
+        } catch (error) {
+          return res.status(500).json({ error: 'Nomad deployment failed', details: error.message });
+        }
+      } else {
+        // deploy.container schedules it once the first build produces an image.
+        site.awaitingFirstBuild = true;
       }
     }
 

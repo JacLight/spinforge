@@ -64,7 +64,7 @@ job "api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/api:manifest-20260812224323"
+        image = "192.168.88.171:5000/spinforge/api:containerfix-20260812233327"
         ports = ["http"]
       }
 
