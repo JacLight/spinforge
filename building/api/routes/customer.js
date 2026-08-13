@@ -28,6 +28,7 @@
  */
 
 const express = require('express');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -153,10 +154,13 @@ router.post('/pipelines/detect', async (req, res, next) => {
 // entry points produce identical pipelines.
 router.post('/pipelines/auto', async (req, res, next) => {
   try {
-    const { url, ref, rootDir, token, domain, name } = req.body || {};
-    if (!domain) return res.status(400).json({ error: 'domain_required', message: 'Choose the app this repository deploys to' });
-    // Admins reach these routes without an implied account — creating a
-    // pipeline needs one named explicitly.
+    const {
+      url, ref, rootDir, token, name,
+      mode = 'deploy',        // 'deploy' | 'build' — build-only skips the deploy stage
+      domain: rawDomain,
+      createApp = false,
+    } = req.body || {};
+
     if (!req.customerId) {
       return res.status(400).json({ error: 'customer_required', message: 'Name the customer this pipeline belongs to' });
     }
@@ -165,22 +169,75 @@ router.post('/pipelines/auto', async (req, res, next) => {
     if (!detected.ok) return res.status(400).json(detected);
 
     const manifests = req.app.locals.manifests;
-    const stages = manifests.toStages({
+    const buildOnly = mode === 'build';
+    let domain = rawDomain;
+    let createdApp = null;
+
+    // A build-only pipeline produces an artifact and stops. It needs no app,
+    // no domain and no deploy stage — SpinForge is a build service before it
+    // is a host, and forcing a deploy target on someone who only wants a
+    // build is asking them to invent one.
+    if (!buildOnly) {
+      if (!domain) {
+        return res.status(400).json({ error: 'domain_required', message: 'Choose the app this repository deploys to, or create one' });
+      }
+      if (createApp) {
+        // Detection already established the project type, so nothing needs
+        // asking. Reuses hosting's shape exactly: appId + app:<id> pointer +
+        // both site indexes, so an app made here is indistinguishable from
+        // one made in the panel.
+        const redis = req.app.locals.redis;
+        const exists = await redis.exists(`site:${domain}`);
+        if (exists) {
+          return res.status(409).json({ error: 'domain_exists', message: `${domain} already exists` });
+        }
+        const now = new Date().toISOString();
+        const site = {
+          domain,
+          type: detected.type,
+          customerId: req.customerId,
+          appId: `app_${crypto.randomUUID()}`,
+          enabled: true,
+          ssl_enabled: true,
+          // Nothing to schedule until the first build produces an artifact.
+          awaitingFirstBuild: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await redis.set(`site:${domain}`, JSON.stringify(site));
+        await redis.set(`app:${site.appId}`, domain);
+        await redis.sAdd('sites:all', domain);
+        await redis.sAdd(`customer:${req.customerId}:sites`, domain);
+        createdApp = { domain, appId: site.appId, type: site.type };
+      }
+    }
+
+    let stages = manifests.toStages({
       type: detected.type,
-      domain,
+      domain: domain || 'build-only.invalid',
       rootDir: rootDir || '.',
       aliases: [],
     });
+    if (buildOnly) stages = stages.filter((st) => st.id === 'build').map((st) => ({ ...st, needs: [] }));
 
-    const pipeline = await req.app.locals.pipelines.create({
+    // Detection speaks the manifest's vocabulary (static/container);
+    // PipelineService has its own (static-site/container/...). Passing the
+    // former straight through rejected every static repo while container
+    // happened to pass, because only that word is shared.
+    const PIPELINE_TYPE = { static: 'static-site', node: 'node-service', container: 'container' };
+
+    let pipeline;
+    try {
+      pipeline = await req.app.locals.pipelines.create({
       customerId: req.customerId,
-      name: name || domain,
-      type: detected.type,
+      name: name || domain || `build-${(url || '').split('/').pop().replace(/\.git$/, '')}`,
+      type: PIPELINE_TYPE[detected.type] || 'custom',
       source: { type: 'git', url, ref: ref || undefined, depth: 1, token: token || undefined },
       stages,
       metadata: {
         autoDetected: true,
         detectedAt: new Date().toISOString(),
+        mode,
         runtime: detected.runtime,
         packageManager: detected.packageManager,
         providers: detected.providers,
@@ -189,7 +246,23 @@ router.post('/pipelines/auto', async (req, res, next) => {
       },
     });
 
-    res.status(201).json({ pipeline, detected });
+    } catch (err) {
+      // Creating the app and creating its pipeline are one action from the
+      // caller's point of view. Leaving a half-made app behind means the
+      // next attempt fails with "domain already exists" for a domain the
+      // user never successfully created — observed exactly once, which was
+      // once too many.
+      if (createdApp) {
+        const redis = req.app.locals.redis;
+        await redis.del(`site:${createdApp.domain}`).catch(() => {});
+        await redis.del(`app:${createdApp.appId}`).catch(() => {});
+        await redis.sRem('sites:all', createdApp.domain).catch(() => {});
+        await redis.sRem(`customer:${req.customerId}:sites`, createdApp.domain).catch(() => {});
+      }
+      throw err;
+    }
+
+    res.status(201).json({ pipeline, detected, createdApp });
   } catch (err) { next(err); }
 });
 

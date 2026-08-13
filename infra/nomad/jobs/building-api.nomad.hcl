@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:detecterr-20260813045329"
+        image = "192.168.88.171:5000/spinforge/building-api:rollback-20260813055002"
         ports = ["http"]
       }
 

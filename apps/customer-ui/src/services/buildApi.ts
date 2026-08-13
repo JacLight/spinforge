@@ -348,7 +348,7 @@ export const buildApi = {
   detectRepo: (body: { url: string; ref?: string; rootDir?: string; token?: string }) =>
     client.post<any>('/_api/customer/pipelines/detect', body).then(r => r.data),
 
-  autoPipeline: (body: { url: string; ref?: string; rootDir?: string; token?: string; domain: string; name?: string; customerId?: string }) =>
+  autoPipeline: (body: { url: string; ref?: string; rootDir?: string; token?: string; domain?: string; name?: string; customerId?: string; mode?: 'deploy' | 'build'; createApp?: boolean }) =>
     client.post<any>('/_api/customer/pipelines/auto', body).then(r => r.data),
 
   // pipelines (customer-scoped — server forces customerId, ignores client value)

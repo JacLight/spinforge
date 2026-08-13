@@ -61,6 +61,11 @@ export default function AutoPipelineDrawer({
   const [detected, setDetected] = useState<Detected | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // What to do with the build. 'build' stops at the artifact — no app, no
+  // domain, no deploy stage.
+  const [mode, setMode] = useState<'deploy' | 'build'>('deploy');
+  const [target, setTarget] = useState<'existing' | 'new'>('existing');
+  const [newDomain, setNewDomain] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,6 +100,15 @@ export default function AutoPipelineDrawer({
         token: token.trim() || undefined,
       });
       setDetected(data);
+      // The repo (or the subdirectory, for a monorepo) is the obvious name.
+      if (!newDomain) {
+        const base = (rootDir.trim() || url.trim().split('/').pop() || '')
+          .replace(/\.git$/, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9-]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        if (base) setNewDomain(`${base}.spinforge.dev`);
+      }
     } catch (e: any) {
       const body = e?.response?.data;
       setError(body?.message || e?.message || 'Could not inspect this repository');
@@ -107,7 +121,12 @@ export default function AutoPipelineDrawer({
   }
 
   async function create() {
-    if (!domain) { toast.error('Choose the app this repository deploys to'); return; }
+    const wantsDeploy = mode === 'deploy';
+    const targetDomain = target === 'new' ? newDomain.trim() : domain;
+    if (wantsDeploy && !targetDomain) {
+      toast.error(target === 'new' ? 'Enter a domain for the new app' : 'Choose the app this repository deploys to');
+      return;
+    }
     setCreating(true);
     try {
       // An admin's credentials imply no account, so the owning customer
@@ -119,10 +138,11 @@ export default function AutoPipelineDrawer({
         ref: ref.trim() || undefined,
         rootDir: rootDir.trim() || undefined,
         token: token.trim() || undefined,
-        domain,
+        mode,
+        ...(wantsDeploy ? { domain: targetDomain, createApp: target === 'new' } : {}),
         ...(scope === 'admin' && owner ? { customerId: owner } : {}),
       });
-      toast.success('Pipeline created');
+      toast.success(wantsDeploy ? 'Pipeline created' : 'Build-only pipeline created');
       onCreated?.();
       onClose();
     } catch (e: any) {
@@ -272,19 +292,66 @@ export default function AutoPipelineDrawer({
               )}
 
               {detected && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Deploy to</label>
-                  <select value={domain} onChange={(e) => setDomain(e.target.value)} className={field}>
-                    <option value="">Select an application…</option>
-                    {apps.map((a) => (
-                      <option key={a.domain} value={a.domain}>{a.domain}</option>
-                    ))}
-                  </select>
-                  {detected.type === 'container' && (
-                    <p className="mt-2 text-xs text-gray-500">
-                      This builds an image and runs it as a service. The app's first build
-                      produces the image.
-                    </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">What should this pipeline do?</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setMode('deploy')}
+                        className={`text-left px-4 py-3 rounded-xl border transition ${mode === 'deploy' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                      >
+                        <div className="text-sm font-medium text-gray-900">Build &amp; deploy</div>
+                        <div className="text-xs text-gray-500">Publish it to an app.</div>
+                      </button>
+                      <button
+                        onClick={() => setMode('build')}
+                        className={`text-left px-4 py-3 rounded-xl border transition ${mode === 'build' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                      >
+                        <div className="text-sm font-medium text-gray-900">Build only</div>
+                        <div className="text-xs text-gray-500">Produce an artifact, deploy nothing.</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {mode === 'deploy' && (
+                    <div>
+                      <div className="flex items-center gap-4 mb-2">
+                        <label className="text-sm font-medium text-gray-700">Deploy to</label>
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                          {(['existing', 'new'] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setTarget(t)}
+                              className={`px-3 py-1 text-xs font-medium rounded-md ${target === t ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                            >
+                              {t === 'existing' ? 'Existing app' : 'New app'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {target === 'existing' ? (
+                        <select value={domain} onChange={(e) => setDomain(e.target.value)} className={field}>
+                          <option value="">Select an application…</option>
+                          {apps.map((a) => (
+                            <option key={a.domain} value={a.domain}>{a.domain}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <>
+                          <input
+                            className={`${field} font-mono`}
+                            value={newDomain}
+                            onChange={(e) => setNewDomain(e.target.value)}
+                            placeholder="my-app.spinforge.dev"
+                          />
+                          <p className="mt-2 text-xs text-gray-500">
+                            Created as a <span className="font-medium">{detected.type === 'static' ? 'static site' : 'container service'}</span> — taken
+                            from what was detected, so there is nothing to choose.
+                          </p>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -297,7 +364,7 @@ export default function AutoPipelineDrawer({
                 </button>
                 <button
                   onClick={create}
-                  disabled={creating || !domain}
+                  disabled={creating || (mode === 'deploy' && !(target === 'new' ? newDomain.trim() : domain))}
                   className="flex items-center gap-2 px-6 py-2.5 text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl disabled:opacity-50"
                 >
                   {creating && <Loader2 className="w-4 h-4 animate-spin" />}
