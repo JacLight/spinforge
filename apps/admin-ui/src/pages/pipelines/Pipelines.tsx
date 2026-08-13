@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Workflow, RefreshCw, Trash2, Play, Pencil, Plus, Search, Filter, Layers, Wand2, GitBranch,
+  Workflow, RefreshCw, Trash2, Play, Pencil, Plus, Search, Filter, Layers, Wand2, GitBranch, Loader2, ScrollText,
 } from 'lucide-react';
 import { buildApi, Pipeline, relativeTime, friendlyError } from '../../services/buildApi';
 import PipelineEditorDrawer from '../../components/PipelinesDrawer/PipelineEditorDrawer';
@@ -39,6 +39,11 @@ export default function Pipelines() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Pipeline | null>(null);
   const [runBuildId, setRunBuildId] = useState<string | null>(null);
+  // Latest build per pipeline, so a row can show that it is building and
+  // offer a way back into it. Without this the Play button looked idle
+  // while a build was running, so it got pressed again — starting a second
+  // build of the same commit for no reason.
+  const [latestBuilds, setLatestBuilds] = useState<Record<string, { id: string; status: string }>>({});
 
   async function load() {
     setLoading(true);
@@ -79,6 +84,30 @@ export default function Pipelines() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  // Refresh the per-pipeline build state; poll while anything is active.
+  useEffect(() => {
+    let stopped = false;
+    async function tick() {
+      try {
+        const r: any = await buildApi.listBuilds({ limit: 100 });
+        if (stopped) return;
+        const map: Record<string, { id: string; status: string }> = {};
+        for (const b of (r.builds || [])) {
+          if (!map[b.pipelineId]) map[b.pipelineId] = { id: b.id, status: b.status };
+        }
+        setLatestBuilds(map);
+      } catch { /* leave the last known state */ }
+    }
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => { stopped = true; clearInterval(t); };
+  }, []);
+
+  function isRunning(id: string) {
+    const st = latestBuilds[id]?.status;
+    return st === 'running' || st === 'queued' || st === 'pending';
   }
 
   async function handleRun(p: Pipeline) {
@@ -308,14 +337,36 @@ export default function Pipelines() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => handleRun(p)}
-                      disabled={busyId === p.id}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 disabled:opacity-50"
-                      title="Run now"
-                    >
-                      <Play className="h-4 w-4" />
-                    </button>
+                    {isRunning(p.id) ? (
+                      <button
+                        onClick={() => setRunBuildId(latestBuilds[p.id].id)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg text-xs font-medium hover:bg-blue-100 transition-all duration-200"
+                        title="Building — click to watch"
+                      >
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Building
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRun(p)}
+                          disabled={busyId === p.id}
+                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 disabled:opacity-50"
+                          title="Run now"
+                        >
+                          <Play className="h-4 w-4" />
+                        </button>
+                        {latestBuilds[p.id] && (
+                          <button
+                            onClick={() => setRunBuildId(latestBuilds[p.id].id)}
+                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                            title={`Last build: ${latestBuilds[p.id].status}`}
+                          >
+                            <ScrollText className="h-4 w-4" />
+                          </button>
+                        )}
+                      </>
+                    )}
                     <button
                       onClick={() => openEdit(p)}
                       className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"

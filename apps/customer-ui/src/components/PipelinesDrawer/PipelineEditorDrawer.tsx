@@ -685,7 +685,7 @@ export default function PipelineEditorDrawer({ isOpen, onClose, pipeline, onSave
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleSave}
-                      disabled={saving || loadingInitial || !name || (!isEdit && !customerId)}
+                      disabled={saving || loadingInitial || !name}
                       className="group px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-xl transition-all duration-200 shadow-lg disabled:opacity-50 flex items-center gap-2"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -753,27 +753,15 @@ export default function PipelineEditorDrawer({ isOpen, onClose, pipeline, onSave
                       <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                         <Settings className="h-4 w-4 text-blue-600" /> Pipeline configuration
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                            Customer <span className="text-red-600">*</span>
-                          </label>
-                          <FancySelect
-                            value={customerId}
-                            onChange={(v) => setCustomerId(v)}
-                          >
-                            <option value="">Select a customer…</option>
-                            {customerList.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name ? `${c.name} · ${c.id}` : c.id}
-                              </option>
-                            ))}
-                          </FancySelect>
-                          {customerList.length === 0 && !loadingCustomers && (
-                            <div className="text-[11px] text-amber-600 mt-1.5 italic">No customers found — create one in Build admin → Customers first.</div>
-                          )}
-                          {isEdit && <div className="text-[11px] text-gray-400 mt-1.5 italic">Can't change after create</div>}
-                        </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* No customer picker here.
+                            This is the customer's own panel — there is only
+                            one possible answer, and POST /_api/customer/pipelines
+                            overwrites customerId with req.customerId anyway, so
+                            whatever was chosen here never reached the server.
+                            It was pre-filled from localStorage.customerId, which
+                            the sign-in flow does not always set, leaving a
+                            required field that could not be satisfied. */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1.5">
                             Name <span className="text-red-600">*</span>

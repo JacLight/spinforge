@@ -262,7 +262,25 @@ router.post('/pipelines/auto', async (req, res, next) => {
       throw err;
     }
 
-    res.status(201).json({ pipeline, detected, createdApp });
+    // Create it and run it. A pipeline that sits there doing nothing after
+    // "Create pipeline" reads as a no-op — the whole point of pointing at a
+    // repo is to get it built. autoBuild:false opts out.
+    let build = null;
+    if (req.body.autoBuild !== false) {
+      try {
+        build = await req.app.locals.builds.create({
+          pipelineId: pipeline.id,
+          customerId: req.customerId,
+          trigger: { type: 'auto', reason: 'pipeline created from repository' },
+        });
+      } catch (err) {
+        // The pipeline is real and usable even if the first build could not
+        // start (at capacity, say) — report it rather than fail the create.
+        req.app.locals.logger?.warn?.(`[auto] first build failed to start: ${err.message}`);
+      }
+    }
+
+    res.status(201).json({ pipeline, detected, createdApp, build });
   } catch (err) { next(err); }
 });
 

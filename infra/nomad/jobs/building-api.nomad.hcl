@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:ux-20260813060731"
+        image = "192.168.88.171:5000/spinforge/building-api:autobuild-20260813070234"
         ports = ["http"]
       }
 
