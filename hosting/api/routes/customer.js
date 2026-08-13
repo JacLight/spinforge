@@ -830,6 +830,13 @@ router.post('/sites/:domain/rename', async (req, res) => {
     // Retire the old domain last, so a failure above never leaves the app
     // unreachable on both names.
     await redisClient.del(`site:${domain}`);
+    // app:<appId> -> domain is how a committed spinforge.yaml resolves this
+    // app. Leaving it behind means a manifest for a deleted app resolves to
+    // a domain that no longer exists, failing deep in the pipeline instead
+    // of with a clean "app not found" — and it leaks one key per deletion.
+    if (site.appId) {
+      await redisClient.del(`app:${site.appId}`);
+    }
     await sitesIndex.unregisterSite(domain, customerId);
     if (site.type === 'container' || site.type === 'node') {
       await nomad.stopSite(domain, { purge: true }).catch(() => {});
