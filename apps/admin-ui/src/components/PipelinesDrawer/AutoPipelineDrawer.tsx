@@ -60,6 +60,7 @@ export default function AutoPipelineDrawer({
   const [creating, setCreating] = useState(false);
   const [detected, setDetected] = useState<Detected | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -83,7 +84,7 @@ export default function AutoPipelineDrawer({
 
   async function detect() {
     if (!url.trim()) { toast.error('Enter a repository URL'); return; }
-    setDetecting(true); setError(null); setDetected(null);
+    setDetecting(true); setError(null); setDetected(null); setSuggestions([]);
     try {
       // building-api lives on its own host, so this must go through
       // buildApi — the hosting client would send it same-origin and 401.
@@ -95,7 +96,11 @@ export default function AutoPipelineDrawer({
       });
       setDetected(data);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Could not inspect this repository');
+      const body = e?.response?.data;
+      setError(body?.message || e?.message || 'Could not inspect this repository');
+      // A monorepo root detects as nothing; the server lists the folders
+      // that do look like projects so this is one click, not a dead end.
+      setSuggestions(Array.isArray(body?.suggestedSubdirs) ? body.suggestedSubdirs : []);
     } finally {
       setDetecting(false);
     }
@@ -209,9 +214,29 @@ export default function AutoPipelineDrawer({
               </button>
 
               {error && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-sm text-amber-900 whitespace-pre-wrap">{error}</p>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                  <div className="flex gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-sm text-amber-900 whitespace-pre-wrap">{error}</p>
+                  </div>
+                  {suggestions.length > 0 && (
+                    <div className="pl-8">
+                      <p className="text-xs font-medium text-amber-900 mb-2">
+                        Projects found in this repository — pick one:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestions.map((d) => (
+                          <button
+                            key={d}
+                            onClick={() => { setRootDir(d); setError(null); setSuggestions([]); }}
+                            className="px-3 py-1.5 text-xs font-mono rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100"
+                          >
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

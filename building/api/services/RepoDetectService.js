@@ -59,7 +59,10 @@ class RepoDetectService {
       }
 
       const info = await this._inspect(projectDir);
-      if (!info.ok) return info;
+      if (!info.ok) {
+        const subdirs = await this._candidateSubdirs(projectDir);
+        return subdirs.length ? { ...info, suggestedSubdirs: subdirs } : info;
+      }
 
       return { ok: true, commit: cloned.commit, ...this._classify(info.plan, info.info) };
     } finally {
@@ -109,17 +112,21 @@ class RepoDetectService {
     const planPath = path.join(projectDir, '.spinforge-plan.json');
     const infoPath = path.join(projectDir, '.spinforge-info.json');
     try {
+      // Railpack reports "could not determine how to build the app" on
+      // stdout, not stderr, and exits non-zero. Reading only stderr left
+      // the user with the bare command line and no reason at all.
       await pexecFile(
         'railpack',
         ['prepare', projectDir, '--plan-out', planPath, '--info-out', infoPath],
         { timeout: DETECT_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 },
       );
     } catch (err) {
-      const detail = String(err.stderr || err.message || '').trim();
+      const out = `${err.stdout || ''}\n${err.stderr || ''}`;
       return {
         ok: false,
         error: 'detect_failed',
-        message: detail.slice(0, 300) || 'Railpack could not analyse this repository',
+        message: this._explain(out) || 'Railpack could not analyse this repository',
+        detail: stripAnsi(out).trim().slice(0, 1200) || undefined,
       };
     }
 
@@ -195,6 +202,47 @@ class RepoDetectService {
     };
   }
 
+
+  /**
+   * Turn Railpack's output into something a person can act on.
+   *
+   * The common failure is pointing at a monorepo root, where Railpack
+   * finds no project and says so — but the fix (name a subdirectory) is
+   * only obvious if you already know that's the problem.
+   */
+  _explain(rawOutput) {
+    const out = stripAnsi(String(rawOutput || ''));
+    if (/could not determine how to build/i.test(out)) {
+      return 'No buildable project found at this path. If this is a monorepo, set the subdirectory to the folder holding the app.';
+    }
+    const line = out.split('\n').map((l) => l.trim())
+      .find((l) => l && /error|failed|✖/i.test(l) && !/^railpack/i.test(l));
+    return line ? line.replace(/^[✖✗x]\s*/i, '') : null;
+  }
+
+  /**
+   * Directories that look like they contain a project, for the "this is a
+   * monorepo" case. Cheap: one readdir plus a manifest check per entry.
+   */
+  async _candidateSubdirs(root) {
+    const MANIFESTS = [
+      'package.json', 'requirements.txt', 'pyproject.toml', 'go.mod',
+      'Cargo.toml', 'Gemfile', 'composer.json', 'pom.xml', 'build.gradle',
+      'Dockerfile', 'index.html',
+    ];
+    let entries = [];
+    try { entries = await fs.readdir(root, { withFileTypes: true }); } catch { return []; }
+    const found = [];
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith('.') || e.name === 'node_modules') continue;
+      for (const m of MANIFESTS) {
+        if (fsSync.existsSync(path.join(root, e.name, m))) { found.push(e.name); break; }
+      }
+      if (found.length >= 25) break;
+    }
+    return found.sort();
+  }
+
   _insideWorkspace(root, target) {
     const rel = path.relative(path.resolve(root), path.resolve(target));
     return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
@@ -203,6 +251,13 @@ class RepoDetectService {
   async _readJson(p) {
     try { return JSON.parse(await fs.readFile(p, 'utf8')); } catch { return null; }
   }
+}
+
+// Railpack renders boxes and colour; those escapes are noise in an API
+// response and in a browser.
+function stripAnsi(s) {
+  // eslint-disable-next-line no-control-regex
+  return String(s).replace(/\u001b\[[0-9;]*m/g, '');
 }
 
 module.exports = RepoDetectService;

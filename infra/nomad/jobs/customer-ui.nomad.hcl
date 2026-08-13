@@ -55,7 +55,7 @@ job "customer-ui" {
       driver = "docker"
 
       config {
-        image = "192.168.88.171:5000/spinforge/customer-ui:adminauth-20260813042512"
+        image = "192.168.88.171:5000/spinforge/customer-ui:detecterr-20260813045333"
         ports = ["http"]
       }
 
