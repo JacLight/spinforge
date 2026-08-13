@@ -430,15 +430,31 @@ router.get('/builds/:id/artifacts/:stageId/:key', async (req, res, next) => {
     try { st = fs.statSync(value); }
     catch { return res.status(404).json({ error: 'artifact_missing_on_disk', path: value }); }
 
+    // Name downloads after the thing that was built, not after our
+    // internals. The old fallbacks produced "build-artifactPath" and
+    // "build-<buildid>-build-artifacts.zip" — neither says which app or
+    // which build, which is useless the moment two are in a folder.
+    //
+    //   qrgen.spinforge.dev-b_01KZWT.zip
+    //
+    // Pipeline name is the app's domain for anything created from a
+    // manifest or Auto Pipeline; the short build id disambiguates reruns.
+    const projectName = String(
+      (b.pipelineSnapshot && b.pipelineSnapshot.name) || b.pipelineId || 'artifact'
+    ).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'artifact';
+    const shortBuild = String(b.id || '').slice(0, 12);
+    const artifactBase = shortBuild ? `${projectName}-${shortBuild}` : projectName;
+
     if (st.isFile()) {
+      const ext = path.extname(value) || '';
       res.setHeader('Content-Type', 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(value)}"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${artifactBase}${ext}"`);
       res.setHeader('Content-Length', String(st.size));
       fs.createReadStream(value).on('error', next).pipe(res);
       return;
     }
     if (st.isDirectory()) {
-      const name = `${stage.id}-${path.basename(value)}.zip`;
+      const name = `${artifactBase}.zip`;
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
       const zip = spawn('zip', ['-r', '-q', '-', '.'], { cwd: value });

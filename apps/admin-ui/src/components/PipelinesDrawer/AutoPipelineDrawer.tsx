@@ -61,6 +61,11 @@ export default function AutoPipelineDrawer({
   const [detected, setDetected] = useState<Detected | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Errors belong in the drawer, not only in a toast. A failed create that
+  // says nothing is indistinguishable from a dead button.
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [customers, setCustomers] = useState<Array<{ id: string; name?: string }>>([]);
+  const [customerId, setCustomerId] = useState('');
   // What to do with the build. 'build' stops at the artifact — no app, no
   // domain, no deploy stage.
   const [mode, setMode] = useState<'deploy' | 'build'>('deploy');
@@ -80,8 +85,13 @@ export default function AutoPipelineDrawer({
         if (!cancelled) setApps(list);
       } catch { /* the picker just stays empty */ }
     })();
+    if (scope === 'admin') {
+      buildApi.listCustomers?.()
+        .then((r: any) => { if (!cancelled) setCustomers((r.customers || []).map((c: any) => ({ id: c.id, name: c.name }))); })
+        .catch(() => {});
+    }
     return () => { cancelled = true; };
-  }, [isOpen, sitesPath]);
+  }, [isOpen, sitesPath, scope]);
 
   // Any change to what we'd inspect invalidates the previous answer —
   // showing stale detection next to an edited URL would be a lie.
@@ -124,15 +134,17 @@ export default function AutoPipelineDrawer({
     const wantsDeploy = mode === 'deploy';
     const targetDomain = target === 'new' ? newDomain.trim() : domain;
     if (wantsDeploy && !targetDomain) {
-      toast.error(target === 'new' ? 'Enter a domain for the new app' : 'Choose the app this repository deploys to');
+      setCreateError(target === 'new' ? 'Enter a domain for the new app' : 'Choose the app this repository deploys to');
       return;
     }
-    setCreating(true);
+    setCreating(true); setCreateError(null);
     try {
       // An admin's credentials imply no account, so the owning customer
       // has to travel with the request. A customer's own token already
       // carries it.
-      const owner = apps.find((a) => a.domain === domain)?.customerId;
+      // A new app isn't in `apps` yet, so its owner can't be looked up
+      // there — an admin picks the customer explicitly.
+      const owner = customerId || apps.find((a) => a.domain === domain)?.customerId;
       await buildApi.autoPipeline({
         url: url.trim(),
         ref: ref.trim() || undefined,
@@ -142,11 +154,17 @@ export default function AutoPipelineDrawer({
         ...(wantsDeploy ? { domain: targetDomain, createApp: target === 'new' } : {}),
         ...(scope === 'admin' && owner ? { customerId: owner } : {}),
       });
+      // Close first. Refreshing the list behind us is the parent's problem
+      // and must never be able to make a successful create look failed:
+      // when onCreated() threw, onClose() was skipped and control fell into
+      // the catch below, so the pipeline existed while the drawer sat there
+      // reporting an error.
       toast.success(wantsDeploy ? 'Pipeline created' : 'Build-only pipeline created');
-      onCreated?.();
       onClose();
+      try { onCreated?.(); } catch { /* the list will catch up on its own */ }
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || 'Could not create the pipeline');
+      const body = e?.response?.data;
+      setCreateError(body?.message || body?.error || e?.message || 'Could not create the pipeline');
     } finally {
       setCreating(false);
     }
@@ -313,6 +331,20 @@ export default function AutoPipelineDrawer({
                     </div>
                   </div>
 
+                  {scope === 'admin' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Customer <span className="text-red-500">*</span>
+                      </label>
+                      <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={field}>
+                        <option value="">Select a customer…</option>
+                        {customers.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name ? `${c.name} — ${c.id}` : c.id}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {mode === 'deploy' && (
                     <div>
                       <div className="flex items-center gap-4 mb-2">
@@ -358,18 +390,26 @@ export default function AutoPipelineDrawer({
             </div>
 
             {detected && (
-              <div className="border-t border-gray-100 px-6 py-4 flex justify-end gap-3">
+              <div className="border-t border-gray-100 px-6 py-4">
+                {createError && (
+                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 flex gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-800">{createError}</p>
+                  </div>
+                )}
+                <div className="flex justify-end gap-3">
                 <button onClick={onClose} className="px-5 py-2.5 text-sm rounded-xl border border-gray-200 hover:bg-gray-50">
                   Cancel
                 </button>
                 <button
                   onClick={create}
-                  disabled={creating || (mode === 'deploy' && !(target === 'new' ? newDomain.trim() : domain))}
+                  disabled={creating || (mode === 'deploy' && !(target === 'new' ? newDomain.trim() : domain)) || (scope === 'admin' && !customerId && !apps.find((a) => a.domain === domain)?.customerId)}
                   className="flex items-center gap-2 px-6 py-2.5 text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl disabled:opacity-50"
                 >
                   {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Create pipeline
+                  {creating ? 'Creating…' : 'Create pipeline'}
                 </button>
+                </div>
               </div>
             )}
           </motion.div>
