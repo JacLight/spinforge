@@ -34,7 +34,7 @@ interface Detected {
   reason?: string;
 }
 
-interface AppOption { domain: string; type?: string }
+interface AppOption { domain: string; type?: string; customerId?: string }
 
 interface AutoPipelineDrawerProps {
   isOpen: boolean;
@@ -68,7 +68,7 @@ export default function AutoPipelineDrawer({
       try {
         const { data } = await apiClient.get(sitesPath);
         const list: AppOption[] = (Array.isArray(data) ? data : data?.data || data?.sites || [])
-          .map((s: any) => ({ domain: s.domain, type: s.type }))
+          .map((s: any) => ({ domain: s.domain, type: s.type, customerId: s.customerId }))
           .filter((s: AppOption) => !!s.domain)
           .sort((a: AppOption, b: AppOption) => a.domain.localeCompare(b.domain));
         if (!cancelled) setApps(list);
@@ -105,12 +105,17 @@ export default function AutoPipelineDrawer({
     if (!domain) { toast.error('Choose the app this repository deploys to'); return; }
     setCreating(true);
     try {
+      // An admin's credentials imply no account, so the owning customer
+      // has to travel with the request. A customer's own token already
+      // carries it.
+      const owner = apps.find((a) => a.domain === domain)?.customerId;
       await buildApi.autoPipeline({
         url: url.trim(),
         ref: ref.trim() || undefined,
         rootDir: rootDir.trim() || undefined,
         token: token.trim() || undefined,
         domain,
+        ...(scope === 'admin' && owner ? { customerId: owner } : {}),
       });
       toast.success('Pipeline created');
       onCreated?.();

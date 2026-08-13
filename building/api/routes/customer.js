@@ -155,6 +155,11 @@ router.post('/pipelines/auto', async (req, res, next) => {
   try {
     const { url, ref, rootDir, token, domain, name } = req.body || {};
     if (!domain) return res.status(400).json({ error: 'domain_required', message: 'Choose the app this repository deploys to' });
+    // Admins reach these routes without an implied account — creating a
+    // pipeline needs one named explicitly.
+    if (!req.customerId) {
+      return res.status(400).json({ error: 'customer_required', message: 'Name the customer this pipeline belongs to' });
+    }
 
     const detected = await req.app.locals.repoDetect.detect({ url, ref, rootDir, token });
     if (!detected.ok) return res.status(400).json(detected);

@@ -55,7 +55,7 @@ job "admin-ui" {
       driver = "docker"
 
       config {
-        image = "192.168.88.171:5000/spinforge/admin-ui:selfheal-20260813014006"
+        image = "192.168.88.171:5000/spinforge/admin-ui:adminauth-20260813042653"
         ports = ["http"]
       }
 

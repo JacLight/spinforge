@@ -15,6 +15,7 @@
  */
 const crypto = require('crypto');
 const redisClient = require('./redis');
+const { identify: identifyAdmin } = require('./admin-auth');
 
 const SFC_PREFIX = 'sfc_';
 
@@ -76,17 +77,43 @@ const authenticateCustomer = async (req, res, next) => {
       } else {
         // 3. Long-lived sfc_ token.
         const sfc = await validateSfcToken(authToken);
-        if (!sfc) {
-          return res.status(401).json({ error: 'Invalid or expired token' });
+        if (sfc) {
+          req.customerId = sfc.customerId;
+          req.userId = sfc.userId;
+          req.userEmail = sfc.userEmail;
+          req.apiTokenId = sfc.tokenId;
+        } else {
+          // 4. An admin acting on a customer's behalf.
+          //
+          // admin-ui manages every customer's pipelines but holds an admin
+          // JWT, not a customer token — so without this the whole Pipelines
+          // section 401s against building-api, which reads as "no pipelines"
+          // rather than as an auth failure.
+          //
+          // The customer is never inferred: an admin must name it, the same
+          // way the pipeline editor already makes them pick one. Guessing
+          // would mean an operator silently creating pipelines under
+          // whichever account happened to be first.
+          const admin = await identifyAdmin(req).catch(() => null);
+          if (!admin) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+          }
+          // Read-only inspection (repo detection) happens before anyone
+          // has picked an app, so an admin is allowed through without one.
+          // Routes that write must check req.customerId themselves.
+          const onBehalfOf = req.headers['x-customer-id']
+            || (req.body && req.body.customerId)
+            || req.query.customerId;
+          req.customerId = onBehalfOf ? String(onBehalfOf) : null;
+          req.isAdmin = true;
+          req.adminId = admin.id || admin.username || 'admin';
         }
-        req.customerId = sfc.customerId;
-        req.userId = sfc.userId;
-        req.userEmail = sfc.userEmail;
-        req.apiTokenId = sfc.tokenId;
       }
     }
 
-    if (!req.customerId) {
+    // An authenticated admin may proceed without a customer; a customer
+    // token that resolved to nothing may not.
+    if (!req.customerId && !req.isAdmin) {
       return res.status(401).json({ error: 'Invalid customer token' });
     }
     next();
