@@ -18,6 +18,7 @@ import {
   Wand2, Loader2, AlertCircle, CheckCircle2, X, Package, Terminal, GitBranch,
 } from 'lucide-react';
 import apiClient from '../../services/axios-config';
+import { buildApi } from '../../services/buildApi';
 
 interface Detected {
   ok: boolean;
@@ -84,7 +85,9 @@ export default function AutoPipelineDrawer({
     if (!url.trim()) { toast.error('Enter a repository URL'); return; }
     setDetecting(true); setError(null); setDetected(null);
     try {
-      const { data } = await apiClient.post('/_api/customer/pipelines/detect', {
+      // building-api lives on its own host, so this must go through
+      // buildApi — the hosting client would send it same-origin and 401.
+      const data = await buildApi.detectRepo({
         url: url.trim(),
         ref: ref.trim() || undefined,
         rootDir: rootDir.trim() || undefined,
@@ -102,7 +105,7 @@ export default function AutoPipelineDrawer({
     if (!domain) { toast.error('Choose the app this repository deploys to'); return; }
     setCreating(true);
     try {
-      await apiClient.post('/_api/customer/pipelines/auto', {
+      await buildApi.autoPipeline({
         url: url.trim(),
         ref: ref.trim() || undefined,
         rootDir: rootDir.trim() || undefined,

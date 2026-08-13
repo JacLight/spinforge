@@ -343,6 +343,14 @@ export const buildApi = {
       `/_api/customer/actions/${encodeURIComponent(id)}/schema`,
     ).then(r => r.data),
 
+  // Auto Pipeline. Railpack reads the repo so nobody hand-configures
+  // stages. detect() is read-only; auto() detects and creates in one call.
+  detectRepo: (body: { url: string; ref?: string; rootDir?: string; token?: string }) =>
+    client.post<any>('/_api/customer/pipelines/detect', body).then(r => r.data),
+
+  autoPipeline: (body: { url: string; ref?: string; rootDir?: string; token?: string; domain: string; name?: string }) =>
+    client.post<any>('/_api/customer/pipelines/auto', body).then(r => r.data),
+
   // pipelines (customer-scoped — server forces customerId, ignores client value)
   createPipeline: (body: {
     customerId?: string;

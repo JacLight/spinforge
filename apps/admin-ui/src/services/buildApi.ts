@@ -196,6 +196,14 @@ export const DEFAULT_POLICY: Policy = {
 export const buildApi = {
   baseUrl: BASE_URL,
 
+  // Auto Pipeline. Railpack reads the repo so nobody hand-configures
+  // stages. detectRepo() is read-only; autoPipeline() detects and creates.
+  detectRepo: (body: { url: string; ref?: string; rootDir?: string; token?: string }) =>
+    client.post<any>('/_api/customer/pipelines/detect', body).then(r => r.data),
+
+  autoPipeline: (body: { url: string; ref?: string; rootDir?: string; token?: string; domain: string; name?: string }) =>
+    client.post<any>('/_api/customer/pipelines/auto', body).then(r => r.data),
+
   // jobs
   listJobs: (params: { customerId?: string; status?: string; platform?: string; limit?: number; offset?: number } = {}) =>
     client.get<{ jobs: BuildJob[]; total: number }>('/api/jobs', { params }).then(r => r.data),

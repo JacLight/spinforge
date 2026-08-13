@@ -54,8 +54,11 @@ import PipelineActions from "./pages/pipelines/Actions";
 import { ConfirmProvider } from "./components/ConfirmModal";
 import CommandPalette from "./components/CommandPalette";
 import { persistSession, type CustomerSession } from "./services/customerAuth";
+import useBuildVersionGuard from './hooks/useBuildVersionGuard';
 
 function App() {
+  // Self-heal when a new build ships; see the hook for why.
+  useBuildVersionGuard();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
