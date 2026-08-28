@@ -146,6 +146,127 @@ scrape_configs:
         labels:
           cluster: 'spinforge'
 
+  # MongoDB replica set rs0. The two percona/mongodb_exporter instances run
+  # in the db-exporters Nomad job; their addresses are resolved from Consul
+  # at template-render time — the same range-service mechanism the Grafana
+  # datasource block uses — so if the job reschedules to another
+  # node, a Prometheus SIGHUP (change_mode = signal) picks up the new
+  # address. Both members are scraped: .140 as primary, .141 as secondary,
+  # so replication lag is visible from each side.
+  #
+  # The first FTDC scrape is slow (~1.3s cold), so the timeout is generous.
+  - job_name: 'mongodb'
+    # Its own 30s interval: the FTDC scrape can take ~1.3s cold and the
+    # 20s timeout must stay below the interval, which the global 15s would
+    # forbid.
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    static_configs:
+{{- range service "mongodb-exporter-140" }}
+      - targets: ['{{ .Address }}:{{ .Port }}']
+        labels:
+          cluster: 'spinforge'
+          role: 'primary'
+          member: '192.168.88.140'
+{{- end }}
+{{- range service "mongodb-exporter-141" }}
+      - targets: ['{{ .Address }}:{{ .Port }}']
+        labels:
+          cluster: 'spinforge'
+          role: 'secondary'
+          member: '192.168.88.141'
+{{- end }}
+{{- range service "mongodb-exporter-142" }}
+      - targets: ['{{ .Address }}:{{ .Port }}']
+        labels:
+          cluster: 'spinforge'
+          role: 'secondary'
+          member: '192.168.88.142'
+{{- end }}
+
+  # KeyDB master (.143) + replica (.144). ONE redis_exporter in multi-target
+  # mode serves both: Prometheus passes the instance as the __param_target,
+  # the exporter connects to it, and the series come back labelled by the
+  # real KeyDB address rather than the exporter's. Adding a third KeyDB is a
+  # line in the targets list below — no new exporter.
+  - job_name: 'keydb'
+    metrics_path: /scrape
+    static_configs:
+      - targets: ['redis://192.168.88.143:6379']
+        labels: { instance_role: 'master' }
+      - targets: ['redis://192.168.88.144:6379']
+        labels: { instance_role: 'replica' }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: keydb_instance
+      - target_label: __address__
+        replacement: '{{- range service "keydb-exporter" }}{{ .Address }}:{{ .Port }}{{- end }}'
+
+  # k8s-hosted apps, probed through the Traefik ingress by blackbox
+  # (blackbox-apps Nomad job). We can't scrape inside the k8s cluster —
+  # its API and kubelets require auth we don't have — so this measures the
+  # apps the way a user hits them: up/down, status, latency, cert expiry.
+  # Each target carries an `app` + `namespace` label; the __address__ is
+  # rewritten to the blackbox exporter (resolved from Consul), the real URL
+  # travels as __param_target.
+  - job_name: 'blackbox-apps'
+    metrics_path: /probe
+    params:
+      module: ['http_app']
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    static_configs:
+      - targets: ['https://appengine.appmint.io/health']
+        labels: { app: 'appengine',    namespace: 'fundu' }
+      - targets: ['https://builder-dev.appmint.app/']
+        labels: { app: 'builder-dev',  namespace: 'fundu' }
+      - targets: ['https://businessmade.io/']
+        labels: { app: 'businessmade', namespace: 'fundu' }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: '{{- range service "blackbox-exporter" }}{{ .Address }}:{{ .Port }}{{- end }}'
+
+  # k8s control-plane reachability via blackbox (module k8s_reach). We can't
+  # read cluster state without a kubeconfig, but we CAN prove the API server
+  # (.131:6443) and every kubelet (.131/.132/.133:10250) are responding.
+  # 401 over self-signed TLS = alive. Component/role labels drive the board.
+  - job_name: 'k8s-reachability'
+    metrics_path: /probe
+    params:
+      module: ['k8s_reach']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['https://192.168.88.131:6443/livez']
+        labels: { component: 'apiserver', node: 'k8s-master', ip: '192.168.88.131' }
+      - targets: ['https://192.168.88.131:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-master', ip: '192.168.88.131' }
+      - targets: ['https://192.168.88.132:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-worker-1', ip: '192.168.88.132' }
+      - targets: ['https://192.168.88.133:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-worker-2', ip: '192.168.88.133' }
+      - targets: ['https://192.168.88.134:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-worker-3', ip: '192.168.88.134' }
+      - targets: ['https://192.168.88.135:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-worker-4', ip: '192.168.88.135' }
+      - targets: ['https://192.168.88.136:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-worker-5', ip: '192.168.88.136' }
+      - targets: ['https://192.168.88.137:10250/healthz']
+        labels: { component: 'kubelet',   node: 'k8s-worker-6', ip: '192.168.88.137' }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: '{{- range service "blackbox-exporter" }}{{ .Address }}:{{ .Port }}{{- end }}'
+
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']

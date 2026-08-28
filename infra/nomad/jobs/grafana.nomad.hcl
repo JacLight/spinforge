@@ -171,6 +171,19 @@ providers:
     options:
       path: /local/dashboards
       foldersFromFilesStructure: false
+  # The hosted-app database dashboards live in their own "appengine" folder,
+  # loaded from a separate directory. Grafana creates the folder on boot.
+  - name: appengine
+    orgId: 1
+    folder: appengine
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /local/dashboards-appengine
+      foldersFromFilesStructure: false
 EOT
         destination = "local/provisioning/dashboards/provider.yml"
       }
@@ -392,6 +405,728 @@ EOT
         destination = "local/dashboards/spinforge-logs.json"
       }
 
+      # Application MongoDB — Replica Set rs0 (.140 primary / .141 secondary).
+      # This is the hosted-apps datastore (appmint/appengine collections), NOT
+      # SpinForge's own control-plane store, which lives in spinforge-keydb
+      # (:16378 db 1). Built against the metric names the
+      # percona/mongodb_exporter 0.43 actually emits (mongodb_ss_* from
+      # FTDC, mongodb_rs_members_* from replSetGetStatus) — the community
+      # dashboards target the old pre-0.40 names and render empty here.
+      # Both members are scraped, tagged role=primary/secondary in the
+      # prometheus scrape config; queries split on that so the two
+      # exporters never double-count, and the rs_members_* panels dedupe
+      # with `max by (member_idx)` since each exporter reports the whole
+      # set's view.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "spinforge-mongodb",
+  "title": "Apps — MongoDB (.140/.141)",
+  "tags": ["apps", "mongodb", "database", "tenant-data"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Members up",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "count(max by (member_idx) (mongodb_rs_members_health) == 1)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 2}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Replication lag (secondary)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(scalar(max(mongodb_rs_members_optimeDate{member_state=\"PRIMARY\"})) - max by (member_idx) (mongodb_rs_members_optimeDate{member_state=\"SECONDARY\"})) / 1000", "legendFormat": "{{member_idx}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 1, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 30}]}}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Ops/s (primary)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(mongodb_ss_opcounters{role=\"primary\"}[1m]))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 0}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Current connections",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (role) (mongodb_ss_connections{conn_type=\"current\"})", "legendFormat": "{{role}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Resident memory (primary)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "max(mongodb_ss_mem_resident{role=\"primary\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "decmbytes"}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Operations/s by type (primary)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (legacy_op_type) (rate(mongodb_ss_opcounters{role=\"primary\"}[1m]))", "legendFormat": "{{legacy_op_type}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Connections (current) by member",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (role) (mongodb_ss_connections{conn_type=\"current\"})", "legendFormat": "{{role}}", "refId": "A"}]
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Network throughput by member",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (role) (rate(mongodb_ss_network_bytesIn[1m]))", "legendFormat": "in {{role}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (role) (rate(mongodb_ss_network_bytesOut[1m]))", "legendFormat": "out {{role}}", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Replication lag over time",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(scalar(max(mongodb_rs_members_optimeDate{member_state=\"PRIMARY\"})) - max by (member_idx) (mongodb_rs_members_optimeDate{member_state=\"SECONDARY\"})) / 1000", "legendFormat": "{{member_idx}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "Queued operations (global lock)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 20},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (role, count_type) (mongodb_ss_globalLock_currentQueue{count_type=~\"readers|writers\"})", "legendFormat": "{{role}} {{count_type}}", "refId": "A"}]
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "Document ops/s (primary)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 20},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (doc_op_type) (rate(mongodb_ss_metrics_document{role=\"primary\"}[1m]))", "legendFormat": "{{doc_op_type}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/spinforge-mongodb.json"
+      }
+
+      # Application KeyDB — master (.143) + replica (.144): the hosted-apps
+      # cache/queue store (fundu:, bull:, chat- keys), NOT SpinForge's own
+      # spinforge-keydb (:16378). redis_exporter runs in
+      # multi-target mode, so both instances arrive on the same 'keydb'
+      # prometheus job distinguished only by the instance_role label
+      # (master/replica) set in the scrape config — every query splits on
+      # it. KeyDB is RESP-compatible, so the redis_* metric names apply
+      # unchanged.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "spinforge-keydb",
+  "title": "Apps — KeyDB (.143/.144)",
+  "tags": ["apps", "keydb", "redis", "database", "tenant-data"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Instances up",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(redis_up)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 2}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Ops/s (master)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(redis_commands_processed_total{instance_role=\"master\"}[1m]))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 0}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Hit ratio (master)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(redis_keyspace_hits_total{instance_role=\"master\"}[5m])) / clamp_min(sum(rate(redis_keyspace_hits_total{instance_role=\"master\"}[5m])) + sum(rate(redis_keyspace_misses_total{instance_role=\"master\"}[5m])), 1)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 2, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "green", "value": 0.95}]}}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Connected clients",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (instance_role) (redis_connected_clients)", "legendFormat": "{{instance_role}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Memory used (master)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "max(redis_memory_used_bytes{instance_role=\"master\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Commands/s by instance",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (instance_role) (rate(redis_commands_processed_total[1m]))", "legendFormat": "{{instance_role}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Memory used by instance",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "max by (instance_role) (redis_memory_used_bytes)", "legendFormat": "{{instance_role}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Keyspace hits vs misses (master)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(redis_keyspace_hits_total{instance_role=\"master\"}[1m]))", "legendFormat": "hits", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(redis_keyspace_misses_total{instance_role=\"master\"}[1m]))", "legendFormat": "misses", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Network throughput by instance",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (instance_role) (rate(redis_net_input_bytes_total[1m]))", "legendFormat": "in {{instance_role}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (instance_role) (rate(redis_net_output_bytes_total[1m]))", "legendFormat": "out {{instance_role}}", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}}
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "Keys per instance",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 20},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (instance_role) (redis_db_keys)", "legendFormat": "{{instance_role}}", "refId": "A"}]
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "Evicted / expired keys per s (master)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(redis_evicted_keys_total{instance_role=\"master\"}[5m]))", "legendFormat": "evicted", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(redis_expired_keys_total{instance_role=\"master\"}[5m]))", "legendFormat": "expired", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/spinforge-keydb.json"
+      }
+
+      # appengine — App Uptime. Blackbox probes (blackbox-apps job) for the
+      # four k8s-hosted apps, measured through the Traefik ingress. Shows
+      # up/down, HTTP status, latency and TLS cert expiry per app. This is
+      # the external-behaviour view; pod/deployment internals would need
+      # k8s API access we don't hold. Lives in the appengine folder via the
+      # dashboards-appengine provider.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "appengine-apps",
+  "title": "appengine — App Uptime",
+  "tags": ["appengine", "apps", "blackbox", "uptime"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Apps up",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(probe_success)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "none", "max": 4, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 3}, {"color": "green", "value": 4}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Status per app",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 12, "x": 4, "y": 0},
+      "options": {"colorMode": "background", "textMode": "value_and_name"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success", "legendFormat": "{{app}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Nearest cert expiry",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "min(probe_ssl_earliest_cert_expiry - time()) / 86400", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "d", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 14}, {"color": "green", "value": 30}]}}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Up / down over time",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success", "legendFormat": "{{app}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "none", "max": 1, "min": 0, "custom": {"drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 20}}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "HTTP status code",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code", "legendFormat": "{{app}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 0}}
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Probe latency (total)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds", "legendFormat": "{{app}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Latency breakdown by phase (all apps)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (phase) (probe_http_duration_seconds)", "legendFormat": "{{phase}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"stacking": {"mode": "normal"}}}}
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "TLS cert days remaining",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 20},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(probe_ssl_earliest_cert_expiry - time()) / 86400", "legendFormat": "{{app}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "d", "decimals": 0}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/appengine-apps.json"
+      }
+
+      # Kubernetes — Reachability. Blackbox control-plane probes (k8s_reach
+      # module). Shows the API server and kubelets are alive; it does NOT
+      # read cluster state (pods/deployments/nodes) — that needs a kubeconfig
+      # we don't hold. When a credential arrives, kube-state-metrics fills
+      # the gap and this stays as the liveness layer.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "k8s-reachability",
+  "title": "Kubernetes — Reachability",
+  "tags": ["appengine", "kubernetes", "k8s", "blackbox"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "API server",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "options": {"colorMode": "background"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{component=\"apiserver\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Kubelets up",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(probe_success{component=\"kubelet\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"max": 7, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 6}, {"color": "green", "value": 7}]}}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Node reachability",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 12, "x": 12, "y": 0},
+      "options": {"colorMode": "background", "textMode": "value_and_name"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{component=\"kubelet\"}", "legendFormat": "{{node}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Control-plane up / down",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{job=\"k8s-reachability\"}", "legendFormat": "{{node}}/{{component}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "custom": {"lineInterpolation": "stepAfter", "fillOpacity": 20}}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Probe latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{job=\"k8s-reachability\"}", "legendFormat": "{{node}}/{{component}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 20, "type": "text", "title": "Coverage",
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 12},
+      "options": {"mode": "markdown", "content": "**This board = liveness only.** It confirms the k8s API server (.131:6443) and kubelets (.131/.132/.133:10250) are responding. It does **not** show pods, deployments, node resource use, or per-app HTTP traffic — those require read access to the k8s API (a kubeconfig or read-only ServiceAccount token). Once that's provided, `kube-state-metrics` + node metrics fill in the rest here."}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/k8s-reachability.json"
+      }
+
+
+      # Individual dashboard for the appengine app (namespace fundu, probed at
+      # appengine.appmint.io/health). Filtered to app="appengine" — up/down, status, latency,
+      # availability% and cert. Sits in the appengine folder.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "app-appengine",
+  "title": "appengine",
+  "tags": ["appengine", "app", "appengine"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "State",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "options": {"colorMode": "background"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"appengine\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "HTTP status",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"appengine\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"appengine\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 3}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Availability (24h)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg_over_time(probe_success{app=\"appengine\"}[$__range]) * 100", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 2, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 99}, {"color": "green", "value": 99.9}]}}}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Cert days left",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(probe_ssl_earliest_cert_expiry{app=\"appengine\"} - time()) / 86400", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "d", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 14}, {"color": "green", "value": 30}]}}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Up / down",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"appengine\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "custom": {"lineInterpolation": "stepAfter", "fillOpacity": 25}}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "HTTP status code",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"appengine\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Total latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"appengine\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Latency by phase",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_duration_seconds{app=\"appengine\"}", "legendFormat": "{{phase}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"stacking": {"mode": "normal"}}}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/app-appengine.json"
+      }
+
+      # Individual dashboard for the base-app app (namespace base-app, probed at
+      # www.appmint.io/). Filtered to app="base-app" — up/down, status, latency,
+      # availability% and cert. Sits in the appengine folder.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "app-base-app",
+  "title": "base-app",
+  "tags": ["appengine", "app", "base-app"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "State",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "options": {"colorMode": "background"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"base-app\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "HTTP status",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"base-app\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"base-app\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 3}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Availability (24h)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg_over_time(probe_success{app=\"base-app\"}[$__range]) * 100", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 2, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 99}, {"color": "green", "value": 99.9}]}}}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Cert days left",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(probe_ssl_earliest_cert_expiry{app=\"base-app\"} - time()) / 86400", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "d", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 14}, {"color": "green", "value": 30}]}}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Up / down",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"base-app\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "custom": {"lineInterpolation": "stepAfter", "fillOpacity": 25}}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "HTTP status code",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"base-app\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Total latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"base-app\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Latency by phase",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_duration_seconds{app=\"base-app\"}", "legendFormat": "{{phase}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"stacking": {"mode": "normal"}}}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/app-base-app.json"
+      }
+
+      # Individual dashboard for the builder-dev app (namespace fundu, probed at
+      # builder-dev.appmint.app/). Filtered to app="builder-dev" — up/down, status, latency,
+      # availability% and cert. Sits in the appengine folder.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "app-builder-dev",
+  "title": "builder-dev",
+  "tags": ["appengine", "app", "builder-dev"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "State",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "options": {"colorMode": "background"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"builder-dev\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "HTTP status",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"builder-dev\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"builder-dev\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 3}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Availability (24h)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg_over_time(probe_success{app=\"builder-dev\"}[$__range]) * 100", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 2, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 99}, {"color": "green", "value": 99.9}]}}}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Cert days left",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(probe_ssl_earliest_cert_expiry{app=\"builder-dev\"} - time()) / 86400", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "d", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 14}, {"color": "green", "value": 30}]}}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Up / down",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"builder-dev\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "custom": {"lineInterpolation": "stepAfter", "fillOpacity": 25}}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "HTTP status code",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"builder-dev\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Total latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"builder-dev\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Latency by phase",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_duration_seconds{app=\"builder-dev\"}", "legendFormat": "{{phase}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"stacking": {"mode": "normal"}}}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/app-builder-dev.json"
+      }
+
+      # Individual dashboard for the businessmade app (namespace fundu, probed at
+      # businessmade.io/). Filtered to app="businessmade" — up/down, status, latency,
+      # availability% and cert. Sits in the appengine folder.
+      template {
+        left_delimiter  = "[["
+        right_delimiter = "]]"
+        data = <<EOT
+{
+  "uid": "app-businessmade",
+  "title": "businessmade",
+  "tags": ["appengine", "app", "businessmade"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "State",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "options": {"colorMode": "background"},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"businessmade\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "HTTP status",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"businessmade\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"businessmade\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 3}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Availability (24h)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg_over_time(probe_success{app=\"businessmade\"}[$__range]) * 100", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 2, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 99}, {"color": "green", "value": 99.9}]}}}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Cert days left",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(probe_ssl_earliest_cert_expiry{app=\"businessmade\"} - time()) / 86400", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "d", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 14}, {"color": "green", "value": 30}]}}}
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Up / down",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_success{app=\"businessmade\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "custom": {"lineInterpolation": "stepAfter", "fillOpacity": 25}}}
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "HTTP status code",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 4},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_status_code{app=\"businessmade\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"decimals": 0}}
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Total latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_duration_seconds{app=\"businessmade\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Latency by phase",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 11},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "probe_http_duration_seconds{app=\"businessmade\"}", "legendFormat": "{{phase}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"stacking": {"mode": "normal"}}}}
+    }
+  ]
+}
+EOT
+        destination = "local/dashboards-appengine/app-businessmade.json"
+      }
+
+
+
       # Alert rules — provisioned via /etc/grafana/provisioning/alerting.
       # GF_PATHS_PROVISIONING is set to /local/provisioning, so Grafana
       # auto-loads everything under local/provisioning/alerting/ on boot.
@@ -488,6 +1223,113 @@ groups:
         for: 5m
         annotations:
           summary: "Policy rejects at {{ $value }}/s — partner quota issue?"
+
+  - orgId: 1
+    name: appengine-apps
+    folder: appengine
+    interval: 1m
+    rules:
+      - uid: app-down
+        title: App down
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'probe_success{job="blackbox-apps"} == 0'
+              refId: A
+              instant: true
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        labels:
+          team: appengine
+        annotations:
+          summary: "App {{ $labels.app }} is DOWN (namespace {{ $labels.namespace }}) — probe to {{ $labels.instance }} failing"
+
+      - uid: app-cert-expiring
+        title: App TLS cert expiring
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: '(probe_ssl_earliest_cert_expiry{job="blackbox-apps"} - time()) / 86400 < 14'
+              refId: A
+              instant: true
+        noDataState: OK
+        for: 15m
+        labels:
+          team: appengine
+        annotations:
+          summary: "TLS cert for {{ $labels.app }} expires in under 14 days"
+
+      - uid: k8s-component-down
+        title: k8s control-plane component down
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'probe_success{job="k8s-reachability"} == 0'
+              refId: A
+              instant: true
+        noDataState: NoData
+        execErrState: Alerting
+        for: 3m
+        labels:
+          team: appengine
+        annotations:
+          summary: "k8s {{ $labels.component }} on {{ $labels.node }} ({{ $labels.ip }}) not responding"
+
+      - uid: mongodb-member-down
+        title: MongoDB member down
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'max by (member_idx) (mongodb_rs_members_health) < 1'
+              refId: A
+              instant: true
+        noDataState: NoData
+        for: 3m
+        labels:
+          team: appengine
+        annotations:
+          summary: "MongoDB member {{ $labels.member_idx }} is unhealthy"
+
+      - uid: keydb-down
+        title: KeyDB instance down
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'redis_up == 0'
+              refId: A
+              instant: true
+        noDataState: NoData
+        for: 3m
+        labels:
+          team: appengine
+        annotations:
+          summary: "KeyDB {{ $labels.instance_role }} ({{ $labels.keydb_instance }}) is down"
 EOT
         destination = "local/provisioning/alerting/rules.yaml"
       }
@@ -508,6 +1350,14 @@ contactPoints:
         settings:
           url: http://localhost:1/noop
           httpMethod: POST
+  - orgId: 1
+    name: appmint-support-email
+    receivers:
+      - uid: appmint-email
+        type: email
+        settings:
+          addresses: support@appmint.io
+          singleEmail: false
 EOT
         destination = "local/provisioning/alerting/contactpoints.yaml"
       }
@@ -524,6 +1374,14 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes:
+      - receiver: appmint-support-email
+        group_by: ['alertname', 'app']
+        matchers:
+          - team = appengine
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 2h
 EOT
         destination = "local/provisioning/alerting/policies.yaml"
       }
