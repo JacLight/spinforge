@@ -278,8 +278,41 @@ function nodeHandler({ http, log, redis }) {
 
 // ─── Nomad job helpers ─────────────────────────────────────────────────
 
+// The Nomad job id for a build stage. Single source of truth — cancel()
+// reconstructs the same id to stop a leaked job.
+function stageJobId(buildId, stageId) {
+  return `stage-${buildId}-${stageId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+// Stop (and purge) a stage's Nomad job. Called when a build is canceled so
+// an in-flight alloc doesn't run forever after the build record goes
+// terminal. Idempotent: a 404 (job already gone / never nomad-backed) is a
+// success, not an error.
+async function stopStageJob({ buildId, stageId, logger } = {}) {
+  const log = logger || console;
+  const id = stageJobId(buildId, stageId);
+  const http = axios.create({
+    baseURL: DEFAULT_NOMAD_ADDR,
+    timeout: 15_000,
+    validateStatus: (s) => s < 500,
+  });
+  try {
+    const res = await http.delete(`/v1/job/${encodeURIComponent(id)}?purge=true`);
+    if (res.status === 404) return true; // nothing to stop
+    if (res.status >= 400) {
+      log.warn?.(`[nomad] stop ${id} returned ${res.status}`);
+      return false;
+    }
+    log.info?.(`[nomad] stopped leaked stage job ${id}`);
+    return true;
+  } catch (err) {
+    log.warn?.(`[nomad] failed to stop stage job ${id}: ${err.message}`);
+    return false;
+  }
+}
+
 function buildNomadSpec({ buildId, stageId, image, env, hostVolumes = [] }) {
-  const id = `stage-${buildId}-${stageId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const id = stageJobId(buildId, stageId);
   return {
     ID: id,
     Name: id,
@@ -465,4 +498,4 @@ async function firstExisting(paths) {
   return null;
 }
 
-module.exports = { build };
+module.exports = { build, stopStageJob, stageJobId };

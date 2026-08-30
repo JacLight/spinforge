@@ -130,6 +130,9 @@ const allHandlers = new Map([
 const builds = new BuildService(redis, {
   logger, events, pipelines, actions,
   handlers: allHandlers,
+  // Reap the stage's Nomad job on cancel so a hung alloc can't run forever.
+  nomadStop: ({ buildId, stageId }) =>
+    nomadHandlers.stopStageJob({ buildId, stageId, logger }),
 });
 // Declarative entry point: a spinforge.json manifest becomes a pipeline
 // (+ optional build) without the caller hand-assembling stages.

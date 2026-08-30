@@ -1,7 +1,7 @@
 /**
  * SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
  * Copyright (c) 2025 Jacob Ajiboye
- * 
+ *
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
@@ -14,7 +14,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Rocket, Mail, Github } from "lucide-react";
+import { Loader2, Mail, Github } from "lucide-react";
 import axios from "axios";
 
 const loginSchema = z.object({
@@ -23,6 +23,67 @@ const loginSchema = z.object({
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
+
+const AUTH_CSS = `
+.auth{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden;
+  background:#fbfaf8;color:#17120e;
+  font-family:var(--font-sans),'Hanken Grotesk',ui-sans-serif,system-ui,sans-serif}
+.auth .amb{position:absolute;width:620px;height:620px;left:50%;top:-30%;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(circle,#ffd9b0,transparent 66%);filter:blur(80px);opacity:.55;pointer-events:none}
+.auth .amb2{position:absolute;width:420px;height:420px;right:-6%;bottom:-14%;border-radius:50%;
+  background:radial-gradient(circle,#ffc7bd,transparent 66%);filter:blur(90px);opacity:.4;pointer-events:none}
+.auth .wrap{position:relative;width:100%;max-width:420px}
+.auth .back{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono),'IBM Plex Mono',monospace;font-size:12px;color:#9c9389;margin-bottom:16px}
+.auth .back:hover{color:#17120e}
+.auth .card{background:#fff;border:1px solid #ece7de;border-radius:18px;padding:34px 32px;
+  box-shadow:0 2px 4px rgba(23,18,14,.03),0 30px 70px -50px rgba(23,18,14,.35)}
+.auth .brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:22px}
+.auth .mark{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(150deg,#f2551d,#cf3d0c);box-shadow:0 3px 12px -2px rgba(242,85,29,.6),inset 0 1px 0 rgba(255,255,255,.4)}
+.auth .mark svg{width:16px;height:16px;color:#fff}
+.auth .name{font-family:var(--font-display),'Bricolage Grotesque',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.04em}
+.auth h1{font-family:var(--font-display),'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.03em;
+  font-size:26px;text-align:center;margin-bottom:6px}
+.auth .lead{text-align:center;color:#5f564d;font-size:14px;margin-bottom:24px}
+.auth .err{margin-bottom:18px;padding:11px 14px;background:#fdecec;border:1px solid #f3c9c9;border-radius:10px}
+.auth .err p{font-size:13px;color:#c0392b;text-align:center;margin:0}
+.auth form{display:flex;flex-direction:column;gap:18px}
+.auth label{display:block;font-size:13px;font-weight:500;color:#5f564d;margin-bottom:6px}
+.auth input{width:100%;padding:11px 13px;border:1px solid #ece7de;border-radius:10px;font-size:14px;color:#17120e;background:#fff;transition:border-color .15s,box-shadow .15s;outline:none}
+.auth input::placeholder{color:#bcb2a7}
+.auth input:focus{border-color:#f2551d;box-shadow:0 0 0 3px rgba(242,85,29,.12)}
+.auth .fielderr{margin-top:6px;font-size:12px;color:#d64545}
+.auth .stack{display:flex;flex-direction:column;gap:12px}
+.auth .btn-primary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:linear-gradient(150deg,#f2551d,#cf3d0c);color:#fff;font-weight:600;font-size:14px;
+  padding:12px;border-radius:11px;border:0;cursor:pointer;transition:filter .15s,transform .15s;
+  box-shadow:0 8px 22px -10px rgba(242,85,29,.7)}
+.auth .btn-primary:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.auth .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.auth .btn-secondary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:#fff;color:#17120e;font-weight:600;font-size:14px;padding:12px;border-radius:11px;
+  border:1px solid #ece7de;cursor:pointer;transition:border-color .15s,background .15s}
+.auth .btn-secondary:hover{border-color:#ded7cb;background:#faf8f4}
+.auth .rowbtw{display:flex;align-items:center;justify-content:space-between}
+.auth .link{color:#cf3d0c;font-size:13px;font-weight:500}
+.auth .link:hover{color:#b8350f}
+.auth .muted{color:#9c9389;font-size:13px;background:none;border:0;cursor:pointer}
+.auth .muted:hover{color:#5f564d}
+.auth .divider{position:relative;margin:24px 0}
+.auth .divider::before{content:"";position:absolute;inset:50% 0 auto;height:1px;background:#ece7de}
+.auth .divider span{position:relative;display:block;text-align:center}
+.auth .divider span b{background:#fff;padding:0 12px;font-size:12px;color:#9c9389;font-weight:400;font-family:var(--font-mono),'IBM Plex Mono',monospace}
+.auth .foot{margin-top:26px;text-align:center;font-size:14px;color:#5f564d}
+.auth .spin{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fbfaf8}
+`;
+
+const Mark = () => (
+  <span className="mark">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M13 2 4.5 12.5c-.3.4 0 .9.5.9H10l-1.2 7.8c-.1.6.7 1 1.1.5L20 10.4c.3-.4 0-.9-.5-.9H14l1.2-7.1c.1-.6-.7-1-1.1-.5z" />
+    </svg>
+  </span>
+);
 
 export default function LoginPage() {
   const router = useRouter();
@@ -103,91 +164,70 @@ export default function LoginPage() {
   // Show loading while checking auth
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-        <Loader2 className="animate-spin h-8 w-8 text-indigo-600" />
-      </div>
+      <>
+        <style dangerouslySetInnerHTML={{ __html: AUTH_CSS }} />
+        <div className="spin">
+          <Loader2 className="animate-spin" style={{ height: 32, width: 32, color: "#f2551d" }} />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="w-full max-w-md">
-        <div className="bg-white shadow-xl rounded-2xl p-8">
-          {/* Logo */}
-          <div className="flex justify-center mb-8">
-            <div className="flex items-center space-x-2">
-              <Rocket className="h-10 w-10 text-indigo-600" />
-              <span className="text-2xl font-bold text-gray-900">
-                SpinForge
-              </span>
-            </div>
-          </div>
+    <div className="auth">
+      <style dangerouslySetInnerHTML={{ __html: AUTH_CSS }} />
+      <div className="amb" /><div className="amb2" />
+      <div className="wrap">
+        <Link href="/" className="back">← Back to spinforge.dev</Link>
+        <div className="card">
+          <div className="brand"><Mark /><span className="name">SpinForge</span></div>
+          <h1>Welcome back</h1>
+          <p className="lead">Sign in to your SpinForge account</p>
 
-          <h2 className="text-center text-2xl font-bold text-gray-900 mb-8">
-            Welcome back
-          </h2>
-
-          {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 text-center">{error}</p>
-            </div>
+            <div className="err"><p>{error}</p></div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
+              <label>Email</label>
               <input
                 {...register("email")}
                 type="email"
                 autoComplete="email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="you@example.com"
                 onChange={(e) => {
                   register("email").onChange(e);
-                  if (error) setError(""); // Clear error when user starts typing
+                  if (error) setError("");
                 }}
               />
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-600">
-                  {errors.email.message}
-                </p>
-              )}
+              {errors.email && <p className="fielderr">{errors.email.message}</p>}
             </div>
 
             {showPassword ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
+                <label>Password</label>
                 <input
                   {...register("password")}
                   type="password"
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="••••••••"
                   onChange={(e) => {
                     register("password").onChange(e);
-                    if (error) setError(""); // Clear error when user starts typing
+                    if (error) setError("");
                   }}
                 />
-                {errors.password && (
-                  <p className="mt-1 text-xs text-red-600">
-                    {errors.password.message}
-                  </p>
-                )}
+                {errors.password && <p className="fielderr">{errors.password.message}</p>}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="stack">
                 <button
                   type="button"
                   onClick={() => {
                     setShowPassword(true);
-                    setError(""); // Clear error when switching to password mode
+                    setError("");
                   }}
-                  className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center"
+                  className="btn-primary"
                 >
                   Continue with password
                 </button>
@@ -196,9 +236,9 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleMagicLink}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center justify-center"
+                  className="btn-secondary"
                 >
-                  <Mail className="h-4 w-4 mr-2" />
+                  <Mail style={{ height: 16, width: 16 }} />
                   Send magic link
                 </button>
               </div>
@@ -206,68 +246,28 @@ export default function LoginPage() {
 
             {showPassword && (
               <>
-                <div className="flex items-center justify-between">
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm text-indigo-600 hover:text-indigo-500"
-                  >
-                    Forgot password?
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(false)}
-                    className="text-sm text-gray-600 hover:text-gray-500"
-                  >
-                    Back
-                  </button>
+                <div className="rowbtw">
+                  <Link href="/forgot-password" className="link">Forgot password?</Link>
+                  <button type="button" onClick={() => setShowPassword(false)} className="muted">Back</button>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    "Sign in"
-                  )}
+                <button type="submit" disabled={isLoading} className="btn-primary">
+                  {isLoading ? <Loader2 className="animate-spin" style={{ height: 20, width: 20 }} /> : "Sign in"}
                 </button>
               </>
             )}
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Or continue with
-                </span>
-              </div>
-            </div>
+          <div className="divider"><span><b>Or continue with</b></span></div>
 
-            <div className="mt-6">
-              <button
-                onClick={handleGithubLogin}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center"
-              >
-                <Github className="h-5 w-5 mr-2" />
-                GitHub
-              </button>
-            </div>
-          </div>
+          <button onClick={handleGithubLogin} className="btn-secondary">
+            <Github style={{ height: 18, width: 18 }} />
+            GitHub
+          </button>
 
-          <p className="mt-8 text-center text-sm text-gray-600">
-            Don't have an account?{" "}
-            <Link
-              href="/signup"
-              className="text-indigo-600 hover:text-indigo-500"
-            >
-              Sign up
-            </Link>
+          <p className="foot">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="link">Sign up</Link>
           </p>
         </div>
       </div>

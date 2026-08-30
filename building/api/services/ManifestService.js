@@ -214,6 +214,28 @@ class ManifestService {
     // `cd` first so the command runs where the project's package.json lives.
     const runFrom = (cmd) => (root === '.' ? cmd : `cd ${root} && ${cmd}`);
 
+    // AI detection (when it ran) hands us the real install/build commands and
+    // output directory. Use them verbatim via mode:'command' so the build does
+    // exactly what the project declares — and skips the buildkit/railpack path
+    // entirely for static sites. Fall back to Railpack auto-detection when the
+    // detector didn't provide commands.
+    const aiBuild = [manifest.installCommand, manifest.buildCommand].filter(Boolean).join(' && ');
+    const staticWith = aiBuild
+      ? {
+          command: runFrom(aiBuild),
+          outputDir: inRoot(manifest.outputDir || 'dist'),
+          rootDir: root,
+          mode: 'command',
+        }
+      : {
+          command: runFrom('npm ci && npm run build'),
+          outputDir: inRoot(manifest.outputDir || 'dist'),
+          rootDir: root,
+          // Railpack detects the package manager, toolchain version and output
+          // directory per project; the command/outputDir are the fallback.
+          mode: BUILD_MODE_DEFAULT,
+        };
+
     switch (manifest.type) {
       case 'static':
         return [
@@ -221,15 +243,7 @@ class ManifestService {
             id: 'build',
             name: 'Build static site',
             action: 'build.static',
-            with: {
-              command: runFrom('npm ci && npm run build'),
-              outputDir: inRoot('dist'),
-              rootDir: root,
-              // Railpack detects the package manager, toolchain version
-              // and output directory per project; the command/outputDir
-              // above are the fallback when it's switched off.
-              mode: BUILD_MODE_DEFAULT,
-            },
+            with: staticWith,
           },
           {
             id: 'deploy',

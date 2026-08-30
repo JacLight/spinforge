@@ -1,7 +1,7 @@
 /**
  * SpinForge - AI-Native Zero Configuration Hosting & Application Infrastructure
  * Copyright (c) 2025 Jacob Ajiboye
- * 
+ *
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
@@ -14,7 +14,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Rocket, Github } from "lucide-react";
+import { Loader2, Github } from "lucide-react";
 import axios from "axios";
 
 const signupSchema = z.object({
@@ -29,6 +29,61 @@ const signupSchema = z.object({
 });
 
 type SignupForm = z.infer<typeof signupSchema>;
+
+const AUTH_CSS = `
+.auth{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden;
+  background:#fbfaf8;color:#17120e;
+  font-family:var(--font-sans),'Hanken Grotesk',ui-sans-serif,system-ui,sans-serif}
+.auth .amb{position:absolute;width:620px;height:620px;left:50%;top:-30%;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(circle,#ffd9b0,transparent 66%);filter:blur(80px);opacity:.55;pointer-events:none}
+.auth .amb2{position:absolute;width:420px;height:420px;right:-6%;bottom:-14%;border-radius:50%;
+  background:radial-gradient(circle,#ffc7bd,transparent 66%);filter:blur(90px);opacity:.4;pointer-events:none}
+.auth .wrap{position:relative;width:100%;max-width:420px}
+.auth .back{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono),'IBM Plex Mono',monospace;font-size:12px;color:#9c9389;margin-bottom:16px}
+.auth .back:hover{color:#17120e}
+.auth .card{background:#fff;border:1px solid #ece7de;border-radius:18px;padding:34px 32px;
+  box-shadow:0 2px 4px rgba(23,18,14,.03),0 30px 70px -50px rgba(23,18,14,.35)}
+.auth .brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:22px}
+.auth .mark{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(150deg,#f2551d,#cf3d0c);box-shadow:0 3px 12px -2px rgba(242,85,29,.6),inset 0 1px 0 rgba(255,255,255,.4)}
+.auth .mark svg{width:16px;height:16px;color:#fff}
+.auth .name{font-family:var(--font-display),'Bricolage Grotesque',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.04em}
+.auth h1{font-family:var(--font-display),'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.03em;
+  font-size:26px;text-align:center;margin-bottom:6px}
+.auth .lead{text-align:center;color:#5f564d;font-size:14px;margin-bottom:24px}
+.auth form{display:flex;flex-direction:column;gap:16px}
+.auth label{display:block;font-size:13px;font-weight:500;color:#5f564d;margin-bottom:6px}
+.auth input{width:100%;padding:11px 13px;border:1px solid #ece7de;border-radius:10px;font-size:14px;color:#17120e;background:#fff;transition:border-color .15s,box-shadow .15s;outline:none}
+.auth input::placeholder{color:#bcb2a7}
+.auth input:focus{border-color:#f2551d;box-shadow:0 0 0 3px rgba(242,85,29,.12)}
+.auth .fielderr{margin-top:6px;font-size:12px;color:#d64545}
+.auth .btn-primary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:linear-gradient(150deg,#f2551d,#cf3d0c);color:#fff;font-weight:600;font-size:14px;
+  padding:12px;border-radius:11px;border:0;cursor:pointer;transition:filter .15s,transform .15s;
+  box-shadow:0 8px 22px -10px rgba(242,85,29,.7)}
+.auth .btn-primary:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.auth .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.auth .btn-secondary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:#fff;color:#17120e;font-weight:600;font-size:14px;padding:12px;border-radius:11px;
+  border:1px solid #ece7de;cursor:pointer;transition:border-color .15s,background .15s}
+.auth .btn-secondary:hover{border-color:#ded7cb;background:#faf8f4}
+.auth .link{color:#cf3d0c;font-weight:500}
+.auth .link:hover{color:#b8350f}
+.auth .terms{margin-top:2px;font-size:12px;text-align:center;color:#9c9389;line-height:1.6}
+.auth .divider{position:relative;margin:24px 0}
+.auth .divider::before{content:"";position:absolute;inset:50% 0 auto;height:1px;background:#ece7de}
+.auth .divider span{position:relative;display:block;text-align:center}
+.auth .divider span b{background:#fff;padding:0 12px;font-size:12px;color:#9c9389;font-weight:400;font-family:var(--font-mono),'IBM Plex Mono',monospace}
+.auth .foot{margin-top:26px;text-align:center;font-size:14px;color:#5f564d}
+`;
+
+const Mark = () => (
+  <span className="mark">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M13 2 4.5 12.5c-.3.4 0 .9.5.9H10l-1.2 7.8c-.1.6.7 1 1.1.5L20 10.4c.3-.4 0-.9-.5-.9H14l1.2-7.1c.1-.6-.7-1-1.1-.5z" />
+    </svg>
+  </span>
+);
 
 export default function SignupPage() {
   const router = useRouter();
@@ -66,147 +121,94 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="flex justify-center">
-            <Rocket className="h-12 w-12 text-indigo-600" />
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your SpinForge account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{" "}
-            <Link
-              href="/login"
-              className="font-medium text-indigo-600 hover:text-indigo-500"
-            >
-              sign in to your existing account
-            </Link>
+    <div className="auth">
+      <style dangerouslySetInnerHTML={{ __html: AUTH_CSS }} />
+      <div className="amb" /><div className="amb2" />
+      <div className="wrap">
+        <Link href="/" className="back">← Back to spinforge.dev</Link>
+        <div className="card">
+          <div className="brand"><Mark /><span className="name">SpinForge</span></div>
+          <h1>Create your account</h1>
+          <p className="lead">
+            Or <Link href="/login" className="link">sign in to your existing account</Link>
           </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-          <div className="space-y-4">
+
+          <form onSubmit={handleSubmit(onSubmit)}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
+              <label htmlFor="email">Email address</label>
               <input
                 {...register("email")}
+                id="email"
                 type="email"
                 autoComplete="email"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="you@example.com"
               />
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
-              )}
+              {errors.email && <p className="fielderr">{errors.email.message}</p>}
             </div>
 
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Full name (optional)
-              </label>
+              <label htmlFor="name">Full name (optional)</label>
               <input
                 {...register("name")}
+                id="name"
                 type="text"
                 autoComplete="name"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="John Doe"
               />
             </div>
 
             <div>
-              <label htmlFor="company" className="block text-sm font-medium text-gray-700">
-                Company (optional)
-              </label>
+              <label htmlFor="company">Company (optional)</label>
               <input
                 {...register("company")}
+                id="company"
                 type="text"
                 autoComplete="organization"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Acme Inc."
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
+              <label htmlFor="password">Password</label>
               <input
                 {...register("password")}
+                id="password"
                 type="password"
                 autoComplete="new-password"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="••••••••"
               />
-              {errors.password && (
-                <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
-              )}
+              {errors.password && <p className="fielderr">{errors.password.message}</p>}
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm password
-              </label>
+              <label htmlFor="confirmPassword">Confirm password</label>
               <input
                 {...register("confirmPassword")}
+                id="confirmPassword"
                 type="password"
                 autoComplete="new-password"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="••••••••"
               />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-600">{errors.confirmPassword.message}</p>
-              )}
+              {errors.confirmPassword && <p className="fielderr">{errors.confirmPassword.message}</p>}
             </div>
-          </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                "Create account"
-              )}
+            <button type="submit" disabled={isLoading} className="btn-primary">
+              {isLoading ? <Loader2 className="animate-spin" style={{ height: 20, width: 20 }} /> : "Create account"}
             </button>
-          </div>
 
-          <div className="text-xs text-center text-gray-600">
-            By creating an account, you agree to our{" "}
-            <Link href="/terms" className="text-indigo-600 hover:text-indigo-500">
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link href="/privacy" className="text-indigo-600 hover:text-indigo-500">
-              Privacy Policy
-            </Link>
-          </div>
-        </form>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
+            <div className="terms">
+              By creating an account, you agree to our{" "}
+              <Link href="/terms" className="link">Terms of Service</Link> and{" "}
+              <Link href="/privacy" className="link">Privacy Policy</Link>
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
-            </div>
-          </div>
+          </form>
 
-          <div className="mt-6">
-            <a
-              href="/api/auth/github"
-              className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <Github className="h-5 w-5 mr-2" />
-              Continue with GitHub
-            </a>
-          </div>
+          <div className="divider"><span><b>Or continue with</b></span></div>
+
+          <a href="/api/auth/github" className="btn-secondary">
+            <Github style={{ height: 18, width: 18 }} />
+            Continue with GitHub
+          </a>
         </div>
       </div>
     </div>

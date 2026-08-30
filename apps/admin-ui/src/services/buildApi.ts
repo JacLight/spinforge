@@ -371,8 +371,28 @@ export const buildApi = {
     ).then(r => r.data),
 
   // builds
-  createBuild: (body: { pipelineId: string; trigger?: any; inputs?: Record<string, any>; customerId?: string }) =>
-    client.post<Build>('/api/builds', body).then(r => r.data),
+  //
+  // A git-source pipeline builds from a plain JSON trigger. A zip-source
+  // pipeline needs the workspace archive uploaded at this moment, so when a
+  // `zipFile` is supplied we send multipart/form-data (axios sets the
+  // boundary; the server revives the JSON fields).
+  createBuild: (body: { pipelineId: string; trigger?: any; inputs?: Record<string, any>; customerId?: string; zipFile?: File | null }) => {
+    if (body.zipFile) {
+      const fd = new FormData();
+      fd.append('pipelineId', body.pipelineId);
+      if (body.trigger) fd.append('trigger', JSON.stringify(body.trigger));
+      if (body.inputs) fd.append('inputs', JSON.stringify(body.inputs));
+      if (body.customerId) fd.append('customerId', body.customerId);
+      fd.append('workspace', body.zipFile);
+      return client.post<Build>('/api/builds', fd).then(r => r.data);
+    }
+    return client.post<Build>('/api/builds', {
+      pipelineId: body.pipelineId,
+      trigger: body.trigger,
+      inputs: body.inputs,
+      customerId: body.customerId,
+    }).then(r => r.data);
+  },
   listBuilds: (q: { pipelineId?: string; customerId?: string; status?: string; limit?: number; offset?: number } = {}) =>
     client.get<{ builds: Build[]; total: number }>('/api/builds', { params: q }).then(r => r.data),
   getBuild: (id: string) =>

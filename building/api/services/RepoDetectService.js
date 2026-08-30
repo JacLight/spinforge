@@ -29,9 +29,14 @@ const pexecFile = promisify(execFile);
 const CLONE_TIMEOUT_MS = Number(process.env.DETECT_CLONE_TIMEOUT_MS || 60_000);
 const DETECT_TIMEOUT_MS = Number(process.env.DETECT_TIMEOUT_MS || 90_000);
 
+const AiDetectService = require('./AiDetectService');
+
 class RepoDetectService {
-  constructor({ logger } = {}) {
+  constructor({ logger, ai } = {}) {
     this.logger = logger || console;
+    // AI-primary classification with Railpack as the deterministic fallback.
+    // Injected for tests; otherwise self-constructed (reads ANTHROPIC_API_KEY).
+    this.ai = ai || new AiDetectService({ logger: this.logger });
   }
 
   /**
@@ -58,13 +63,33 @@ class RepoDetectService {
         };
       }
 
+      // Railpack's deterministic read runs first and cheaply. It becomes the
+      // fallback classification and a hint to the AI pass.
       const info = await this._inspect(projectDir);
-      if (!info.ok) {
-        const subdirs = await this._candidateSubdirs(projectDir);
-        return subdirs.length ? { ...info, suggestedSubdirs: subdirs } : info;
+      const railpackClass = info.ok ? this._classify(info.plan, info.info) : null;
+
+      // AI-primary: Claude reads the actual project files and classifies.
+      // Works even when Railpack couldn't produce a plan (AI reads the tree
+      // directly). Any failure degrades to Railpack below.
+      let ai = null;
+      if (this.ai && this.ai.available) {
+        ai = await this.ai.classify({ projectDir, railpack: railpackClass });
+        if (ai && !ai.ok) {
+          this.logger.warn(`[detect] AI classify unavailable (${ai.error}); using Railpack`);
+        }
       }
 
-      return { ok: true, commit: cloned.commit, ...this._classify(info.plan, info.info) };
+      if (ai && ai.ok) {
+        return { ok: true, commit: cloned.commit, ...this._mergeAi(ai, railpackClass) };
+      }
+      if (railpackClass) {
+        return { ok: true, commit: cloned.commit, detectedBy: 'railpack', ...railpackClass };
+      }
+
+      // Neither AI nor Railpack could classify — surface Railpack's failure,
+      // plus the monorepo hint (name a subdirectory).
+      const subdirs = await this._candidateSubdirs(projectDir);
+      return subdirs.length ? { ...info, suggestedSubdirs: subdirs } : info;
     } finally {
       await fs.rm(work, { recursive: true, force: true }).catch(() => {});
     }
@@ -202,6 +227,37 @@ class RepoDetectService {
     };
   }
 
+
+  /**
+   * Reconcile the AI classification with Railpack's shape so downstream
+   * consumers see the same fields regardless of who classified. AI wins on
+   * type/commands; Railpack backfills anything the AI left null (providers,
+   * resolved package versions, output dir).
+   */
+  _mergeAi(ai, rp) {
+    const rpc = rp || {};
+    return {
+      type: ai.type,
+      outputDir: ai.outputDir != null
+        ? ai.outputDir
+        : (ai.type === 'static' ? (rpc.outputDir || null) : null),
+      startCommand: ai.startCommand
+        || (ai.type === 'container' ? (rpc.startCommand || null) : null),
+      installCommands: ai.installCommand ? [ai.installCommand] : (rpc.installCommands || []),
+      buildCommands: ai.buildCommand ? [ai.buildCommand] : (rpc.buildCommands || []),
+      runtime: ai.runtime || rpc.runtime || null,
+      packageManager: ai.packageManager || rpc.packageManager || null,
+      providers: rpc.providers || [],
+      resolvedPackages: rpc.resolvedPackages || {},
+      framework: ai.framework || null,
+      detectedBy: 'ai',
+      confidence: ai.confidence,
+      // Show both signals when they disagree so the UI isn't an oracle.
+      reason: rpc.type && rpc.type !== ai.type
+        ? `${ai.reason} (Railpack guessed ${rpc.type}; AI read the project files and chose ${ai.type}.)`
+        : ai.reason,
+    };
+  }
 
   /**
    * Turn Railpack's output into something a person can act on.

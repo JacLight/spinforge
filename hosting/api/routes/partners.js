@@ -248,6 +248,20 @@ router.post('/auth', async (req, res) => {
     'User-Agent': 'SpinForge-Partner-Auth/1.0',
   };
 
+  // Trace every attempt BEFORE we call the partner, so the admin console
+  // shows what was asked even if the partner endpoint hangs or is
+  // unreachable. Never log the customer token — only the derived orgid and
+  // the substituted URL params, which are safe to surface.
+  const attemptOrgid = urlTemplateVars.orgid || autoHeaders.orgid || null;
+  logger.info(
+    `[partners/auth] partner=${partner.id} ATTEMPT orgid=${attemptOrgid} url=${resolvedUrl}`
+  );
+  require('../utils/events').publish('partner.auth.attempt', partner.id, {
+    orgid: attemptOrgid,
+    url: resolvedUrl,
+    params: urlTemplateVars,
+  });
+
   let partnerResponse;
   try {
     const method = (partner.validationMethod || 'POST').toUpperCase();
@@ -262,7 +276,11 @@ router.post('/auth', async (req, res) => {
       validateStatus: (s) => s < 500,
     });
   } catch (err) {
-    logger.warn(`[partners/auth] partner=${partner.id} verify call failed: ${err.message}`);
+    logger.warn(`[partners/auth] partner=${partner.id} UNREACHABLE url=${resolvedUrl} error=${err.message}`);
+    require('../utils/events').publish('partner.auth.error', partner.id, {
+      url: resolvedUrl,
+      error: err.message,
+    }, 'error');
     return res.status(502).json({
       error: 'Could not reach partner validation endpoint',
       details: err.message,
@@ -280,11 +298,15 @@ router.post('/auth', async (req, res) => {
       typeof body === 'string' ? body.slice(0, 500)
       : JSON.stringify(body).slice(0, 500);
     logger.warn(
-      `[partners/auth] partner=${partner.id} REJECTED status=${partnerResponse.status} body=${bodyPreview}`
+      `[partners/auth] partner=${partner.id} REJECTED status=${partnerResponse.status} url=${resolvedUrl} body=${bodyPreview}`
     );
     require('../utils/events').publish('partner.auth.denied', partner.id, {
       status: partnerResponse.status,
       reason: body.reason || body.error || body.message || null,
+      // Surface WHAT was validated so the admin console row is self-explanatory
+      // (which dev-env/org 404'd) without cross-referencing the raw logs.
+      url: resolvedUrl,
+      params: urlTemplateVars,
     }, 'warn');
     return res.status(403).json({
       error: 'Partner did not allow this customer',
@@ -360,10 +382,21 @@ router.post('/auth', async (req, res) => {
     // customers (no partner) get the simpler `<productName>.spinforge.dev`
     // which happens on the /_api/customer/sites path, not here.
     const autoDomain = `${slugify(orgId)}-${slugify(projectName)}.spinforge.dev`;
+    // Never assume 'static'. This one-shot upsert only reserves the domain —
+    // there's no code to inspect yet. The project type is decided when the
+    // first real build runs (building-api detects static vs container with
+    // AI + Railpack and deploys accordingly). So: honor an explicit
+    // partner-supplied type, otherwise defer and mark awaitingFirstBuild so
+    // nothing is scheduled or mis-typed until that build sets the truth.
+    const partnerInput = { ...siteInput, domain: autoDomain };
+    if (!partnerInput.type) {
+      partnerInput.awaitingFirstBuild = true;
+      delete partnerInput.type; // deferred — first build detects and sets it
+    }
     try {
       siteResult = await upsertPartnerSite({
         customerId: spinforgeCustomerId,
-        input: { type: 'static', ...siteInput, domain: autoDomain },
+        input: partnerInput,
       });
     } catch (err) {
       logger.error('[partners/auth] site upsert failed:', err.message);
@@ -376,6 +409,8 @@ router.post('/auth', async (req, res) => {
   );
   require('../utils/events').publish('partner.auth.allowed', partner.id, {
     customerId: spinforgeCustomerId, orgId,
+    url: resolvedUrl,
+    status: partnerResponse.status,
   });
 
   res.json({
@@ -428,8 +463,11 @@ async function upsertPartnerSite({ customerId, input }) {
     updatedAt: now,
   };
 
-  // Schedule container/node workloads on Nomad.
-  if (site.type === 'container' || site.type === 'node') {
+  // Schedule container/node workloads on Nomad — but never before the first
+  // build has produced an image. A placeholder reserved at partner-auth time
+  // is marked awaitingFirstBuild; scheduling it would deploy a non-existent
+  // image. The deploy stage of the first build does the real scheduling.
+  if (!site.awaitingFirstBuild && (site.type === 'container' || site.type === 'node')) {
     const configChanged =
       !existing ||
       JSON.stringify(existing.containerConfig) !== JSON.stringify(site.containerConfig);

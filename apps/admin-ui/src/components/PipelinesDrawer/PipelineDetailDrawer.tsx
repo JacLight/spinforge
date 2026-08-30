@@ -23,6 +23,7 @@ import {
 } from '../../services/buildApi';
 import BuildDetailDrawer from './BuildDetailDrawer';
 import { useConfirm } from '../ConfirmModal';
+import { pickFile } from '../../utils/pickFile';
 
 function categoryIcon(category: string) {
   switch (category) {
@@ -128,9 +129,15 @@ export default function PipelineDetailDrawer({ isOpen, onClose, pipelineId, onEd
 
   async function handleRun() {
     if (!pipeline) return;
+    // Zip-source pipelines take the workspace archive at trigger time.
+    let zipFile: File | null = null;
+    if (pipeline.source?.type === 'zip') {
+      zipFile = await pickFile('.zip');
+      if (!zipFile) return; // user canceled the chooser
+    }
     setBusy(true);
     try {
-      const b = await buildApi.createBuild({ pipelineId: pipeline.id, trigger: { type: 'manual' } });
+      const b = await buildApi.createBuild({ pipelineId: pipeline.id, trigger: { type: 'manual' }, zipFile });
       // Show the new build immediately.
       setSelectedBuildId(b.id);
       setTab('builds');

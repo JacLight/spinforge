@@ -53,7 +53,10 @@ async function validateSfcToken(plaintext) {
 const authenticateCustomer = async (req, res, next) => {
   const header = req.headers['authorization'];
   const bearer = header && /^Bearer\s+(.+)$/i.exec(header);
-  const authToken = (bearer && bearer[1].trim()) || req.headers['x-auth-token'];
+  // Query-param fallback for EventSource / SSE (can't set an Authorization
+  // header). Only consulted when no header token is supplied.
+  const queryToken = req.query && (req.query.access_token || req.query.token);
+  const authToken = (bearer && bearer[1].trim()) || req.headers['x-auth-token'] || (queryToken && String(queryToken).trim());
 
   if (!authToken) {
     return res.status(401).json({ error: 'Authentication required' });

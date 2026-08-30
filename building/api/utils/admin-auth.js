@@ -61,9 +61,14 @@ function isPublicPath(reqPath) {
 // header is missing or doesn't match the Bearer scheme.
 function extractBearerToken(req) {
   const header = req.headers['authorization'];
-  if (!header) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(header);
-  return match ? match[1].trim() : null;
+  if (header) {
+    const match = /^Bearer\s+(.+)$/i.exec(header);
+    if (match) return match[1].trim();
+  }
+  // Fallback for EventSource / SSE, which cannot set an Authorization header:
+  // accept the token as a query param. Only used when no header is present.
+  const q = req.query && (req.query.access_token || req.query.token);
+  return q ? String(q).trim() : null;
 }
 
 /**

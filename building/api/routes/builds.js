@@ -16,10 +16,23 @@
  */
 
 const express = require('express');
+const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { UPLOADS_TMP } = require('../utils/constants');
+const { monitorLinks, streamBuild, streamStage } = require('../utils/buildMonitor');
 const router = express.Router();
+
+// A zip-source pipeline is built by uploading the workspace archive when the
+// build is triggered — same 500MB ceiling and temp dir the deployments route
+// uses. Multer only engages for multipart requests; the existing JSON callers
+// (git-source builds) fall straight through untouched.
+fs.mkdirSync(UPLOADS_TMP, { recursive: true });
+const upload = multer({
+  dest: UPLOADS_TMP,
+  limits: { fileSize: 500 * 1024 * 1024 },
+});
 
 // Outputs we treat as user-facing artifacts. Must match what the
 // PipelineDetailDrawer Artifacts tab surfaces.
@@ -28,15 +41,41 @@ const ARTIFACT_KEYS = new Set([
   'signedPath', 'archivePath', 'imageRef', 'url',
 ]);
 
-router.post('/', async (req, res, next) => {
+// Accept the workspace archive under any of these field names: `workspace`
+// (admin UI), `zip`, or `source` (external callers) — matching the
+// deployments route's convention.
+const buildUpload = upload.fields([
+  { name: 'workspace', maxCount: 1 },
+  { name: 'zip', maxCount: 1 },
+  { name: 'source', maxCount: 1 },
+]);
+
+router.post('/', buildUpload, async (req, res, next) => {
+  const uploaded = req.files && (req.files.workspace?.[0] || req.files.zip?.[0] || req.files.source?.[0]);
+  let tempPath = uploaded?.path || null;
   try {
-    const { pipelineId, trigger, inputs, customerId } = req.body || {};
+    let { pipelineId, trigger, inputs, customerId } = req.body || {};
+    // Multipart form fields arrive as strings — revive the JSON-encoded ones.
+    if (typeof trigger === 'string') { try { trigger = JSON.parse(trigger); } catch { /* leave as-is */ } }
+    if (typeof inputs === 'string')  { try { inputs = JSON.parse(inputs); } catch { /* leave as-is */ } }
     const build = await req.app.locals.builds.create({
       pipelineId, trigger, inputs, customerId,
+      uploadedZipPath: tempPath,
     });
-    res.status(201).json(build);
-  } catch (err) { next(err); }
+    tempPath = null; // create() has taken ownership of the temp file
+    // Hand back the id + how to monitor this deploy (poll URL, events, live
+    // SSE stream, terminal statuses) so the caller can track it to completion.
+    res.status(201).json({ ...build, monitor: monitorLinks(req, build) });
+  } catch (err) {
+    if (tempPath) { fs.unlink(tempPath, () => {}); }
+    next(err);
+  }
 });
+
+// ─── Live monitoring (SSE) ─────────────────────────────────────────────
+// EventSource can't set headers → authenticate with ?access_token=<token>.
+router.get('/:id/stream', (req, res) => streamBuild(req, res));
+router.get('/:id/stages/:stageId/stream', (req, res) => streamStage(req, res));
 
 router.get('/', async (req, res, next) => {
   try {

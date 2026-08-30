@@ -71,12 +71,15 @@ const slotKey = (n) => `buildslot:${n}`;
 const customerActiveKey = (cid) => `customer:${cid}:builds:active`;
 
 class BuildService {
-  constructor(redis, { logger, events, pipelines, actions, handlers } = {}) {
+  constructor(redis, { logger, events, pipelines, actions, handlers, nomadStop } = {}) {
     this.redis = redis;
     this.logger = logger || console;
     this.events = events || null;
     this.pipelines = pipelines;
     this.actions = actions;
+    // Stop a leaked stage job on cancel. Injected so tests can stub it and
+    // non-nomad deployments can omit it. Signature: ({buildId, stageId}) => Promise.
+    this.nomadStop = nomadStop || null;
     // Action-id → async handler function. Supplied from outside so
     // tests can inject stubs and server.js can wire real ones.
     this.handlers = handlers || new Map();
@@ -103,7 +106,7 @@ class BuildService {
 
   // ─── CRUD ─────────────────────────────────────────────────────────────
 
-  async create({ pipelineId, trigger = { type: 'manual' }, inputs = {}, customerId } = {}) {
+  async create({ pipelineId, trigger = { type: 'manual' }, inputs = {}, customerId, uploadedZipPath = null } = {}) {
     if (!pipelineId) throw bad('pipelineId required');
     const pipeline = await this.pipelines.get(pipelineId);
     if (!pipeline) throw notFound('pipeline_not_found');
@@ -115,6 +118,32 @@ class BuildService {
       'builds',
       id,
     );
+
+    // Resolve the source once — frozen into the record below and used to
+    // decide how the workspace gets populated. For a zip-source pipeline the
+    // archive is uploaded at trigger time and handed to us as
+    // `uploadedZipPath`; we stage it as <workspace>/workspace.zip, the exact
+    // spot the git branch of _populateSource produces one. From there on the
+    // build is source-agnostic: git and zip reach every stage identically.
+    const source = pipeline.source || { type: 'zip' };
+    if (source.type === 'zip') {
+      if (!uploadedZipPath) {
+        throw bad('zip source: upload a .zip archive when you trigger this build');
+      }
+      await fs.mkdir(workspace, { recursive: true });
+      const dest = path.join(workspace, 'workspace.zip');
+      try {
+        await fs.rename(uploadedZipPath, dest);
+      } catch {
+        // Temp upload can live on a different mount than the Ceph workspace
+        // root, so a cross-device rename fails EXDEV → fall back to copy.
+        await fs.copyFile(uploadedZipPath, dest);
+        await fs.rm(uploadedZipPath, { force: true }).catch(() => {});
+      }
+    } else if (uploadedZipPath) {
+      // A file was uploaded but this pipeline pulls from git — discard it.
+      await fs.rm(uploadedZipPath, { force: true }).catch(() => {});
+    }
 
     // Snapshot the pipeline's stages into the build. Later edits to the
     // pipeline don't rewrite this build's record — audit trail stays
@@ -150,11 +179,11 @@ class BuildService {
         // should use the source that was in effect at dispatch time,
         // not whatever the pipeline looks like now.
         type: pipeline.type || 'custom',
-        source: pipeline.source || { type: 'zip' },
+        source,
       },
       // Hoist source to the top level for convenient access in _populateSource
       // without reaching into the snapshot each time.
-      source: pipeline.source || { type: 'zip' },
+      source,
       type: pipeline.type || 'custom',
       trigger,
       inputs,            // build-level inputs, referenceable as ${inputs.foo}
@@ -605,13 +634,13 @@ class BuildService {
     await fs.mkdir(workspace, { recursive: true });
 
     if (source.type === 'zip') {
-      // Expect a `workspace.zip` to have been placed under the build
-      // workspace by the upload route. Once that route exists, this
-      // branch will extract it; for now, we just verify presence or
-      // emit a neutral "waiting for upload" signal.
+      // The archive was uploaded when the build was triggered and staged as
+      // <workspace>/workspace.zip by create(). Extract it in place — stages
+      // run under subdirs keyed by stageId, so the unpacked project sitting
+      // at the workspace root is fine.
       const zip = path.join(workspace, 'workspace.zip');
       if (!fsSync.existsSync(zip)) {
-        throw new Error(`zip source: expected workspace.zip at ${zip} (upload route not yet wired; place the archive manually or switch the pipeline to git source)`);
+        throw new Error(`zip source: no workspace.zip at ${zip} — upload a .zip archive when you trigger the build`);
       }
       // Extract in place — stages run under subdirs keyed by stageId,
       // so putting the unpacked project at the workspace root is fine.
@@ -757,8 +786,11 @@ class BuildService {
     build.status = 'canceled';
     build.completedAt = new Date().toISOString();
     build.error = reason;
+    // Stages that were actually in-flight — these may have a live Nomad job.
+    const running = [];
     for (const s of build.stages) {
       if (s.status === 'pending' || s.status === 'running') {
+        if (s.status === 'running') running.push(s);
         s.status = 'skipped';
         s.completedAt = s.completedAt || build.completedAt;
         s.error = s.error || 'canceled';
@@ -766,6 +798,16 @@ class BuildService {
     }
     await this.redis.set(`build:${buildId}`, JSON.stringify(build));
     await this._emitBuild(buildId, 'build.canceled', { reason });
+
+    // Reap the Nomad job(s). Without this the alloc keeps running after the
+    // build record goes terminal — an orphan that polls "alloc is running"
+    // forever and never frees its build slot. Best-effort and idempotent.
+    if (this.nomadStop) {
+      await Promise.all(running.map((s) =>
+        Promise.resolve(this.nomadStop({ buildId, stageId: s.id }))
+          .catch((err) => this.logger.warn(`[builds] cancel: stop stage ${s.id} failed: ${err.message}`))
+      ));
+    }
     return build;
   }
 
@@ -781,6 +823,37 @@ class BuildService {
 
   async recentStageLog(buildId, stageId, limit = 500) {
     return xrev(this.redis, `build:${buildId}:stage:${stageId}:log`, limit);
+  }
+
+  // ─── Blocking tails (for SSE live-tail) ──────────────────────────────
+  // Each returns { events|lines, lastId }. Pass a DEDICATED client
+  // (redis.duplicate()) — the shared client must never block.
+
+  async tailStream(key, lastId = '$', { limit = 200, blockMs = 5000, client } = {}) {
+    const r = client || this.redis;
+    try {
+      const res = await r.xRead({ key, id: lastId }, { COUNT: limit, BLOCK: blockMs });
+      if (!res) return { rows: [], lastId };
+      const messages = (res[0] && res[0].messages) || [];
+      const rows = messages.map((m) => ({ id: m.id, ...m.message }));
+      const newLast = rows.length ? rows[rows.length - 1].id : lastId;
+      return { rows, lastId: newLast };
+    } catch (err) {
+      this.logger.error(`[build tail ${key}] ${err.message}`);
+      return { rows: [], lastId };
+    }
+  }
+
+  tailBuildEvents(id, lastId, opts) {
+    return this.tailStream(`build:${id}:events`, lastId, opts);
+  }
+
+  tailStageEvents(buildId, stageId, lastId, opts) {
+    return this.tailStream(`build:${buildId}:stage:${stageId}:events`, lastId, opts);
+  }
+
+  tailStageLog(buildId, stageId, lastId, opts) {
+    return this.tailStream(`build:${buildId}:stage:${stageId}:log`, lastId, opts);
   }
 
   // ─── Internal ─────────────────────────────────────────────────────────

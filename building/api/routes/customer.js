@@ -32,8 +32,29 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const multer = require('multer');
+const { UPLOADS_TMP } = require('../utils/constants');
+const { monitorLinks, streamBuild, streamStage } = require('../utils/buildMonitor');
 
 const router = express.Router();
+
+// A zip-source pipeline is built by uploading the workspace archive when the
+// build is triggered - the same 500MB ceiling and temp dir the admin builds
+// route uses. Multer only engages for multipart requests, so existing JSON
+// callers (git-source builds) fall straight through untouched.
+fs.mkdirSync(UPLOADS_TMP, { recursive: true });
+const upload = multer({
+  dest: UPLOADS_TMP,
+  limits: { fileSize: 500 * 1024 * 1024 },
+});
+
+// Accept the workspace archive under any of these field names, matching the
+// admin builds route's convention.
+const buildUpload = upload.fields([
+  { name: 'workspace', maxCount: 1 },
+  { name: 'zip', maxCount: 1 },
+  { name: 'source', maxCount: 1 },
+]);
 
 const ARTIFACT_KEYS = new Set([
   'artifactPath', 'artifactZip', 'ipaPath', 'aab', 'apkPath',
@@ -217,6 +238,13 @@ router.post('/pipelines/auto', async (req, res, next) => {
       domain: domain || 'build-only.invalid',
       rootDir: rootDir || '.',
       aliases: [],
+      // Thread the detector's verdict into the build stage so the AI-derived
+      // install/build commands and output dir actually drive the build,
+      // instead of the hardcoded `npm ci && npm run build` / `dist`.
+      installCommand: detected.installCommands ? detected.installCommands.join(' && ') : null,
+      buildCommand: detected.buildCommands ? detected.buildCommands.join(' && ') : null,
+      outputDir: detected.outputDir || null,
+      startCommand: detected.startCommand || null,
     });
     if (buildOnly) stages = stages.filter((st) => st.id === 'build').map((st) => ({ ...st, needs: [] }));
 
@@ -341,9 +369,14 @@ router.get('/builds', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/builds', async (req, res, next) => {
+router.post('/builds', buildUpload, async (req, res, next) => {
+  const uploaded = req.files && (req.files.workspace?.[0] || req.files.zip?.[0] || req.files.source?.[0]);
+  let tempPath = uploaded?.path || null;
   try {
-    const { pipelineId, trigger, inputs } = req.body || {};
+    let { pipelineId, trigger, inputs } = req.body || {};
+    // Multipart form fields arrive as strings - revive the JSON-encoded ones.
+    if (typeof trigger === 'string') { try { trigger = JSON.parse(trigger); } catch (e) { /* leave as-is */ } }
+    if (typeof inputs === 'string')  { try { inputs = JSON.parse(inputs); } catch (e) { /* leave as-is */ } }
     // Confirm the pipeline belongs to this customer before kicking off a build.
     const pipeline = pipelineId ? await req.app.locals.pipelines.get(pipelineId) : null;
     if (!pipeline) return res.status(404).json({ error: 'pipeline_not_found' });
@@ -352,9 +385,16 @@ router.post('/builds', async (req, res, next) => {
     }
     const build = await req.app.locals.builds.create({
       pipelineId, trigger, inputs, customerId: req.customerId,
+      uploadedZipPath: tempPath,
     });
-    res.status(201).json(build);
-  } catch (err) { next(err); }
+    tempPath = null; // create() has taken ownership of the temp file
+    // Return the id + how to monitor this deploy over the internet (poll URL,
+    // events, live SSE stream, terminal statuses).
+    res.status(201).json({ ...build, monitor: monitorLinks(req, build) });
+  } catch (err) {
+    if (tempPath) { fs.unlink(tempPath, function () {}); }
+    next(err);
+  }
 });
 
 async function loadOwnedBuild(req, res) {
@@ -406,6 +446,14 @@ router.get('/builds/:id/events', async (req, res, next) => {
     res.json({ buildId: req.params.id, events });
   } catch (err) { next(err); }
 });
+
+// ─── Live monitoring (SSE) ─────────────────────────────────────────────
+// EventSource can't set headers → authenticate with ?access_token=<token>.
+// The ownership guard mirrors loadOwnedBuild (a build from another customer
+// is indistinguishable from a missing one).
+const ownsBuild = (req, build) => build.customerId === req.customerId;
+router.get('/builds/:id/stream', (req, res) => streamBuild(req, res, { authorize: ownsBuild }));
+router.get('/builds/:id/stages/:stageId/stream', (req, res) => streamStage(req, res, { authorize: ownsBuild }));
 
 router.get('/builds/:id/stages/:stageId', async (req, res, next) => {
   try {

@@ -5,142 +5,80 @@
  * This software is licensed under the MIT License.
  * See the LICENSE file in the root directory for details.
  */
-import Link from "next/link";
-import { Rocket, Globe, Container, Shield, Plug, LifeBuoy, ArrowRight, Upload, Code } from "lucide-react";
+import {
+  ArrowRight,
+  Boxes,
+  Code,
+  FileArchive,
+  GitBranch,
+  Globe,
+  Lock,
+  RotateCcw,
+  Rocket,
+  Terminal,
+  Workflow,
+} from "lucide-react";
+import { SiteShell } from "@/components/site/Site";
 
-export default function DocsHomePage() {
+const CSS = `
+.sf .qs{margin:44px auto 0;max-width:640px;border-radius:16px;overflow:hidden;border:1px solid #2a231c;background:#1b1611;box-shadow:0 30px 70px -50px rgba(23,18,14,.5)}
+.sf .qs .qbar{display:flex;align-items:center;gap:8px;padding:12px 15px;border-bottom:1px solid #2c251f;background:#211c18}
+.sf .qs .qbar .tl{width:11px;height:11px;border-radius:50%}
+.sf .qs .qbar .lbl{margin-left:6px;font-family:var(--mono);font-size:11px;color:#9a8f83}
+.sf .qs .qbody{padding:20px 22px;font-family:var(--mono);font-size:13.5px;line-height:2;text-align:left}
+.sf .qs .qbody .pr{color:var(--ember)}
+.sf .qs .qbody .cm{color:#8a8078}
+.sf .qs .qbody .wt{color:#f3ede4}
+.sf .qs .qbody .ok{color:#5fd39a}
+.sf .qs .qbody .url{color:var(--forge)}
+.sf .doclead{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin:0 0 18px}
+`;
+
+const CATS = [
+  { icon: Rocket, t: "Quickstart", d: "Install the CLI, log in, and deploy your first app in one command.", href: "/docs/quick-start" },
+  { icon: GitBranch, t: "Deploy from Git", d: "Connect a repo — SpinForge detects the framework and builds it.", href: "/docs/deployment/manifest" },
+  { icon: FileArchive, t: "Deploy from Zip", d: "Upload an archive of your project or built assets. Same pipeline.", href: "/docs/deployment/static-sites" },
+  { icon: Terminal, t: "CLI reference", d: "Every command, flag, and workflow for deploying from your terminal.", href: "/docs/cli" },
+  { icon: Globe, t: "Custom domains & TLS", d: "Point a domain at your app; certificates are issued automatically.", href: "/docs/deployment/custom-domains" },
+  { icon: Lock, t: "Environment & secrets", d: "Manage runtime environment variables and encrypted secrets.", href: "/docs/deployment/env-vars" },
+  { icon: Workflow, t: "Build pipelines", d: "Stages, caching, and reproducible builds from Git or a zip.", href: "/docs/pipelines" },
+  { icon: Boxes, t: "Containers", d: "Run your own image on isolated containers with private networking.", href: "/docs/deployment/containers" },
+  { icon: RotateCcw, t: "Rollbacks & previews", d: "Versioned artifacts, one-click rollback, and preview deploys.", href: "/docs/rollbacks" },
+  { icon: Code, t: "API reference", d: "Drive deployments, sites, and containers over the REST API.", href: "/docs/api" },
+];
+
+export default function DocsPage() {
   return (
-    <div className="prose prose-gray max-w-none">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">SpinForge Documentation</h1>
-      <p className="text-lg text-gray-600 mb-8">
-        SpinForge hosts static sites, reverse proxies, Docker containers, and load balancers behind a
-        single HTTP API and an admin UI. There is no CLI, no build step on our side, and no opt-in for
-        HTTPS. You ship an artifact or an image, we route traffic to it.
-      </p>
+    <SiteShell active="docs">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose mb-10">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center mb-2">
-            <Globe className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Public API</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">
-            <code className="bg-gray-100 px-2 py-0.5 rounded">https://api.spinforge.dev</code>
-          </p>
+      {/* Docs index */}
+      <section className="blk wrap" style={{ paddingTop: 104 }}>
+        <span className="eyebrow" data-reveal="1">Documentation</span>
+        <h2 data-reveal="1" style={{ fontSize: "clamp(30px,4vw,46px)", marginTop: 14 }}>Browse the docs</h2>
+        <div className="grid3" style={{ marginTop: 36 }}>
+          {CATS.map((c) => (
+            <a className="fcard" href={c.href} key={c.t} data-reveal="1">
+              <span className="ic"><c.icon size={20} /></span>
+              <h4>{c.t}</h4>
+              <p>{c.d}</p>
+            </a>
+          ))}
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center mb-2">
-            <Shield className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Admin UI</h3>
+      </section>
+
+      {/* CTA */}
+      <section className="wrap" style={{ paddingBottom: 110 }}>
+        <div className="cta" data-reveal="1">
+          <div className="cgrain" />
+          <h2>Nothing to configure. Just deploy.</h2>
+          <p>Create an account and push your first app — the docs are here when you need them.</p>
+          <div className="cta-row">
+            <a className="btn-white" href="/signup">Get started free <ArrowRight size={16} strokeWidth={2.4} /></a>
+            <a className="btn-clear" href="/docs/quick-start">Read the quickstart</a>
           </div>
-          <p className="text-sm text-gray-600 mb-0">
-            <code className="bg-gray-100 px-2 py-0.5 rounded">https://admin.spinforge.dev</code>
-          </p>
         </div>
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Start here</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose mb-10">
-        <Link href="/docs/quick-start" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-          <div className="flex items-center mb-2">
-            <Rocket className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Quick Start</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">Deploy a hello-world static site in under 5 minutes.</p>
-        </Link>
-        <Link href="/docs/concepts/how-it-works" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-          <div className="flex items-center mb-2">
-            <Code className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">How it works</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">OpenResty at the edge, Redis for routing, Nomad for containers.</p>
-        </Link>
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Deployment guides</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose mb-10">
-        <Link href="/docs/deployment/static-sites" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-          <div className="flex items-center mb-2">
-            <Upload className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Static Sites</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">Upload a zip of pre-built assets.</p>
-        </Link>
-        <Link href="/docs/deployment/containers" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-          <div className="flex items-center mb-2">
-            <Container className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Containers</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">Run a Docker image on our Nomad cluster.</p>
-        </Link>
-        <Link href="/docs/deployment/proxy" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-          <div className="flex items-center mb-2">
-            <Globe className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Proxy & Load Balancer</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">Route to external origins or weighted backend pools.</p>
-        </Link>
-        <Link href="/docs/deployment/custom-domains" className="bg-white p-6 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all">
-          <div className="flex items-center mb-2">
-            <Shield className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900 mb-0">Custom Domains & SSL</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-0">Bring your own domain. Let&apos;s Encrypt is automatic.</p>
-        </Link>
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">For platform partners</h2>
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6 mb-10 not-prose">
-        <div className="flex items-center mb-2">
-          <Plug className="h-5 w-5 text-indigo-600 mr-2" />
-          <h3 className="font-semibold text-indigo-900 mb-0">Resell SpinForge to your users</h3>
-        </div>
-        <p className="text-sm text-indigo-900 mb-3">
-          One exchange call turns an opaque token from your product into a SpinForge customer session,
-          and optionally upserts a site in the same request.
-        </p>
-        <Link href="/docs/partners" className="text-indigo-700 underline text-sm">
-          Read the partner integration guide
-        </Link>
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">API reference</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 not-prose mb-10">
-        <Link href="/docs/api" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          API Overview <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-        <Link href="/docs/api/authentication" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          Authentication <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-        <Link href="/docs/api/sites" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          Sites <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-        <Link href="/docs/api/containers" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          Containers <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-        <Link href="/docs/api/certificates" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          Certificates <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-        <Link href="/docs/api/health" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          Health <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-        <Link href="/docs/api/metrics" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          Metrics <ArrowRight className="h-3 w-3 ml-1" />
-        </Link>
-      </div>
-
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 not-prose">
-        <div className="flex items-center mb-2">
-          <LifeBuoy className="h-5 w-5 text-gray-600 mr-2" />
-          <h3 className="font-semibold text-gray-900 mb-0">Stuck?</h3>
-        </div>
-        <p className="text-sm text-gray-600 mb-2">
-          Most deploy problems fall into a handful of patterns. Our troubleshooting guide covers them.
-        </p>
-        <Link href="/docs/troubleshooting" className="text-indigo-600 underline text-sm">
-          Troubleshooting
-        </Link>
-      </div>
-    </div>
+      </section>
+    </SiteShell>
   );
 }

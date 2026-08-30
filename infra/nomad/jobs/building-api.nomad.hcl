@@ -65,7 +65,7 @@ job "building-api" {
       }
 
       config {
-        image = "192.168.88.171:5000/spinforge/building-api:autobuild-20260813070234"
+        image = "192.168.88.171:5000/spinforge/building-api:aidetect-20260829212243"
         ports = ["http"]
       }
 
@@ -120,6 +120,12 @@ EOT
         WORKSPACE_ROOT       = "/data/workspaces"
         ARTIFACT_ROOT        = "/data/artifacts"
         NODE_ENV             = "production"
+
+        # AI project-type detection: containers carry no `claude` binary or
+        # key — they POST the project snapshot to the detection sidecar (an
+        # authed Claude Code on .170) which classifies static vs container and
+        # returns the build commands. Falls back to Railpack if unreachable.
+        SPINFORGE_DETECT_URL = "http://192.168.88.170:9095/detect"
 
         # Static builds go through Railpack + BuildKit: it detects the
         # package manager, toolchain version and output directory per

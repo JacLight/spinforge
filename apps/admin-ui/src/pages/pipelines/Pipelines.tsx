@@ -17,6 +17,7 @@ import PipelineDetailDrawer from '../../components/PipelinesDrawer/PipelineDetai
 import BuildDetailDrawer from '../../components/PipelinesDrawer/BuildDetailDrawer';
 import AutoPipelineDrawer from '../../components/PipelinesDrawer/AutoPipelineDrawer';
 import { useConfirm } from '../../components/ConfirmModal';
+import { pickFile } from '../../utils/pickFile';
 
 export default function Pipelines() {
   // Auto Pipeline — Railpack reads the repo so nobody configures stages.
@@ -111,9 +112,17 @@ export default function Pipelines() {
   }
 
   async function handleRun(p: Pipeline) {
+    // A zip-source pipeline needs the workspace archive supplied at trigger
+    // time — ask for it before we mark the row busy so a canceled chooser
+    // just no-ops.
+    let zipFile: File | null = null;
+    if (p.source?.type === 'zip') {
+      zipFile = await pickFile('.zip');
+      if (!zipFile) return; // user canceled the chooser
+    }
     setBusyId(p.id);
     try {
-      const b = await buildApi.createBuild({ pipelineId: p.id, trigger: { type: 'manual' } });
+      const b = await buildApi.createBuild({ pipelineId: p.id, trigger: { type: 'manual' }, zipFile });
       setRunBuildId(b.id);
     } catch (e: any) {
       setErr(friendlyError(e));
